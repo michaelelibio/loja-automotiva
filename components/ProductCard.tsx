@@ -1,16 +1,17 @@
 import { ArrowUpRightIcon } from './Icons';
 import type { Product } from '@/data/products';
+import Link from 'next/link';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function ProductCard({ product }: { product: Product }) {
   return (
-    <article className="product-card">
+    <Link className="product-card" href={`/produtos/${product.slug}`}>
       <div className="product-image" style={{ backgroundImage: `url(${product.image})`, backgroundColor: product.accent }}>
         <span className="product-category">{product.category}</span>
-        <button type="button" className="product-link" aria-label={`Ver ${product.name}`} title={`Ver ${product.name}`}>
+        <span className="product-link" aria-hidden="true">
           <ArrowUpRightIcon />
-        </button>
+        </span>
       </div>
       <div className="product-info">
         <h3>{product.name}</h3>
@@ -19,6 +20,6 @@ export function ProductCard({ product }: { product: Product }) {
           {product.oldPrice && <span>{currency.format(product.oldPrice)}</span>}
         </div>
       </div>
-    </article>
+    </Link>
   );
 }
