@@ -1,13 +1,7 @@
 import { ArrowUpRightIcon } from './Icons';
+import type { Product } from '@/data/products';
 
-export type Product = {
-  name: string;
-  category: string;
-  price: string;
-  oldPrice?: string;
-  accent: string;
-  image: string;
-};
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function ProductCard({ product }: { product: Product }) {
   return (
@@ -21,8 +15,8 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="product-info">
         <h3>{product.name}</h3>
         <div className="price-row">
-          <strong>{product.price}</strong>
-          {product.oldPrice && <span>{product.oldPrice}</span>}
+          <strong>{currency.format(product.price)}</strong>
+          {product.oldPrice && <span>{currency.format(product.oldPrice)}</span>}
         </div>
       </div>
     </article>
