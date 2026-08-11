@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Manrope, Space_Grotesk } from 'next/font/google';
+import { CartProvider } from '@/context/CartContext';
 import './globals.css';
 
 const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' });
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${manrope.variable} ${spaceGrotesk.variable}`}>{children}</body>
+      <body className={`${manrope.variable} ${spaceGrotesk.variable}`}><CartProvider>{children}</CartProvider></body>
     </html>
   );
 }

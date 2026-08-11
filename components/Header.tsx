@@ -1,17 +1,23 @@
+'use client';
+
+import Link from 'next/link';
+import { useCart } from '@/context/CartContext';
 import { CartIcon, SearchIcon } from './Icons';
 
 export function Header() {
+  const { totalItems } = useCart();
+
   return (
     <header className="site-header">
-      <a className="brand" href="/" aria-label="GARAGE início">
+      <Link className="brand" href="/" aria-label="GARAGE início">
         <span className="brand-mark">G</span>
         <span>GARAGE<span className="brand-dot">.</span></span>
-      </a>
+      </Link>
 
       <nav className="main-nav" aria-label="Navegação principal">
-        <a href="/produtos">Produtos</a>
-        <a href="/#kits">Kits</a>
-        <a href="/#contato">Contato</a>
+        <Link href="/produtos">Produtos</Link>
+        <Link href="/#kits">Kits</Link>
+        <Link href="/#contato">Contato</Link>
       </nav>
 
       <div className="header-actions">
@@ -19,10 +25,10 @@ export function Header() {
           <SearchIcon />
           <input type="search" placeholder="Buscar produto" aria-label="Buscar produto" />
         </label>
-        <button className="cart-button" type="button" aria-label="Abrir carrinho" title="Carrinho">
+        <Link className="cart-button" href="/carrinho" aria-label="Abrir carrinho" title="Carrinho">
           <CartIcon />
-          <span className="cart-count">0</span>
-        </button>
+          <span className="cart-count">{totalItems}</span>
+        </Link>
       </div>
     </header>
   );

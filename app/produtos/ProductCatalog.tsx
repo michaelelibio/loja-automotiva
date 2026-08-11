@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ProductCard } from '@/components/ProductCard';
 import { products } from '@/data/products';
+import { normalizeText } from '@/lib/text';
 
 type PriceFilter = 'all' | 'under-50' | '50-100' | 'over-100';
 type SortOption = 'featured' | 'lowest' | 'highest';
@@ -17,8 +18,11 @@ export function ProductCatalog() {
 
   const filteredProducts = products
     .filter((product) => {
-      const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = category === 'Todas' || product.category === category;
+      const normalizedSearch = normalizeText(search);
+      const searchableText = normalizeText(`${product.name} ${product.category} ${product.description}`);
+      const searchTerms = normalizedSearch.split(' ').filter(Boolean);
+      const matchesSearch = searchTerms.every((term) => searchableText.includes(term));
+      const matchesCategory = category === 'Todas' || normalizeText(product.category) === normalizeText(category);
       const matchesPrice = price === 'all'
         || (price === 'under-50' && product.price < 50)
         || (price === '50-100' && product.price >= 50 && product.price <= 100)

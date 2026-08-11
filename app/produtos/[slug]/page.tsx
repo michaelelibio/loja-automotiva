@@ -46,7 +46,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <p className="product-description">{product.description}</p>
             <div className="detail-price"><strong>{formatPrice(product.price)}</strong>{product.oldPrice && <span>{formatPrice(product.oldPrice)}</span>}</div>
             <p className={`stock-status ${product.stock > 0 ? 'available' : 'unavailable'}`}><span />{product.stock > 0 ? `Em estoque · ${product.stock} unidades disponíveis` : 'Produto indisponível'}</p>
-            <ProductPurchase available={product.stock > 0} />
+            <ProductPurchase product={product} available={product.stock > 0} />
             <div className="detail-description"><p>{product.longDescription}</p></div>
             <div className="features"><h2>Principais características</h2><ul>{product.features.map((feature) => <li key={feature}>{feature}</li>)}</ul></div>
           </div>
