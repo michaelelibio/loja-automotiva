@@ -33,7 +33,7 @@ export function CartView() {
           </article>
         ))}
       </div>
-      <aside className="cart-summary"><div><span>Subtotal geral</span><strong>{currency.format(total)}</strong></div><button type="button" className="add-cart-button">Finalizar compra <span>↗</span></button><Link className="text-link" href="/produtos">Continuar comprando <span>↗</span></Link></aside>
+      <aside className="cart-summary"><div><span>Subtotal geral</span><strong>{currency.format(total)}</strong></div><Link className="add-cart-button" href="/checkout">Finalizar compra <span>↗</span></Link><Link className="text-link" href="/produtos">Continuar comprando <span>↗</span></Link></aside>
     </section>
   );
 }
