@@ -3,24 +3,34 @@ import Link from 'next/link';
 import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/data/products';
+import { fetchProductBySlug, fetchProducts } from '@/lib/products';
+import { products as fallbackProducts } from '@/data/products';
 import { ProductPurchase } from './ProductPurchase';
 
 type ProductPageProps = {
-  params: Promise<{ slug: string }>;
+  params: { slug: string };
 };
 
-export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
-}
-
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { slug } = await params;
-  const product = products.find((item) => item.slug === slug);
+  const { slug } = params;
+
+  let product = null;
+  let apiError = false;
+
+  try {
+    product = await fetchProductBySlug(slug);
+  } catch {
+    apiError = true;
+  }
+
+  if (!product) {
+    product = fallbackProducts.find((item) => item.slug === slug) ?? null;
+  }
 
   if (!product) notFound();
 
-  const relatedProducts = products
+  const relatedProductsSource = await fetchProducts().catch(() => fallbackProducts);
+  const relatedProducts = relatedProductsSource
     .filter((item) => item.category === product.category && item.id !== product.id)
     .slice(0, 4);
 
@@ -32,6 +42,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <Link href="/">Início</Link><span>/</span><Link href="/produtos">Produtos</Link><span>/</span><strong>{product.name}</strong>
         </nav>
 
+        {apiError && <div className="api-error-banner">Não foi possível carregar detalhes do produto da API. Exibindo dados locais em modo de fallback.</div>}
         <section className="product-detail" aria-labelledby="product-title">
           <div className="product-gallery">
             <div className="product-main-image" style={{ backgroundImage: `url(${product.images[0]})`, backgroundColor: product.accent }} aria-label={`Imagem de ${product.name}`} role="img" />

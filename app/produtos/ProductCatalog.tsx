@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/data/products';
+import type { Product } from '@/lib/products';
 import { normalizeText } from '@/lib/text';
 
 type PriceFilter = 'all' | 'under-50' | '50-100' | 'over-100';
@@ -10,7 +10,7 @@ type SortOption = 'featured' | 'lowest' | 'highest';
 
 const categories = ['Todas', 'Lavagem', 'Proteção', 'Detalhamento', 'Acessórios'] as const;
 
-export function ProductCatalog() {
+export function ProductCatalog({ products }: { products: Product[] }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<(typeof categories)[number]>('Todas');
   const [price, setPrice] = useState<PriceFilter>('all');

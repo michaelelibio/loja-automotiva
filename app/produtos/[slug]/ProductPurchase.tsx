@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import type { Product } from '@/data/products';
+import type { Product } from '@/lib/products';
 import { useCart } from '@/context/CartContext';
 
 export function ProductPurchase({ product, available }: { product: Product; available: boolean }) {

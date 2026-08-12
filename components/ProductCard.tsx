@@ -1,5 +1,5 @@
 import { ArrowUpRightIcon } from './Icons';
-import type { Product } from '@/data/products';
+import type { Product } from '@/lib/products';
 import Link from 'next/link';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });

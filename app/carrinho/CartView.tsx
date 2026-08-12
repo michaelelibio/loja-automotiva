@@ -3,15 +3,18 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/context/CartContext';
-import { products } from '@/data/products';
+import { useProducts } from '@/lib/useProducts';
+import { products as fallbackProducts } from '@/data/products';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function CartView() {
   const { items, increaseItem, decreaseItem, removeItem } = useCart();
+  const { products, error } = useProducts();
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
+  const availableProducts = error ? fallbackProducts : products.length > 0 ? products : fallbackProducts;
   const cartProducts = items.flatMap((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId);
+    const product = availableProducts.find((candidate) => candidate.id === item.productId);
     return product ? [{ ...item, product }] : [];
   });
   const total = cartProducts.reduce((sum, item) => sum + item.product.price * item.quantity, 0);

@@ -1,19 +1,4 @@
-export type Product = {
-  id: string;
-  slug: string;
-  name: string;
-  category: 'Lavagem' | 'Proteção' | 'Detalhamento' | 'Acessórios';
-  price: number;
-  oldPrice?: number;
-  description: string;
-  longDescription: string;
-  features: string[];
-  stock: number;
-  accent: string;
-  image: string;
-  images: string[];
-  featured?: boolean;
-};
+import type { Product } from '@/lib/products';
 
 export const products: Product[] = [
   { id: 'shampoo-neutro-pro', slug: 'shampoo-neutro-pro', name: 'Shampoo Neutro Pro', category: 'Lavagem', price: 49.9, description: 'Limpeza profunda sem remover a proteção da pintura.', longDescription: 'O Shampoo Neutro Pro combina alto poder de limpeza com uma fórmula equilibrada para a rotina. Sua espuma envolve a sujeira e facilita o enxágue, deixando a superfície pronta para o próximo passo do cuidado.', features: ['pH neutro para uso frequente', 'Alto rendimento e espuma cremosa', 'Seguro para ceras e selantes'], stock: 18, accent: '#b5c4c3', image: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&w=900&q=85', images: ['https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&w=900&q=85'], featured: true },

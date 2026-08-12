@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useCart } from '@/context/CartContext';
-import { products } from '@/data/products';
+import { useProducts } from '@/lib/useProducts';
+import { products as fallbackProducts } from '@/data/products';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -77,18 +78,21 @@ function isCepValid(value: string) {
 
 export function CheckoutForm() {
   const { items } = useCart();
+  const { products, error } = useProducts();
   const [form, setForm] = useState<FormState>(initialForm);
   const [selectedShipping, setSelectedShipping] = useState<ShippingOption>(shippingOptions[0]);
   const [selectedPayment, setSelectedPayment] = useState(paymentOptions[0].id);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState('');
 
+  const availableProducts = error ? fallbackProducts : products.length > 0 ? products : fallbackProducts;
+
   const cartProducts = useMemo(
     () => items.flatMap((item) => {
-      const product = products.find((candidate) => candidate.id === item.productId);
+      const product = availableProducts.find((candidate) => candidate.id === item.productId);
       return product ? [{ ...item, product }] : [];
     }),
-    [items],
+    [items, availableProducts],
   );
 
   const productsSubtotal = useMemo(

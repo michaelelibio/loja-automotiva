@@ -2,9 +2,20 @@ import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { ArrowUpRightIcon } from '@/components/Icons';
 import { ProductCard } from '@/components/ProductCard';
-import { products } from '@/data/products';
+import { fetchProducts } from '@/lib/products';
+import { products as fallbackProducts } from '@/data/products';
 
-export default function Home() {
+export default async function Home() {
+  let products = fallbackProducts;
+
+  let apiError = false;
+
+  try {
+    products = await fetchProducts();
+  } catch {
+    apiError = true;
+  }
+
   return (
     <main id="top">
       <Header />
@@ -26,6 +37,7 @@ export default function Home() {
 
       <section className="products-section" id="produtos" aria-labelledby="products-title">
         <div className="section-heading"><div><p className="eyebrow">Escolhas da casa</p><h2 id="products-title">Produtos em destaque</h2></div><a className="text-link desktop-link" href="/produtos">Ver todos <ArrowUpRightIcon /></a></div>
+        {apiError && <div className="api-error-banner">Não foi possível carregar produtos da API. Exibindo dados locais em modo de fallback.</div>}
         <div className="products-grid">{products.filter((product) => product.featured).map((product) => <ProductCard key={product.id} product={product} />)}</div>
         <a className="text-link mobile-link" href="/produtos">Ver todos os produtos <ArrowUpRightIcon /></a>
       </section>
