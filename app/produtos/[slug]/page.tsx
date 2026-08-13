@@ -4,32 +4,26 @@ import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { ProductCard } from '@/components/ProductCard';
 import { fetchProductBySlug, fetchProducts } from '@/lib/products';
-import { products as fallbackProducts } from '@/data/products';
 import { ProductPurchase } from './ProductPurchase';
 
 type ProductPageProps = {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 };
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { slug } = params;
+  const { slug } = await params;
 
   let product = null;
-  let apiError = false;
 
   try {
     product = await fetchProductBySlug(slug);
   } catch {
-    apiError = true;
-  }
-
-  if (!product) {
-    product = fallbackProducts.find((item) => item.slug === slug) ?? null;
+    product = null;
   }
 
   if (!product) notFound();
 
-  const relatedProductsSource = await fetchProducts().catch(() => fallbackProducts);
+  const relatedProductsSource = await fetchProducts().catch(() => []);
   const relatedProducts = relatedProductsSource
     .filter((item) => item.category === product.category && item.id !== product.id)
     .slice(0, 4);
@@ -42,7 +36,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <Link href="/">Início</Link><span>/</span><Link href="/produtos">Produtos</Link><span>/</span><strong>{product.name}</strong>
         </nav>
 
-        {apiError && <div className="api-error-banner">Não foi possível carregar detalhes do produto da API. Exibindo dados locais em modo de fallback.</div>}
         <section className="product-detail" aria-labelledby="product-title">
           <div className="product-gallery">
             <div className="product-main-image" style={{ backgroundImage: `url(${product.images[0]})`, backgroundColor: product.accent }} aria-label={`Imagem de ${product.name}`} role="img" />
@@ -52,7 +45,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
 
           <div className="product-detail-info">
-            <p className="eyebrow">{product.category}</p>
+            <div className="product-detail-labels">
+              {product.productType === 'KIT' && <span className="product-detail-type">Kit</span>}
+              <p className="eyebrow">{product.category}</p>
+            </div>
             <h1 id="product-title">{product.name}</h1>
             <p className="product-description">{product.description}</p>
             <div className="detail-price"><strong>{formatPrice(product.price)}</strong>{product.oldPrice && <span>{formatPrice(product.oldPrice)}</span>}</div>

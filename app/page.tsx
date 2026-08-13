@@ -38,7 +38,11 @@ export default async function Home() {
       <section className="products-section" id="produtos" aria-labelledby="products-title">
         <div className="section-heading"><div><p className="eyebrow">Escolhas da casa</p><h2 id="products-title">Produtos em destaque</h2></div><a className="text-link desktop-link" href="/produtos">Ver todos <ArrowUpRightIcon /></a></div>
         {apiError && <div className="api-error-banner">Não foi possível carregar produtos da API. Exibindo dados locais em modo de fallback.</div>}
-        <div className="products-grid">{products.filter((product) => product.featured).map((product) => <ProductCard key={product.id} product={product} />)}</div>
+        {products.length > 0 ? (
+          <div className="products-grid">{products.filter((product) => product.featured).length > 0 ? products.filter((product) => product.featured).map((product) => <ProductCard key={product.id} product={product} />) : products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+        ) : (
+          <div className="empty-catalog"><h2>Nenhum produto disponível</h2><p>Estamos sem produtos no momento. Volte em breve.</p></div>
+        )}
         <a className="text-link mobile-link" href="/produtos">Ver todos os produtos <ArrowUpRightIcon /></a>
       </section>
       <Footer />

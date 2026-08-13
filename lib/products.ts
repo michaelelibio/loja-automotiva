@@ -2,6 +2,7 @@ import { products as fallbackProducts } from '@/data/products';
 
 export type Product = {
   id: string;
+  productType: 'SINGLE' | 'KIT';
   slug: string;
   name: string;
   category: 'Lavagem' | 'Proteção' | 'Detalhamento' | 'Acessórios';
@@ -17,7 +18,27 @@ export type Product = {
   featured?: boolean;
 };
 
-type BackendProduct = Record<string, unknown>;
+export type BackendProductResponse = {
+  id: number;
+  productType: 'SINGLE' | 'KIT';
+  name: string;
+  slug: string;
+  description: string;
+  longDescription: string;
+  price: number;
+  oldPrice: number | null;
+  category: string;
+  stockQuantity: number;
+  imageUrl: string | null;
+  active: boolean;
+  [key: string]: unknown;
+};
+
+type BackendProduct = BackendProductResponse;
+
+type BackendPaginatedResponse = {
+  content: BackendProductResponse[];
+};
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const productsEndpoint = `${API_BASE_URL}/api/products`;
@@ -51,6 +72,10 @@ function normalizeCategory(value: unknown, fallback: Product['category']): Produ
   return fallback;
 }
 
+function normalizeProductType(value: unknown, fallback: Product['productType'] = 'SINGLE'): Product['productType'] {
+  return parseText(value).toUpperCase() === 'KIT' ? 'KIT' : fallback;
+}
+
 function normalizeImages(value: unknown, fallbackImage: string): string[] {
   if (Array.isArray(value)) {
     const images = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
@@ -69,11 +94,13 @@ function normalizeImages(value: unknown, fallbackImage: string): string[] {
 }
 
 function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): Product {
-  const fallbackSource = fallback ?? fallbackProducts.find((item) => item.slug === payload.slug || item.id === payload.id || item.name === payload.name);
+  const payloadId = parseText(payload.id ?? payload.productId ?? payload.sku);
+  const fallbackSource = fallback ?? fallbackProducts.find((item) => item.slug === payload.slug || item.id === payloadId || item.name === payload.name);
 
-  const id = parseText(payload.id ?? payload.productId ?? payload.sku) || parseText(payload.slug) || fallbackSource?.id || '';
+  const id = payloadId || parseText(payload.slug) || fallbackSource?.id || '';
   const slug = parseText(payload.slug ?? payload.urlSlug ?? payload.name) || id || fallbackSource?.slug || '';
   const name = parseText(payload.name ?? payload.title) || fallbackSource?.name || 'Produto sem nome';
+  const productType = normalizeProductType(payload.productType, fallbackSource?.productType);
   const category = normalizeCategory(payload.category ?? payload.type ?? payload.genre, fallbackSource?.category ?? 'Acessórios');
   const price = parseNumber(payload.price ?? payload.value ?? payload.amount, fallbackSource?.price ?? 0);
   const oldPrice = parseNumber(payload.oldPrice ?? payload.previousPrice ?? payload.listPrice, fallbackSource?.oldPrice ?? undefined);
@@ -108,6 +135,7 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
 
   return {
     id,
+    productType,
     slug,
     name,
     category,
@@ -123,6 +151,8 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     featured,
   };
 }
+
+export { normalizeBackendProduct };
 
 async function request<T>(url: string): Promise<T> {
   const response = await fetch(url, { cache: 'no-store' });
@@ -159,17 +189,22 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function fetchProductBySlug(slug: string): Promise<Product | null> {
-  const response = await fetch(`${productsEndpoint}/slug/${encodeURIComponent(slug)}`, { cache: 'no-store' });
+  try {
+    const response = await fetch(`${productsEndpoint}/slug/${encodeURIComponent(slug)}`, { cache: 'no-store' });
 
-  if (response.status === 404) {
-    return null;
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Falha ao carregar o produto: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return normalizeBackendProduct(data, fallbackProducts.find((fallback) => fallback.slug === slug));
+  } catch {
+    const products = await fetchProducts();
+    return products.find((product) => product.slug === slug) ?? null;
   }
-
-  if (!response.ok) {
-    throw new Error(`Falha ao carregar o produto: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return normalizeBackendProduct(data, fallbackProducts.find((fallback) => fallback.slug === slug));
 }
 
