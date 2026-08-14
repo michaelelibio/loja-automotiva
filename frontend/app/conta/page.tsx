@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { ProductCard } from '@/components/ProductCard';
+import { VehiclesPanel } from '@/components/VehiclesPanel';
+import { AddressesPanel } from '@/components/AddressesPanel';
+import { OrdersPanel } from '@/components/OrdersPanel';
 import { useAuth } from '@/context/AuthContext';
 import { useFavorites } from '@/context/FavoritesContext';
 
@@ -27,21 +30,39 @@ const settingsSections: { id: SettingsSection; label: string }[] = [
 ];
 
 export default function ContaPage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, sessionError, updateProfile, logout } = useAuth();
   const { favorites, favoriteCount, isLoading: loadingFavorites, error: favoritesError } = useFavorites();
   const [activeSection, setActiveSection] = useState<AccountSection>('dashboard');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profile');
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [vehicleCount, setVehicleCount] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.replace('/login');
-  }, [isLoading, isAuthenticated, router]);
+    if (!isLoading && !sessionError && !isAuthenticated) router.replace('/login');
+  }, [isLoading, sessionError, isAuthenticated, router]);
 
-  if (isLoading || !isAuthenticated) {
+  useEffect(() => {
+    setName(user?.name ?? '');
+  }, [user?.name]);
+
+  useEffect(() => {
+    function applyHash() {
+      if (window.location.hash === '#addresses') { setActiveSection('settings'); setSettingsSection('addresses'); }
+    }
+    applyHash(); window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, []);
+
+  const handleVehicleCountChange = useCallback((count: number) => setVehicleCount(count), []);
+
+  if (isLoading || sessionError || !isAuthenticated) {
     return (
       <main>
         <Header />
-        <div style={{ padding: 80, textAlign: 'center' }}>Carregando sua conta...</div>
+        <div style={{ padding: 80, textAlign: 'center' }}>{sessionError ?? 'Carregando sua conta...'}</div>
         <Footer />
       </main>
     );
@@ -52,6 +73,20 @@ export default function ContaPage() {
 
   function selectSection(section: AccountSection) {
     setActiveSection(section);
+  }
+
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setSaveStatus('idle');
+    const result = await updateProfile({ name });
+    setSaveStatus(result.success ? 'success' : 'error');
+    setIsSaving(false);
+  }
+
+  function handleLogout() {
+    logout();
+    router.push('/');
   }
 
   return (
@@ -85,14 +120,14 @@ export default function ContaPage() {
               <div className="account-cards">
                 <AccountCard index="01" title="Pedidos" description="Nenhum pedido ainda" action="Ver pedidos" onClick={() => selectSection('orders')} />
                 <AccountCard index="02" title="Favoritos" description={`${favoriteCount} ${favoriteCount === 1 ? 'produto salvo' : 'produtos salvos'}`} action="Ver favoritos" onClick={() => selectSection('favorites')} />
-                <AccountCard index="03" title="Veículos" description="Nenhum veículo cadastrado" action="Gerenciar veículos" onClick={() => selectSection('vehicles')} />
+                <AccountCard index="03" title="Veículos" description={vehicleCount === null ? 'Consulte sua garagem' : `${vehicleCount} ${vehicleCount === 1 ? 'veículo cadastrado' : 'veículos cadastrados'}`} action="Gerenciar veículos" onClick={() => selectSection('vehicles')} />
                 <AccountCard index="04" title="Configurações" description="Gerencie seus dados, endereços e segurança" action="Abrir configurações" onClick={() => selectSection('settings')} />
               </div>
             </>
           )}
 
           {activeSection === 'orders' && (
-            <AccountEmptyState eyebrow="PEDIDOS" title="Seus pedidos" description="Você ainda não possui pedidos." />
+            <><AccountHeading eyebrow="PEDIDOS" title="Seus pedidos" description="Acompanhe suas compras e consulte todos os detalhes." /><div className="account-panel"><OrdersPanel compact /></div></>
           )}
 
           {activeSection === 'favorites' && (
@@ -118,7 +153,7 @@ export default function ContaPage() {
           )}
 
           {activeSection === 'vehicles' && (
-            <AccountEmptyState eyebrow="VEÍCULOS" title="Minha garagem" description="Nenhum veículo cadastrado." action="Adicionar veículo" />
+            <VehiclesPanel onCountChange={handleVehicleCountChange} />
           )}
 
           {activeSection === 'settings' && (
@@ -135,17 +170,39 @@ export default function ContaPage() {
 
                 <div className="settings-content">
                   {settingsSection === 'profile' && (
-                    <div className="account-data-list">
-                      <div><span>Nome</span><strong>{user?.name}</strong></div>
-                      <div><span>E-mail</span><strong>{user?.email}</strong></div>
-                      <div><span>Tipo de login</span><strong>{loginMethod}</strong></div>
-                    </div>
+                    <form className="account-profile-form" onSubmit={handleProfileSubmit}>
+                      <label>
+                        <span>Nome</span>
+                        <input value={name} onChange={(event) => { setName(event.target.value); setSaveStatus('idle'); }} minLength={2} maxLength={150} required />
+                      </label>
+                      <label>
+                        <span>E-mail</span>
+                        <input value={user?.email ?? ''} readOnly aria-readonly="true" />
+                      </label>
+                      <div className="account-readonly-row"><span>Tipo de login</span><strong>{loginMethod}</strong></div>
+                      <div className="account-form-actions">
+                        <button type="submit" disabled={isSaving || !name.trim()}>{isSaving ? 'Salvando...' : 'Salvar alterações'}</button>
+                        {saveStatus === 'success' && <p className="account-form-feedback success" role="status">Alterações salvas.</p>}
+                        {saveStatus === 'error' && <p className="account-form-feedback error" role="alert">Não foi possível salvar as alterações.</p>}
+                      </div>
+                    </form>
                   )}
-                  {settingsSection === 'addresses' && <AccountEmptyState eyebrow="ENDEREÇOS" title="Seus endereços" description="Nenhum endereço cadastrado." compact />}
+                  {settingsSection === 'addresses' && <AddressesPanel />}
                   {settingsSection === 'security' && (
-                    <div className="account-data-list">
-                      <div><span>Método de login</span><strong>{loginMethod}</strong></div>
-                      <p className="account-note">As opções de segurança disponíveis dependem do método usado para acessar sua conta.</p>
+                    <div className="account-security">
+                      <div className="account-data-list">
+                        <div><span>Método de login</span><strong>{loginMethod}</strong></div>
+                        {user?.authProvider === 'LOCAL' && <div><span>Senha</span><strong>••••••••</strong></div>}
+                      </div>
+                      {user?.authProvider === 'LOCAL' ? (
+                        <button type="button" className="account-secondary-action" disabled>Alterar senha — em breve</button>
+                      ) : (
+                        <p className="account-note">A senha desta conta é gerenciada pelo Google.</p>
+                      )}
+                      <div className="account-session">
+                        <div><strong>Sessão</strong><p>Encerre o acesso neste dispositivo.</p></div>
+                        <button type="button" onClick={handleLogout}>Sair da conta</button>
+                      </div>
                     </div>
                   )}
                 </div>

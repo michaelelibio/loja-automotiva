@@ -97,6 +97,13 @@ public class Product {
         this.productType = productType == null ? this.productType : productType;
     }
 
+    public void decreaseStock(int quantity) {
+        if (quantity < 1 || quantity > stockQuantity) {
+            throw new IllegalArgumentException("Quantidade inválida para baixa de estoque");
+        }
+        stockQuantity -= quantity;
+    }
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public String getSlug() { return slug; }

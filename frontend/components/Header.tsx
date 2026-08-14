@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export function Header() {
   const { totalItems } = useCart();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, sessionError, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -32,7 +32,6 @@ export function Header() {
 
       <nav className="main-nav" aria-label="Navegação principal">
         <Link href="/produtos">Produtos</Link>
-        <Link href="/#kits">Kits</Link>
         <Link href="/#contato">Contato</Link>
       </nav>
 
@@ -42,7 +41,7 @@ export function Header() {
           <input type="search" placeholder="Buscar produto" aria-label="Buscar produto" />
         </label>
 
-        {!isLoading && !isAuthenticated && (
+        {!isLoading && !sessionError && !isAuthenticated && (
           <Link href="/login" className="auth-link">Entrar</Link>
         )}
 
@@ -64,7 +63,7 @@ export function Header() {
                   <Link href="/conta">Minha conta</Link>
                   <Link href="/conta/favoritos">Favoritos</Link>
                   <Link href="/conta/pedidos">Meus pedidos</Link>
-                  <Link href="/conta/veiculos">Endereços</Link>
+                  <Link href="/conta/veiculos">Veículos</Link>
                   <Link href="/conta/enderecos">Endereços</Link>
                 </nav>
                 <div className="account-dropdown-sep" />

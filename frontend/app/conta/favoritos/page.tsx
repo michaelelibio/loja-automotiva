@@ -10,21 +10,21 @@ import { useFavorites } from '@/context/FavoritesContext';
 import { ProductCard } from '@/components/ProductCard';
 
 export default function FavoritosPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, sessionError } = useAuth();
   const { favorites, isLoading: loadingFavorites, error } = useFavorites();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !sessionError && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, sessionError, router]);
 
-  if (isLoading || !isAuthenticated) {
+  if (isLoading || sessionError || !isAuthenticated) {
     return (
       <main>
         <Header />
-        <div style={{ padding: 80, textAlign: 'center' }}>Carregando favoritos...</div>
+        <div style={{ padding: 80, textAlign: 'center' }}>{sessionError ?? 'Carregando favoritos...'}</div>
         <Footer />
       </main>
     );

@@ -9,9 +9,13 @@ import { products as fallbackProducts } from '@/data/products';
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function CartView() {
-  const { items, increaseItem, decreaseItem, removeItem } = useCart();
-  const { products, error } = useProducts();
+  const { items, increaseItem, decreaseItem, removeItem, reconcileItems } = useCart();
+  const { products, loading, error } = useProducts();
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && !error) reconcileItems(products.map((product) => product.id));
+  }, [loading, error, products, reconcileItems]);
   const availableProducts = error ? fallbackProducts : products.length > 0 ? products : fallbackProducts;
   const cartProducts = items.flatMap((item) => {
     const product = availableProducts.find((candidate) => candidate.id === item.productId);

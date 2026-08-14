@@ -1,0 +1,32 @@
+warning: in the working copy of 'frontend/app/carrinho/CartView.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/checkout/CheckoutForm.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/checkout/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/conta/favoritos/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/conta/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/globals.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/produtos/[slug]/ProductPurchase.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/produtos/[slug]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/components/Header.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/components/Icons.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/context/AuthContext.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/context/CartContext.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/lib/api/auth.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/lib/products.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/lib/types/auth.ts', LF will be replaced by CRLF the next time Git touches it
+ frontend/app/carrinho/CartView.tsx               |  10 [32m+[m[31m-[m
+ frontend/app/checkout/CheckoutForm.tsx           | 340 [32m+++++[m[31m------------------[m
+ frontend/app/checkout/page.tsx                   |   2 [32m+[m[31m-[m
+ frontend/app/conta/favoritos/page.tsx            |  10 [32m+[m[31m-[m
+ frontend/app/conta/page.tsx                      |  93 [32m+++++[m[31m--[m
+ frontend/app/globals.css                         | 249 [32m+++++++++++++++++[m
+ frontend/app/produtos/[slug]/ProductPurchase.tsx |  35 [32m++[m[31m-[m
+ frontend/app/produtos/[slug]/page.tsx            |   1 [32m+[m
+ frontend/components/Header.tsx                   |   9 [32m+[m[31m-[m
+ frontend/components/Icons.tsx                    |  12 [32m+[m[31m-[m
+ frontend/context/AuthContext.tsx                 |  45 [32m++[m[31m-[m
+ frontend/context/CartContext.tsx                 |  46 [32m++[m[31m-[m
+ frontend/lib/api/auth.ts                         |  39 [32m++[m[31m-[m
+ frontend/lib/products.ts                         |   8 [32m+[m[31m-[m
+ frontend/lib/types/auth.ts                       |   4 [32m+[m
+ frontend/next-env.d.ts                           |   4 [32m+[m[31m-[m
+ 16 files changed, 570 insertions(+), 337 deletions(-)

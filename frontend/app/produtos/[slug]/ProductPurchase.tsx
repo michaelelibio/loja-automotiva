@@ -1,36 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { Product } from '@/lib/products';
 import { useCart } from '@/context/CartContext';
 
 export function ProductPurchase({ product, available }: { product: Product; available: boolean }) {
   const [quantity, setQuantity] = useState(1);
-  const [toastVisible, setToastVisible] = useState(false);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [added, setAdded] = useState(false);
   const { addItem } = useCart();
-
-  useEffect(() => () => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-  }, []);
+  const maximumQuantity = Math.max(0, product.stock);
 
   function handleAddToCart() {
     addItem(product, quantity);
-    setToastVisible(true);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
+    setAdded(true);
   }
 
   return (
-    <div className="purchase-area">
-      <div className="quantity-control" aria-label="Quantidade">
-        <button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))} aria-label="Diminuir quantidade">−</button>
-        <span>{quantity}</span>
-        <button type="button" onClick={() => setQuantity((current) => current + 1)} aria-label="Aumentar quantidade">+</button>
+    <div className="purchase-block">
+      <div className="purchase-area">
+        <div className="quantity-control" aria-label="Quantidade">
+          <button type="button" disabled={quantity <= 1 || !available} onClick={() => setQuantity((current) => Math.max(1, current - 1))} aria-label="Diminuir quantidade">−</button>
+          <span>{quantity}</span>
+          <button type="button" disabled={!available || quantity >= maximumQuantity} onClick={() => setQuantity((current) => Math.min(maximumQuantity, current + 1))} aria-label="Aumentar quantidade">+</button>
+        </div>
+        <button type="button" className="add-cart-button" disabled={!available || maximumQuantity === 0} onClick={handleAddToCart}>Adicionar ao carrinho <span>↗</span></button>
       </div>
-      <button type="button" className="add-cart-button" disabled={!available} onClick={handleAddToCart}>Adicionar ao carrinho <span>↗</span></button>
-      {toastVisible && <div className="cart-toast" role="status" aria-live="polite"><span>Produto adicionado ao carrinho ✓</span><Link href="/carrinho">Ver carrinho</Link></div>}
+      {added && <div className="purchase-feedback" role="status" aria-live="polite">
+        <p><span aria-hidden="true">✓</span> Produto adicionado ao carrinho.</p>
+        <div><Link href="/produtos">Continuar comprando <span aria-hidden="true">→</span></Link><Link href="/carrinho">Ver carrinho <span aria-hidden="true">→</span></Link></div>
+      </div>}
     </div>
   );
 }

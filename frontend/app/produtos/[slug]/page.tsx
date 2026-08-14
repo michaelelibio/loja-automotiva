@@ -45,6 +45,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
 
           <div className="product-detail-info">
+            <Link className="product-back-link" href="/produtos">← Voltar para produtos</Link>
             <div className="product-detail-labels">
               {product.productType === 'KIT' && <span className="product-detail-type">Kit</span>}
               <p className="eyebrow">{product.category}</p>

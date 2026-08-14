@@ -20,6 +20,10 @@ export type RegisterRequest = {
   password: string;
 };
 
+export type UpdateUserRequest = {
+  name: string;
+};
+
 export type AuthResponse = {
   accessToken: string;
   tokenType: string;

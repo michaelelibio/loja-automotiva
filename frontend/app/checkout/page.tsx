@@ -11,7 +11,7 @@ export default function CheckoutPage() {
       <section className="checkout-intro" aria-labelledby="checkout-title">
         <p className="eyebrow">Pronto para o próximo passo</p>
         <h1 id="checkout-title">Checkout</h1>
-        <p className="checkout-copy">Preencha os dados abaixo para preparar o pedido. O pagamento será integrado posteriormente.</p>
+        <p className="checkout-copy">Revise seus produtos e escolha o endereço de entrega antes de finalizar.</p>
       </section>
       <CheckoutForm />
       <Footer />

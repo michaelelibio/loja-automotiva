@@ -73,7 +73,13 @@ function normalizeCategory(value: unknown, fallback: Product['category']): Produ
 }
 
 function normalizeProductType(value: unknown, fallback: Product['productType'] = 'SINGLE'): Product['productType'] {
-  return parseText(value).toUpperCase() === 'KIT' ? 'KIT' : fallback;
+  const productType = parseText(value).toUpperCase();
+
+  if (productType === 'SINGLE' || productType === 'KIT') {
+    return productType;
+  }
+
+  return fallback;
 }
 
 function normalizeImages(value: unknown, fallbackImage: string): string[] {

@@ -28,3 +28,13 @@ export function SearchIcon() {
     </svg>
   );
 }
+
+export function CarIcon({ size = 42 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 29.5 11.5 20a5 5 0 0 1 4.7-3.3h15.6a5 5 0 0 1 4.7 3.3l3.5 9.5" />
+      <path d="M7 29.5h34v8H7zM11 37.5v3M37 37.5v3M13 25h22" />
+      <circle cx="14" cy="33.5" r="1.5" /><circle cx="34" cy="33.5" r="1.5" />
+    </svg>
+  );
+}

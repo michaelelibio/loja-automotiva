@@ -92,4 +92,8 @@ public class User {
     public boolean isActive() { return active; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
 }

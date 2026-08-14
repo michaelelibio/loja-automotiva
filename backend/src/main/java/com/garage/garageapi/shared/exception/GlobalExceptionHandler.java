@@ -4,6 +4,7 @@ import com.garage.garageapi.auth.exception.InvalidCredentialsException;
 import com.garage.garageapi.auth.exception.InvalidGoogleTokenException;
 import com.garage.garageapi.auth.exception.UserDisabledException;
 import com.garage.garageapi.favorite.exception.InactiveProductException;
+import com.garage.garageapi.payment.gateway.PaymentProviderException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,6 +56,12 @@ public class GlobalExceptionHandler {
         exception.getBindingResult().getFieldErrors()
                 .forEach(error -> fields.putIfAbsent(error.getField(), error.getDefaultMessage()));
         return build(HttpStatus.BAD_REQUEST, "Dados inválidos", request.getRequestURI(), fields);
+    }
+
+    @ExceptionHandler(PaymentProviderException.class)
+    public ResponseEntity<ApiError> handlePaymentProvider(PaymentProviderException exception,
+                                                           HttpServletRequest request) {
+        return build(HttpStatus.BAD_GATEWAY, exception.getMessage(), request.getRequestURI(), Map.of());
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String message, String path,

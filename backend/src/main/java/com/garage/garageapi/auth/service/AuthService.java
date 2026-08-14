@@ -10,6 +10,7 @@ import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.user.dto.UserResponse;
 import com.garage.garageapi.user.entity.User;
 import com.garage.garageapi.user.repository.UserRepository;
+import com.garage.garageapi.user.service.UserService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -30,15 +31,17 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final GoogleTokenValidator googleTokenValidator;
+    private final UserService userService;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager, JwtService jwtService,
-                       GoogleTokenValidator googleTokenValidator) {
+                       GoogleTokenValidator googleTokenValidator, UserService userService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.googleTokenValidator = googleTokenValidator;
+        this.userService = userService;
     }
 
     @Transactional
@@ -100,16 +103,7 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public UserResponse me(Jwt jwt) {
-        Long userId;
-        try {
-            userId = Long.valueOf(jwt.getSubject());
-        } catch (NumberFormatException exception) {
-            throw new InvalidCredentialsException("Token inválido");
-        }
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new InvalidCredentialsException("Usuário autenticado não encontrado"));
-        ensureActive(user);
-        return UserResponse.from(user);
+        return userService.getCurrentUser(jwt);
     }
 
     private AuthResponse response(User user) {
