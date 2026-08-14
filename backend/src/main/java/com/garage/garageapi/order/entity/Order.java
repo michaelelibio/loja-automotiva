@@ -1,6 +1,7 @@
 package com.garage.garageapi.order.entity;
 
 import com.garage.garageapi.address.entity.Address;
+import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.user.entity.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -87,6 +88,15 @@ public class Order {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "processing_at")
+    private Instant processingAt;
+
+    @Column(name = "shipped_at")
+    private Instant shippedAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
     protected Order() { }
 
     public Order(User user, Address address, BigDecimal subtotal, BigDecimal shippingCost,
@@ -139,8 +149,47 @@ public class Order {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public Instant getProcessingAt() { return processingAt; }
+    public Instant getShippedAt() { return shippedAt; }
+    public Instant getDeliveredAt() { return deliveredAt; }
 
-    public void markPaid() { status = OrderStatus.PAID; }
-    public void cancel() { status = OrderStatus.CANCELED; }
-    public void expire() { status = OrderStatus.EXPIRED; }
+    public void markPaid() {
+        requireStatus(OrderStatus.PENDING_PAYMENT, OrderStatus.PAID);
+        status = OrderStatus.PAID;
+    }
+
+    public void startProcessing(Instant occurredAt) {
+        requireStatus(OrderStatus.PAID, OrderStatus.PROCESSING);
+        status = OrderStatus.PROCESSING;
+        processingAt = occurredAt;
+    }
+
+    public void markShipped(Instant occurredAt) {
+        requireStatus(OrderStatus.PROCESSING, OrderStatus.SHIPPED);
+        status = OrderStatus.SHIPPED;
+        shippedAt = occurredAt;
+    }
+
+    public void markDelivered(Instant occurredAt) {
+        requireStatus(OrderStatus.SHIPPED, OrderStatus.DELIVERED);
+        status = OrderStatus.DELIVERED;
+        deliveredAt = occurredAt;
+    }
+
+    public void cancel() {
+        requireStatus(OrderStatus.PENDING_PAYMENT, OrderStatus.CANCELED);
+        status = OrderStatus.CANCELED;
+    }
+
+    public void expire() {
+        requireStatus(OrderStatus.PENDING_PAYMENT, OrderStatus.EXPIRED);
+        status = OrderStatus.EXPIRED;
+    }
+
+    private void requireStatus(OrderStatus required, OrderStatus target) {
+        if (status != required) {
+            throw new ResourceConflictException(
+                    "TransiÃ§Ã£o de pedido invÃ¡lida: " + status + " -> " + target);
+        }
+    }
 }

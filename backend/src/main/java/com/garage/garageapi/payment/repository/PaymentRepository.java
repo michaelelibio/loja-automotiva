@@ -13,6 +13,7 @@ import com.garage.garageapi.payment.entity.PaymentStatus;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findAllByOrderIdOrderByCreatedAtDescIdDesc(Long orderId);
+    Optional<Payment> findFirstByOrderIdOrderByCreatedAtDescIdDesc(Long orderId);
     Optional<Payment> findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(Long orderId,
                                                                             PaymentStatus status);
 
