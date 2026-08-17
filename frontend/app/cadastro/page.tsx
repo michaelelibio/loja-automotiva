@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -16,25 +14,26 @@ export default function RegisterPage() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registered, setRegistered] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!name.trim()) return setError('Nome é obrigatório');
     if (!email.includes('@')) return setError('E-mail inválido');
-    if (password.length < 6) return setError('Senha precisa ter ao menos 6 caracteres');
+    if (password.length < 8 || password.length > 72) return setError('A senha deve ter entre 8 e 72 caracteres');
     if (password !== confirm) return setError('Confirmação de senha não confere');
 
     setLoading(true);
     try {
       const result = await register({ name, email, password });
       if (result.success) {
-        router.push('/');
+        setRegistered(true);
       } else {
         setError(result.message ?? 'Erro ao cadastrar');
       }
-    } catch (err: any) {
-      setError(err?.message ?? 'Erro ao conectar com o servidor');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao conectar com o servidor');
     } finally {
       setLoading(false);
     }
@@ -53,7 +52,13 @@ export default function RegisterPage() {
 
           <div className="auth-right">
             <section className="auth-card">
-              <h3>Cadastrar</h3>
+              {registered ? <div className="security-success" role="status">
+                <span className="security-state-mark">✓</span>
+                <p className="eyebrow">CADASTRO CONCLUÍDO</p>
+                <h3>Confirme seu e-mail</h3>
+                <p>Enviamos um link de confirmação para seu e-mail. Você pode continuar usando a GARAGE enquanto isso.</p>
+                <div className="security-actions"><Link className="btn-primary" href="/login">Ir para login</Link><Link className="text-link inline" href="/">Continuar na loja</Link></div>
+              </div> : <><h3>Cadastrar</h3>
               <form onSubmit={handleSubmit} className="auth-form">
                 <label>
                   Nome
@@ -83,7 +88,7 @@ export default function RegisterPage() {
                 <div className="divider">OU</div>
 
                 <button className="btn-google" type="button" disabled title="Continuar com Google (em breve)">Continuar com Google</button>
-              </form>
+              </form></>}
             </section>
           </div>
         </div>

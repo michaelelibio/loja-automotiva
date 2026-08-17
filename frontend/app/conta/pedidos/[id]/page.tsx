@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { OrderStatusBadge, formatOrderDate } from '@/components/OrdersPanel';
-import { PixPayment } from '@/components/PixPayment';
+import { MercadoPagoPayment } from '@/components/MercadoPagoPayment';
 import { useAuth } from '@/context/AuthContext';
 import { getOrder } from '@/lib/api/orders';
 import type { Order, OrderStatus } from '@/lib/types/order';
@@ -20,6 +20,7 @@ const statusContent: Record<OrderStatus, { title: string; description: string }>
   SHIPPED: { title: 'Enviado', description: 'Seu pedido foi enviado.' },
   DELIVERED: { title: 'Entregue', description: 'Seu pedido foi entregue.' },
   CANCELED: { title: 'Cancelado', description: 'Este pedido foi cancelado.' },
+  EXPIRED: { title: 'Expirado', description: 'O prazo para pagamento deste pedido expirou.' },
 };
 
 export default function OrderDetailPage() {
@@ -29,6 +30,7 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const orderId = Number(params.id);
 
   useEffect(() => {
     if (!authLoading && !sessionError && !isAuthenticated) router.replace('/login');
@@ -36,19 +38,18 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (authLoading || sessionError || !isAuthenticated) return;
-    const id = Number(params.id);
-    if (!Number.isSafeInteger(id)) {
-      setError('Pedido inválido.');
-      setLoading(false);
-      return;
-    }
+    if (!Number.isSafeInteger(orderId)) return;
     let active = true;
-    getOrder(id)
+    getOrder(orderId)
       .then((data) => { if (active) setOrder(data); })
       .catch(() => { if (active) setError('Não foi possível carregar este pedido.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [authLoading, sessionError, isAuthenticated, params.id]);
+  }, [authLoading, sessionError, isAuthenticated, orderId]);
+
+  if (!Number.isSafeInteger(orderId)) {
+    return <main><Header /><div className="account-route-state"><p>Pedido inválido.</p><Link href="/conta/pedidos">Voltar aos pedidos</Link></div><Footer /></main>;
+  }
 
   if (authLoading || sessionError || !isAuthenticated || loading) {
     return <main><Header /><div className="account-route-state">{sessionError ?? 'Carregando pedido...'}</div><Footer /></main>;
@@ -73,7 +74,7 @@ export default function OrderDetailPage() {
           <h2>{currentStatus.title}</h2>
           <p>{currentStatus.description}</p>
         </section>
-        {order.status === 'PENDING_PAYMENT' && <PixPayment orderId={order.id} />}
+        {order.status === 'PENDING_PAYMENT' && <MercadoPagoPayment orderId={order.id} />}
         <section className="order-detail-card order-items-card">
           <h2>Itens</h2>
           <div className="order-detail-items">
@@ -97,6 +98,11 @@ export default function OrderDetailPage() {
             <span>{address.city} - {address.state}</span>
             <span>CEP {zip(address.zipCode)}</span>
           </address>
+        </section>
+        <section className="order-detail-card order-shipping-card">
+          <p className="eyebrow">ENTREGA</p><h2>{order.shipping.name}</h2>
+          <div><span>Valor do frete</span><strong>{currency.format(order.shipping.price)}</strong></div>
+          <p>Prazo estimado: até {order.shipping.estimatedDays} {order.shipping.estimatedDays === 1 ? 'dia' : 'dias'}.</p>
         </section>
       </div>
       <aside className="order-totals">

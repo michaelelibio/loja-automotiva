@@ -7,12 +7,12 @@ import com.garage.garageapi.payment.entity.PaymentStatus;
 import java.time.Instant;
 
 public record PaymentResponse(Long id, Long orderId, PaymentMethod method, PaymentStatus status,
-                              String providerPaymentId, String qrCode, String qrCodeBase64,
-                              Instant expiresAt, Instant paidAt, Instant createdAt, Instant updatedAt) {
+                              String providerPaymentId, String preferenceId, String checkoutUrl,
+                              Instant paidAt, Instant createdAt, Instant updatedAt) {
     public static PaymentResponse from(Payment payment) {
         return new PaymentResponse(payment.getId(), payment.getOrder().getId(), payment.getMethod(),
-                payment.getStatus(), payment.getProviderPaymentId(), payment.getQrCode(),
-                payment.getQrCodeBase64(), payment.getExpiresAt(), payment.getPaidAt(),
+                payment.getStatus(), payment.getProviderPaymentId(), payment.getProviderPreferenceId(),
+                payment.getCheckoutUrl(), payment.getPaidAt(),
                 payment.getCreatedAt(), payment.getUpdatedAt());
     }
 }

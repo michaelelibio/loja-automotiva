@@ -9,16 +9,31 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.GeneralSecurityException;
+import java.util.HexFormat;
+
 @Component
 public class MercadoPagoWebhookSignatureVerifier {
     private static final Logger logger = LoggerFactory.getLogger(MercadoPagoWebhookSignatureVerifier.class);
     private final String secret;
+    private final boolean diagnosticLogging;
 
     @Autowired
     public MercadoPagoWebhookSignatureVerifier(
-            @Value("${mercadopago.webhook-secret:}") String secret) {
+            @Value("${mercadopago.webhook-secret:}") String secret,
+            @Value("${mercadopago.diagnostic-logging:false}") boolean diagnosticLogging) {
         this.secret = secret;
+        this.diagnosticLogging = diagnosticLogging;
         logger.info("Mercado Pago webhook signature validation configured={}", !this.secret.isEmpty());
+    }
+
+    MercadoPagoWebhookSignatureVerifier(String secret) {
+        this(secret, true);
     }
 
     public Verification verify(String signature, String requestId, String dataId) {
@@ -29,20 +44,67 @@ public class MercadoPagoWebhookSignatureVerifier {
 
         String timestamp = part(signature, "ts");
         String suppliedHash = part(signature, "v1");
+        int manifestLength = manifestLength(dataId, requestId, timestamp);
         logger.info("Mercado Pago x-signature parsed; tsPresent={}; tsLength={}; "
                         + "v1Present={}; v1Length={}",
                 StringUtils.hasText(timestamp), length(timestamp),
                 StringUtils.hasText(suppliedHash), length(suppliedHash));
         if (!StringUtils.hasText(suppliedHash)) {
-            return diagnosed(Verification.SIGNATURE_MALFORMED, dataId, requestId, timestamp, 0);
+            return diagnosed(Verification.SIGNATURE_MALFORMED, dataId, requestId, timestamp,
+                    manifestLength);
         }
 
+        Verification result;
         try {
             WebhookSignatureValidator.validate(signature, requestId, dataId, secret);
-            return diagnosed(Verification.VALID, dataId, requestId, timestamp, 0);
+            result = Verification.VALID;
         } catch (MPInvalidWebhookSignatureException ignored) {
-            return diagnosed(Verification.SIGNATURE_INVALID, dataId, requestId, timestamp, 0);
+            result = Verification.SIGNATURE_INVALID;
         }
+        logHmacComparison(signature, dataId, requestId, timestamp, suppliedHash, result);
+        return diagnosed(result, dataId, requestId, timestamp, manifestLength);
+    }
+
+    private void logHmacComparison(String signature, String dataId, String requestId,
+                                   String timestamp, String suppliedHash, Verification sdkResult) {
+        if (!diagnosticLogging) return;
+        try {
+            String manifest = manifest(dataId, requestId, timestamp);
+            String calculatedHmac = hmacSha256(manifest, secret);
+            logger.info("Mercado Pago webhook HMAC comparison diagnostic; dataId={}; "
+                            + "requestId={}; xSignature={}; ts={}; receivedV1={}; "
+                            + "secretLength={}; secretFingerprint={}; manifest={}; "
+                            + "manifestLength={}; calculatedHmac={}; manualMatch={}; sdkResult={}",
+                    dataId, requestId, signature, timestamp, suppliedHash, secret.length(),
+                    sha256Fingerprint(secret), manifest,
+                    manifest.getBytes(StandardCharsets.UTF_8).length, calculatedHmac,
+                    calculatedHmac.equalsIgnoreCase(suppliedHash), sdkResult);
+        } catch (GeneralSecurityException exception) {
+            logger.warn("Mercado Pago webhook HMAC comparison diagnostic unavailable; sdkResult={}",
+                    sdkResult);
+        }
+    }
+
+    private String manifest(String dataId, String requestId, String timestamp) {
+        StringBuilder manifest = new StringBuilder();
+        if (StringUtils.hasText(dataId)) manifest.append("id:").append(dataId).append(';');
+        if (StringUtils.hasText(requestId)) {
+            manifest.append("request-id:").append(requestId).append(';');
+        }
+        if (StringUtils.hasText(timestamp)) manifest.append("ts:").append(timestamp).append(';');
+        return manifest.toString();
+    }
+
+    private String hmacSha256(String manifest, String key) throws GeneralSecurityException {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return HexFormat.of().formatHex(mac.doFinal(manifest.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private String sha256Fingerprint(String value) throws NoSuchAlgorithmException {
+        byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(digest, 0, 4);
     }
 
     private Verification diagnosed(Verification result, String dataId, String requestId,
@@ -57,6 +119,15 @@ public class MercadoPagoWebhookSignatureVerifier {
     }
 
     private int length(String value) { return value == null ? 0 : value.length(); }
+
+    private int manifestLength(String dataId, String requestId, String timestamp) {
+        int length = "ts:;".length() + length(timestamp);
+        if (StringUtils.hasText(dataId)) length += "id:;".length() + dataId.trim().length();
+        if (StringUtils.hasText(requestId)) {
+            length += "request-id:;".length() + requestId.trim().length();
+        }
+        return length;
+    }
 
     private String part(String signature, String expectedName) {
         for (String part : signature.split(",")) {

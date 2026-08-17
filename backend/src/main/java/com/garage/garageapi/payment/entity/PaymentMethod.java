@@ -1,5 +1,7 @@
 package com.garage.garageapi.payment.entity;
 
 public enum PaymentMethod {
-    PIX
+    /** Legacy value retained so historical rows remain readable. */
+    PIX,
+    MERCADO_PAGO
 }

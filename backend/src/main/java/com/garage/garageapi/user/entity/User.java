@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.Instant;
 
@@ -47,6 +48,10 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role = UserRole.USER;
 
+    @Column(name = "email_verified", nullable = false)
+    @ColumnDefault("true")
+    private boolean emailVerified;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -57,21 +62,22 @@ public class User {
     }
 
     public static User local(String name, String email, String passwordHash) {
-        return new User(name, email, passwordHash, null, null, AuthProvider.LOCAL);
+        return new User(name, email, passwordHash, null, null, AuthProvider.LOCAL, false);
     }
 
     public static User google(String name, String email, String googleSubject, String pictureUrl) {
-        return new User(name, email, null, googleSubject, pictureUrl, AuthProvider.GOOGLE);
+        return new User(name, email, null, googleSubject, pictureUrl, AuthProvider.GOOGLE, true);
     }
 
     private User(String name, String email, String passwordHash, String googleSubject,
-                 String pictureUrl, AuthProvider authProvider) {
+                 String pictureUrl, AuthProvider authProvider, boolean emailVerified) {
         this.name = name;
         this.email = email;
         this.passwordHash = passwordHash;
         this.googleSubject = googleSubject;
         this.pictureUrl = pictureUrl;
         this.authProvider = authProvider;
+        this.emailVerified = emailVerified;
     }
 
     @PrePersist
@@ -96,10 +102,15 @@ public class User {
     public AuthProvider getAuthProvider() { return authProvider; }
     public boolean isActive() { return active; }
     public UserRole getRole() { return role; }
+    public boolean isEmailVerified() { return emailVerified; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
     public void updateName(String name) {
         this.name = name;
     }
+
+    public void verifyEmail() { emailVerified = true; }
+
+    public void changePassword(String passwordHash) { this.passwordHash = passwordHash; }
 }

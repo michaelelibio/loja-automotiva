@@ -5,4 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 public record GoogleLoginRequest(
         @NotBlank(message = "credencial Google é obrigatória") String credential
 ) {
+    @Override
+    public String toString() {
+        return "GoogleLoginRequest[credential=[REDACTED]]";
+    }
 }

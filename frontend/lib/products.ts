@@ -12,6 +12,8 @@ export type Product = {
   longDescription: string;
   features: string[];
   stock: number;
+  fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING';
+  availableForSale: boolean;
   accent: string;
   image: string;
   images: string[];
@@ -31,14 +33,12 @@ export type BackendProductResponse = {
   stockQuantity: number;
   imageUrl: string | null;
   active: boolean;
+  fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING';
+  availableForSale: boolean;
   [key: string]: unknown;
 };
 
 type BackendProduct = BackendProductResponse;
-
-type BackendPaginatedResponse = {
-  content: BackendProductResponse[];
-};
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const productsEndpoint = `${API_BASE_URL}/api/products`;
@@ -125,6 +125,10 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
       : typeof payload.stockQuantity === 'number' && Number.isFinite(payload.stockQuantity)
         ? payload.stockQuantity
         : fallbackSource?.stock ?? 1;
+  const fulfillmentType = payload.fulfillmentType === 'DROPSHIPPING' ? 'DROPSHIPPING' : 'LOCAL_STOCK';
+  const availableForSale = typeof payload.availableForSale === 'boolean'
+    ? payload.availableForSale
+    : Boolean(payload.active) && (fulfillmentType === 'DROPSHIPPING' || stock > 0);
 
   const accent = parseText(payload.accent ?? payload.color ?? payload.themeColor) || fallbackSource?.accent || '#f2f2f2';
   const image = parseText(payload.image ?? payload.imageUrl ?? payload.mainImage ?? payload.thumbnail) || fallbackSource?.image || '';
@@ -151,6 +155,8 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     longDescription,
     features,
     stock,
+    fulfillmentType,
+    availableForSale,
     accent,
     image,
     images,
@@ -172,10 +178,11 @@ async function request<T>(url: string): Promise<T> {
 
 export async function fetchProducts(): Promise<Product[]> {
   const data = await request<unknown>(productsEndpoint);
+  const responseObject = data && typeof data === 'object' ? data as Record<string, unknown> : null;
   const items = Array.isArray(data)
     ? data
-    : (data && typeof data === 'object' && Array.isArray((data as any).content))
-      ? (data as any).content
+    : Array.isArray(responseObject?.content)
+      ? responseObject.content
       : null;
 
   if (!Array.isArray(items)) {
@@ -185,7 +192,8 @@ export async function fetchProducts(): Promise<Product[]> {
   return items
     .map((item) => {
       try {
-        return normalizeBackendProduct(item, fallbackProducts.find((fallback) => fallback.slug === (item as any)?.slug || fallback.id === String((item as any)?.id)));
+        const backendProduct = item && typeof item === 'object' ? item as BackendProduct : {} as BackendProduct;
+        return normalizeBackendProduct(backendProduct, fallbackProducts.find((fallback) => fallback.slug === backendProduct.slug || fallback.id === String(backendProduct.id)));
       } catch (error) {
         console.warn('Produto da API ignorado por compatibilidade:', error);
         return null;

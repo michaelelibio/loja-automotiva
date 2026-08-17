@@ -4,6 +4,7 @@ export type User = {
   email: string;
   pictureUrl?: string | null;
   authProvider?: string | null;
+  emailVerified: boolean;
   active?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -18,6 +19,10 @@ export type RegisterRequest = {
   name: string;
   email: string;
   password: string;
+};
+
+export type GoogleLoginRequest = {
+  credential: string;
 };
 
 export type UpdateUserRequest = {

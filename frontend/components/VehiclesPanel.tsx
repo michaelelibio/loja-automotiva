@@ -9,7 +9,7 @@ type FormValues = { brand: string; model: string; year: string; version: string;
 const emptyForm: FormValues = { brand: '', model: '', year: '', version: '', licensePlate: '', isPrimary: false };
 const platePattern = /^[A-Z]{3}(?:[0-9]{4}|[0-9][A-Z][0-9]{2})$/;
 
-export function VehiclesPanel({ onCountChange }: { onCountChange: (count: number) => void }) {
+export function VehiclesPanel({ onCountChange }: { onCountChange?: (count: number) => void }) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +20,7 @@ export function VehiclesPanel({ onCountChange }: { onCountChange: (count: number
   const [saving, setSaving] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const loadVehicles = useCallback(async () => {
     setLoading(true);
@@ -27,7 +28,7 @@ export function VehiclesPanel({ onCountChange }: { onCountChange: (count: number
     try {
       const data = await vehiclesAPI.getVehicles();
       setVehicles(data);
-      onCountChange(data.length);
+      onCountChange?.(data.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível carregar seus veículos.');
     } finally {
@@ -35,7 +36,15 @@ export function VehiclesPanel({ onCountChange }: { onCountChange: (count: number
     }
   }, [onCountChange]);
 
-  useEffect(() => { void loadVehicles(); }, [loadVehicles]);
+  useEffect(() => {
+    let active = true;
+    vehiclesAPI.getVehicles().then((data) => {
+      if (!active) return;
+      setVehicles(data); onCountChange?.(data.length);
+    }).catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Não foi possível carregar seus veículos.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [onCountChange]);
 
   function openCreate() {
     setEditing(null); setForm(emptyForm); setFormError(null); setFormOpen(true);
@@ -65,33 +74,35 @@ export function VehiclesPanel({ onCountChange }: { onCountChange: (count: number
       isPrimary: editing ? editing.isPrimary : form.isPrimary,
       ...(editing ? { imageUrl: editing.imageUrl } : {}),
     };
-    setSaving(true); setFormError(null);
+    setSaving(true); setFormError(null); setFeedback(null);
     try {
       if (editing) await vehiclesAPI.updateVehicle(editing.id, payload);
       else await vehiclesAPI.createVehicle(payload);
       setFormOpen(false); setEditing(null); setForm(emptyForm);
       await loadVehicles();
+      setFeedback(editing ? 'Veículo atualizado com sucesso.' : 'Veículo adicionado com sucesso.');
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Não foi possível salvar o veículo.');
     } finally { setSaving(false); }
   }
 
   async function setPrimary(id: number) {
-    setProcessingId(id); setError(null);
-    try { await vehiclesAPI.setPrimaryVehicle(id); await loadVehicles(); }
+    setProcessingId(id); setError(null); setFeedback(null);
+    try { await vehiclesAPI.setPrimaryVehicle(id); await loadVehicles(); setFeedback('Veículo principal atualizado.'); }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível definir o veículo principal.'); }
     finally { setProcessingId(null); }
   }
 
   async function remove(id: number) {
-    setProcessingId(id); setError(null);
-    try { await vehiclesAPI.deleteVehicle(id); setConfirmDeleteId(null); await loadVehicles(); }
+    setProcessingId(id); setError(null); setFeedback(null);
+    try { await vehiclesAPI.deleteVehicle(id); setConfirmDeleteId(null); await loadVehicles(); setFeedback('Veículo excluído com sucesso.'); }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir o veículo.'); }
     finally { setProcessingId(null); }
   }
 
   return <>
     <div className="vehicles-heading"><div><p className="eyebrow">VEÍCULOS</p><h2>Minha garagem</h2></div>{vehicles.length > 0 && <button type="button" onClick={openCreate}>Adicionar veículo</button>}</div>
+    {feedback && <p className="panel-action-feedback" role="status">{feedback}</p>}
     <div className="account-panel vehicles-panel">
       {loading && <p className="account-status">Carregando seus veículos...</p>}
       {error && <div className="vehicles-error" role="alert"><p>{error}</p><button type="button" onClick={() => void loadVehicles()}>Tentar novamente</button></div>}

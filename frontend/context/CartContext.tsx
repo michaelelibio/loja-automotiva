@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import type { Product } from '@/lib/products';
 
 export type CartItem = {
@@ -23,6 +24,15 @@ type CartContextValue = {
 const storageKey = 'garage-cart';
 const CartContext = createContext<CartContextValue | null>(null);
 
+type StoredCart = {
+  version: 2;
+  activeUserId: number | null;
+  guest: { ownerUserId: number | null; items: CartItem[] };
+  users: Record<string, CartItem[]>;
+};
+
+const emptyStorage = (): StoredCart => ({ version: 2, activeUserId: null, guest: { ownerUserId: null, items: [] }, users: {} });
+
 function normalizeProductId(value: unknown): string | null {
   const id = typeof value === 'number' ? String(value) : typeof value === 'string' ? value.trim() : '';
   return /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0 ? String(Number(id)) : null;
@@ -42,25 +52,126 @@ function sanitizeCartItems(value: unknown): CartItem[] {
   return Array.from(quantities, ([productId, quantity]) => ({ productId, quantity }));
 }
 
+function readCartStorage(): StoredCart {
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return emptyStorage();
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return { ...emptyStorage(), guest: { ownerUserId: null, items: sanitizeCartItems(parsed) } };
+    }
+    if (!parsed || typeof parsed !== 'object') return emptyStorage();
+    const object = parsed as Record<string, unknown>;
+    const guestObject = object.guest && typeof object.guest === 'object'
+      ? object.guest as Record<string, unknown> : {};
+    const owner = Number(guestObject.ownerUserId);
+    const activeOwner = Number(object.activeUserId);
+    const users: Record<string, CartItem[]> = {};
+    if (object.users && typeof object.users === 'object') {
+      Object.entries(object.users as Record<string, unknown>).forEach(([key, value]) => {
+        if (/^\d+$/.test(key) && Number(key) > 0) users[String(Number(key))] = sanitizeCartItems(value);
+      });
+    }
+    return {
+      version: 2,
+      activeUserId: Number.isSafeInteger(activeOwner) && activeOwner > 0 ? activeOwner : null,
+      guest: {
+        ownerUserId: Number.isSafeInteger(owner) && owner > 0 ? owner : null,
+        items: sanitizeCartItems(guestObject.items),
+      },
+      users,
+    };
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    return emptyStorage();
+  }
+}
+
+function writeCartStorage(storage: StoredCart) {
+  try { window.localStorage.setItem(storageKey, JSON.stringify(storage)); }
+  catch { /* O carrinho continua disponível em memória quando o storage falha. */ }
+}
+
 export function CartProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+  const { user, isLoading: authLoading } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const itemsRef = useRef<CartItem[]>([]);
+  const activeUserRef = useRef<number | null | undefined>(undefined);
 
   useEffect(() => {
-    const storedItems = window.localStorage.getItem(storageKey);
-    if (storedItems) {
-      try {
-        setItems(sanitizeCartItems(JSON.parse(storedItems)));
-      } catch {
-        window.localStorage.removeItem(storageKey);
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const currentUserId = user?.id ?? null;
+      const previousUserId = activeUserRef.current;
+      if (previousUserId === currentUserId) return;
+
+      const storage = readCartStorage();
+      const currentItems = itemsRef.current;
+      let selectedItems: CartItem[];
+
+      if (previousUserId === undefined) {
+        if (currentUserId === null) {
+          if (storage.activeUserId !== null && Object.hasOwn(storage.users, String(storage.activeUserId))) {
+            selectedItems = storage.users[String(storage.activeUserId)];
+            storage.guest = { ownerUserId: storage.activeUserId, items: selectedItems };
+          } else {
+            selectedItems = storage.guest.items;
+          }
+        } else if (storage.activeUserId === currentUserId && Object.hasOwn(storage.users, String(currentUserId))) {
+          selectedItems = storage.users[String(currentUserId)];
+        } else if (storage.guest.ownerUserId === currentUserId) {
+          selectedItems = storage.guest.items;
+        } else if (Object.hasOwn(storage.users, String(currentUserId))) {
+          selectedItems = storage.users[String(currentUserId)];
+        } else if (storage.guest.ownerUserId === null) {
+          selectedItems = storage.guest.items;
+          storage.guest.ownerUserId = currentUserId;
+        } else {
+          selectedItems = [];
+        }
+      } else if (currentUserId === null) {
+        storage.users[String(previousUserId)] = currentItems;
+        storage.guest = { ownerUserId: previousUserId, items: currentItems };
+        selectedItems = currentItems;
+      } else {
+        if (previousUserId !== null) storage.users[String(previousUserId)] = currentItems;
+        if (storage.guest.ownerUserId === currentUserId) {
+          selectedItems = storage.guest.items;
+        } else if (Object.hasOwn(storage.users, String(currentUserId))) {
+          selectedItems = storage.users[String(currentUserId)];
+        } else if (storage.guest.ownerUserId === null) {
+          selectedItems = storage.guest.items;
+          storage.guest.ownerUserId = currentUserId;
+        } else {
+          selectedItems = [];
+        }
       }
-    }
-    setHydrated(true);
-  }, []);
+
+      if (currentUserId !== null) storage.users[String(currentUserId)] = selectedItems;
+      storage.activeUserId = currentUserId;
+      activeUserRef.current = currentUserId;
+      itemsRef.current = selectedItems;
+      writeCartStorage(storage);
+      setItems(selectedItems);
+      setHydrated(true);
+    });
+    return () => { active = false; };
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(items));
+    if (!hydrated || activeUserRef.current === undefined) return;
+    const storage = readCartStorage();
+    const activeUserId = activeUserRef.current;
+    if (activeUserId === null) storage.guest.items = items;
+    else storage.users[String(activeUserId)] = items;
+    writeCartStorage(storage);
   }, [hydrated, items]);
 
   const value = useMemo<CartContextValue>(() => ({

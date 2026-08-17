@@ -1,4 +1,4 @@
-import type { LoginRequest, RegisterRequest, UpdateUserRequest, AuthResponse, User } from '@/lib/types/auth';
+import type { LoginRequest, GoogleLoginRequest, RegisterRequest, UpdateUserRequest, AuthResponse, User } from '@/lib/types/auth';
 import tokenStorage from '@/lib/auth/tokenStorage';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -66,6 +66,17 @@ export async function getCurrentUser(): Promise<User> {
   return handleResponse<User>(res);
 }
 
+export async function googleLogin(payload: GoogleLoginRequest): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await handleResponse<AuthResponse>(res);
+  if (data?.accessToken) tokenStorage.setToken(data.accessToken);
+  return data;
+}
+
 export function hasStoredToken(): boolean {
   return Boolean(tokenStorage.getToken());
 }
@@ -92,6 +103,12 @@ export async function updateCurrentUser(payload: UpdateUserRequest): Promise<Use
 
 export function logout(): void {
   tokenStorage.removeToken();
+  try {
+    if (typeof window !== 'undefined') window.sessionStorage.removeItem('garage-last-order');
+  } catch {
+    // A sessão em memória ainda será encerrada mesmo se o storage estiver indisponível.
+  }
 }
 
-export default { login, register, getCurrentUser, hasStoredToken, isUnauthorizedError, updateCurrentUser, logout };
+const authApi = { login, googleLogin, register, getCurrentUser, hasStoredToken, isUnauthorizedError, updateCurrentUser, logout };
+export default authApi;

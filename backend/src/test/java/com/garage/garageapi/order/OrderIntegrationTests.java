@@ -8,6 +8,8 @@ import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.repository.ProductRepository;
 import com.garage.garageapi.user.entity.User;
 import com.garage.garageapi.user.repository.UserRepository;
+import com.garage.garageapi.shipping.provider.FixedShippingProvider;
+import com.garage.garageapi.shipping.provider.ShippingProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,8 +70,12 @@ class OrderIntegrationTests {
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.expiresAt").isNotEmpty())
                 .andExpect(jsonPath("$.subtotal").value(179.80))
-                .andExpect(jsonPath("$.shippingCost").value(0.00))
-                .andExpect(jsonPath("$.total").value(179.80))
+                .andExpect(jsonPath("$.shippingCost").value(18.90))
+                .andExpect(jsonPath("$.total").value(198.70))
+                .andExpect(jsonPath("$.shipping.code").value("STANDARD"))
+                .andExpect(jsonPath("$.shipping.name").value("Entrega padrão"))
+                .andExpect(jsonPath("$.shipping.price").value(18.90))
+                .andExpect(jsonPath("$.shipping.estimatedDays").value(8))
                 .andExpect(jsonPath("$.shippingAddress.recipientName").value("Michael"))
                 .andExpect(jsonPath("$.shippingAddress.street").value("Rua Original"))
                 .andExpect(jsonPath("$.items[0].productId").value(product.getId()))
@@ -102,10 +108,46 @@ class OrderIntegrationTests {
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.items.length()").value(2))
                 .andExpect(jsonPath("$.subtotal").value(82.00))
-                .andExpect(jsonPath("$.total").value(82.00));
+                .andExpect(jsonPath("$.total").value(100.90));
 
         assertThat(productRepository.findById(first.getId()).orElseThrow().getStockQuantity()).isEqualTo(98);
         assertThat(productRepository.findById(second.getId()).orElseThrow().getStockQuantity()).isEqualTo(97);
+    }
+
+    @Test
+    void orderRequotesSelectedShippingAndKeepsHistoricalSnapshot() throws Exception {
+        User user = user("shipping-order@example.com");
+        Address address = address(user, "Rua", "10");
+        Product product = product("Produto Frete", "produto-frete", "40.00", true);
+        String body = "{\"addressId\":" + address.getId()
+                + ",\"shippingCode\":\"STANDARD\",\"shippingPrice\":0,\"shippingCost\":0,"
+                + "\"items\":[{\"productId\":" + product.getId() + ",\"quantity\":2}]}";
+
+        String response = mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subtotal").value(80.00))
+                .andExpect(jsonPath("$.shippingCost").value(18.90))
+                .andExpect(jsonPath("$.total").value(98.90))
+                .andExpect(jsonPath("$.shipping.code").value("STANDARD"))
+                .andExpect(jsonPath("$.shipping.name").value("Entrega padrão"))
+                .andExpect(jsonPath("$.shipping.estimatedDays").value(8))
+                .andReturn().getResponse().getContentAsString();
+        Long orderId = Long.valueOf(response.replaceAll(".*\\\"id\\\":([0-9]+).*", "$1"));
+
+        FixedShippingProvider changedProvider = new FixedShippingProvider(new BigDecimal("99.00"), 20);
+        ShippingProvider.Option changed = changedProvider.quote(new ShippingProvider.Request(
+                address.getZipCode(), java.util.List.of())).get(0);
+        assertThat(changed.price()).isEqualByComparingTo("99.00");
+
+        var persisted = orderRepository.findById(orderId).orElseThrow();
+        assertThat(persisted.getShippingCode()).isEqualTo("STANDARD");
+        assertThat(persisted.getShippingName()).isEqualTo("Entrega padrão");
+        assertThat(persisted.getShippingCost()).isEqualByComparingTo("18.90");
+        assertThat(persisted.getShippingEstimatedDays()).isEqualTo(8);
+        assertThat(persisted.getTotal()).isEqualByComparingTo("98.90");
+        assertThat(productRepository.findById(product.getId()).orElseThrow().getStockQuantity())
+                .isEqualTo(98);
     }
 
     @Test
@@ -268,7 +310,7 @@ class OrderIntegrationTests {
                 "Outro Bairro", "Outra Cidade", "PR");
         addressRepository.saveAndFlush(address);
         product.update("Nome Novo", "slug-novo", null, null, new BigDecimal("99.90"), null,
-                "Categoria", 50, null, true, product.getProductType());
+                "Categoria", null, true, product.getProductType());
         productRepository.saveAndFlush(product);
 
         mockMvc.perform(get("/api/orders/{id}", orderId).header("Authorization", bearer(user)))

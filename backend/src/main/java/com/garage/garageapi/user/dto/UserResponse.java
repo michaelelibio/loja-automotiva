@@ -11,12 +11,14 @@ public record UserResponse(
         String email,
         String pictureUrl,
         AuthProvider authProvider,
+        boolean emailVerified,
         boolean active,
         Instant createdAt,
         Instant updatedAt
 ) {
     public static UserResponse from(User user) {
         return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getPictureUrl(),
-                user.getAuthProvider(), user.isActive(), user.getCreatedAt(), user.getUpdatedAt());
+                user.getAuthProvider(), user.isEmailVerified(), user.isActive(), user.getCreatedAt(),
+                user.getUpdatedAt());
     }
 }

@@ -12,10 +12,13 @@ export type AdminOrderPage = {
 
 export type AdminOrder = AdminOrderSummary & {
   expiresAt: string | null;
+  shippingCode: string;
+  shippingName: string;
+  shippingEstimatedDays: number;
   customer: { userId: number; name: string; email: string };
   shippingAddress: { recipientName: string; zipCode: string; street: string; number: string; complement: string | null; neighborhood: string; city: string; state: string };
   items: Array<{ productId: number; productName: string; productSlug: string; unitPrice: number; quantity: number; subtotal: number }>;
-  payment: { method: 'PIX'; status: AdminPaymentStatus; paidAt: string | null } | null;
+  payment: { method: 'PIX' | 'MERCADO_PAGO'; status: AdminPaymentStatus; paidAt: string | null } | null;
 };
 
 export const adminOrderStatusLabels: Record<AdminOrderStatus, string> = {

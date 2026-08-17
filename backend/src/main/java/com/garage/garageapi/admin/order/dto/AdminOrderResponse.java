@@ -13,6 +13,7 @@ import java.util.List;
 
 public record AdminOrderResponse(
         Long id, OrderStatus status, BigDecimal subtotal, BigDecimal shippingCost, BigDecimal total,
+        String shippingCode, String shippingName, Integer shippingEstimatedDays,
         Instant createdAt, Instant expiresAt, Instant updatedAt, Instant processingAt,
         Instant shippedAt, Instant deliveredAt, Customer customer,
         ShippingAddress shippingAddress, List<Item> items, PaymentSummary payment
@@ -20,7 +21,8 @@ public record AdminOrderResponse(
     public static AdminOrderResponse from(Order order, Payment payment) {
         return new AdminOrderResponse(
                 order.getId(), order.getStatus(), order.getSubtotal(), order.getShippingCost(),
-                order.getTotal(), order.getCreatedAt(), order.getExpiresAt(), order.getUpdatedAt(),
+                order.getTotal(), order.getShippingCode(), order.getShippingName(),
+                order.getShippingEstimatedDays(), order.getCreatedAt(), order.getExpiresAt(), order.getUpdatedAt(),
                 order.getProcessingAt(), order.getShippedAt(), order.getDeliveredAt(),
                 new Customer(order.getUser().getId(), order.getUser().getName(),
                         order.getUser().getEmail()),

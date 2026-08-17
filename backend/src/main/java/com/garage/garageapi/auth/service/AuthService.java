@@ -32,16 +32,19 @@ public class AuthService {
     private final JwtService jwtService;
     private final GoogleTokenValidator googleTokenValidator;
     private final UserService userService;
+    private final AccountSecurityService accountSecurityService;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager, JwtService jwtService,
-                       GoogleTokenValidator googleTokenValidator, UserService userService) {
+                       GoogleTokenValidator googleTokenValidator, UserService userService,
+                       AccountSecurityService accountSecurityService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.googleTokenValidator = googleTokenValidator;
         this.userService = userService;
+        this.accountSecurityService = accountSecurityService;
     }
 
     @Transactional
@@ -52,7 +55,9 @@ public class AuthService {
         }
         User user = User.local(request.name().trim(), email, passwordEncoder.encode(request.password()));
         try {
-            return response(userRepository.saveAndFlush(user));
+            User saved = userRepository.saveAndFlush(user);
+            accountSecurityService.sendVerification(saved);
+            return response(saved);
         } catch (DataIntegrityViolationException exception) {
             throw new ResourceConflictException("E-mail já cadastrado");
         }
@@ -97,6 +102,7 @@ public class AuthService {
                 throw new ResourceConflictException("Conta Google já cadastrada");
             }
         }
+        user.verifyEmail();
         ensureActive(user);
         return response(user);
     }

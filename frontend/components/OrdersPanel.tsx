@@ -6,7 +6,7 @@ import { getOrders } from '@/lib/api/orders';
 import type { Order, OrderStatus } from '@/lib/types/order';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-export const statusLabels: Record<OrderStatus, string> = { PENDING_PAYMENT: 'Aguardando pagamento', PAID: 'Pago', PROCESSING: 'Em preparação', SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELED: 'Cancelado' };
+export const statusLabels: Record<OrderStatus, string> = { PENDING_PAYMENT: 'Aguardando pagamento', PAID: 'Pago', PROCESSING: 'Em preparação', SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELED: 'Cancelado', EXPIRED: 'Expirado' };
 export const formatOrderDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) { return <span className={`order-status ${status.toLowerCase()}`}>{statusLabels[status]}</span>; }
@@ -14,7 +14,7 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) { return <
 export function OrdersPanel({ compact = false }: { compact?: boolean }) {
   const [orders, setOrders] = useState<Order[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(false);
   const load = useCallback(async () => { setLoading(true); setError(false); try { setOrders(await getOrders()); } catch { setError(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { let active = true; getOrders().then((data) => { if (active) setOrders(data); }).catch(() => { if (active) setError(true); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, []);
   return <div className={`orders-panel ${compact ? 'compact' : ''}`}>
     {loading && <p className="account-status">Carregando seus pedidos...</p>}
     {error && <div className="orders-error"><p>Não foi possível carregar seus pedidos.</p><button type="button" onClick={() => void load()}>Tentar novamente</button></div>}

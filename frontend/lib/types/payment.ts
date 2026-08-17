@@ -1,4 +1,4 @@
-export type PaymentMethod = 'PIX';
+export type PaymentMethod = 'MERCADO_PAGO';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELED' | 'FAILED';
 
 export type Payment = {
@@ -7,9 +7,8 @@ export type Payment = {
   method: PaymentMethod;
   status: PaymentStatus;
   providerPaymentId: string | null;
-  qrCode: string | null;
-  qrCodeBase64: string | null;
-  expiresAt: string | null;
+  preferenceId: string | null;
+  checkoutUrl: string | null;
   paidAt: string | null;
   createdAt: string;
   updatedAt: string;

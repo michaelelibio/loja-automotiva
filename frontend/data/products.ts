@@ -1,6 +1,6 @@
 import type { Product } from '@/lib/products';
 
-const legacyProducts: Omit<Product, 'productType'>[] = [
+const legacyProducts: Omit<Product, 'productType' | 'fulfillmentType' | 'availableForSale'>[] = [
   { id: 'shampoo-neutro-pro', slug: 'shampoo-neutro-pro', name: 'Shampoo Neutro Pro', category: 'Lavagem', price: 49.9, description: 'Limpeza profunda sem remover a proteção da pintura.', longDescription: 'O Shampoo Neutro Pro combina alto poder de limpeza com uma fórmula equilibrada para a rotina. Sua espuma envolve a sujeira e facilita o enxágue, deixando a superfície pronta para o próximo passo do cuidado.', features: ['pH neutro para uso frequente', 'Alto rendimento e espuma cremosa', 'Seguro para ceras e selantes'], stock: 18, accent: '#b5c4c3', image: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&w=900&q=85', images: ['https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&w=900&q=85'], featured: true },
   { id: 'cera-sintetica-ultra', slug: 'cera-sintetica-ultra', name: 'Cera Sintética Ultra', category: 'Proteção', price: 89.9, oldPrice: 109.9, description: 'Brilho intenso e proteção duradoura para a pintura.', longDescription: 'A Cera Sintética Ultra cria uma camada uniforme de proteção e entrega aquele acabamento profundo que destaca as linhas do carro. Fácil de aplicar, é uma escolha certeira para manter o brilho entre as lavagens.', features: ['Durabilidade de até 12 semanas', 'Brilho profundo e toque liso', 'Aplicação manual simplificada'], stock: 12, accent: '#c8b99d', image: 'https://images.unsplash.com/photo-1625047509248-ec889cbff17f?auto=format&fit=crop&w=900&q=85', images: ['https://images.unsplash.com/photo-1625047509248-ec889cbff17f?auto=format&fit=crop&w=900&q=85'], featured: true },
   { id: 'kit-pinceis-detalhamento', slug: 'kit-pinceis-detalhamento', name: 'Kit Pincéis Detalhamento', category: 'Detalhamento', price: 74.9, description: 'Precisão para alcançar cada detalhe do interior e exterior.', longDescription: 'Um conjunto versátil para quem não abre mão de acabamento. Os pincéis têm diferentes formatos e níveis de firmeza para trabalhar em frestas, emblemas, rodas e áreas delicadas.', features: ['5 pincéis para diferentes superfícies', 'Cerdas macias e resistentes', 'Cabo ergonômico'], stock: 24, accent: '#a9b0bc', image: 'https://images.unsplash.com/photo-1565689876697-52c4f4c8c1ad?auto=format&fit=crop&w=900&q=85', images: ['https://images.unsplash.com/photo-1565689876697-52c4f4c8c1ad?auto=format&fit=crop&w=900&q=85'], featured: true },
@@ -14,4 +14,6 @@ const legacyProducts: Omit<Product, 'productType'>[] = [
 export const products: Product[] = legacyProducts.map((product) => ({
   ...product,
   productType: 'SINGLE',
+  fulfillmentType: 'LOCAL_STOCK',
+  availableForSale: product.stock > 0,
 }));

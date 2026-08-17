@@ -6,7 +6,7 @@ import com.garage.garageapi.order.repository.OrderRepository;
 import com.garage.garageapi.payment.entity.Payment;
 import com.garage.garageapi.payment.entity.PaymentMethod;
 import com.garage.garageapi.payment.entity.PaymentStatus;
-import com.garage.garageapi.payment.gateway.PixPaymentGateway;
+import com.garage.garageapi.payment.gateway.CheckoutProGateway;
 import com.garage.garageapi.payment.repository.PaymentRepository;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.shared.exception.ResourceNotFoundException;
@@ -15,19 +15,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 public class PaymentAttemptService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final CheckoutProGateway checkoutProGateway;
 
-    public PaymentAttemptService(PaymentRepository paymentRepository, OrderRepository orderRepository) {
+    public PaymentAttemptService(PaymentRepository paymentRepository, OrderRepository orderRepository,
+                                 CheckoutProGateway checkoutProGateway) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
+        this.checkoutProGateway = checkoutProGateway;
     }
 
     @Transactional
-    public PreparedAttempt prepare(Long userId, Long orderId, PaymentMethod method) {
+    public PreparedAttempt prepare(Long userId, Long orderId) {
         Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido não encontrado: " + orderId));
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
@@ -38,23 +42,31 @@ public class PaymentAttemptService {
         }
         Payment payment = paymentRepository
                 .findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(orderId, PaymentStatus.PENDING)
-                .orElseGet(() -> paymentRepository.saveAndFlush(new Payment(order, method)));
-        if (payment.getMethod() != method) {
+                .orElseGet(() -> paymentRepository.saveAndFlush(
+                        new Payment(order, PaymentMethod.MERCADO_PAGO)));
+        if (payment.getMethod() != PaymentMethod.MERCADO_PAGO) {
             throw new ResourceConflictException("Já existe uma tentativa de pagamento pendente");
         }
         payment.ensureIdempotencyKey();
+        List<CheckoutProGateway.Item> items = order.getItems().stream()
+                .map(item -> new CheckoutProGateway.Item(String.valueOf(item.getProductId()),
+                        item.getProductName(), item.getQuantity(), item.getUnitPrice()))
+                .toList();
+        boolean completed = payment.getProviderPreferenceId() != null;
         return new PreparedAttempt(payment.getId(), order.getId(), order.getTotal(),
-                order.getUser().getEmail(), payment.getIdempotencyKey(),
-                payment.getProviderPaymentId() != null);
+                order.getUser().getName(), order.getUser().getEmail(), payment.getIdempotencyKey(),
+                items, order.getShippingCost(), order.getShippingName(), completed);
     }
 
     @Transactional
-    public Payment complete(Long paymentId, PixPaymentGateway.Result result) {
-        Payment payment = paymentRepository.findById(paymentId)
+    public Payment createCheckoutPreference(Long paymentId,
+                                            CheckoutProGateway.PreferenceRequest request) {
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
-        payment.applyProviderResult(result.providerOrderId(), result.providerPaymentId(),
-                result.status(), result.qrCode(),
-                result.qrCodeBase64(), result.expiresAt(), result.paidAt());
+        if (payment.getProviderPreferenceId() != null) return payment;
+        CheckoutProGateway.PreferenceResult result = checkoutProGateway.createPreference(request);
+        payment.applyCheckoutPreference(result.preferenceId(), result.externalReference(),
+                result.checkoutUrl());
         return paymentRepository.saveAndFlush(payment);
     }
 
@@ -74,6 +86,8 @@ public class PaymentAttemptService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
     }
 
-    public record PreparedAttempt(Long paymentId, Long orderId, BigDecimal amount, String payerEmail,
-                                  String idempotencyKey, boolean completed) { }
+    public record PreparedAttempt(Long paymentId, Long orderId, BigDecimal amount, String payerName,
+                                  String payerEmail, String idempotencyKey,
+                                  List<CheckoutProGateway.Item> items, BigDecimal shippingCost,
+                                  String shippingName, boolean completed) { }
 }

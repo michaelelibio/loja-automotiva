@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import * as favoritesAPI from '@/lib/api/favorites';
 import type { Product } from '@/lib/products';
@@ -18,16 +18,20 @@ type FavoritesContextValue = {
 const FavoritesContext = createContext<FavoritesContextValue | null>(null);
 
 export function FavoritesProvider({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [favorites, setFavorites] = useState<Product[]>([]);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   const refreshFavorites = useCallback(async () => {
     if (isAuthLoading) return;
 
-    if (!isAuthenticated) {
+    const request = ++requestVersion.current;
+    const authenticatedUserId = user?.id;
+
+    if (!authenticatedUserId) {
       setFavorites([]);
       setFavoriteCount(0);
       setError(null);
@@ -37,28 +41,34 @@ export function FavoritesProvider({ children }: Readonly<{ children: React.React
     setIsLoading(true);
     try {
       const data = await favoritesAPI.getFavorites();
+      if (request !== requestVersion.current) return;
       setFavorites(data);
       try {
-        setFavoriteCount(await favoritesAPI.getFavoriteCount());
+        const count = await favoritesAPI.getFavoriteCount();
+        if (request === requestVersion.current) setFavoriteCount(count);
       } catch (countError) {
+        if (request !== requestVersion.current) return;
         console.warn('Não foi possível atualizar o contador de favoritos:', countError);
         setFavoriteCount(data.length);
       }
       setError(null);
-    } catch (err: any) {
-      setError(err?.message ?? 'Falha ao carregar favoritos.');
+    } catch (err: unknown) {
+      if (request === requestVersion.current) {
+        setError(err instanceof Error ? err.message : 'Falha ao carregar favoritos.');
+      }
     } finally {
-      setIsLoading(false);
+      if (request === requestVersion.current) setIsLoading(false);
     }
-  }, [isAuthenticated, isAuthLoading]);
+  }, [isAuthLoading, user?.id]);
 
   useEffect(() => {
-    refreshFavorites();
-  }, [isAuthenticated, refreshFavorites]);
+    queueMicrotask(() => void refreshFavorites());
+    return () => { requestVersion.current += 1; };
+  }, [refreshFavorites]);
 
   const isFavorite = useCallback(
-    (productId: string) => favorites.some((item) => item.id === productId),
-    [favorites],
+    (productId: string) => isAuthenticated && favorites.some((item) => item.id === productId),
+    [favorites, isAuthenticated],
   );
 
   const toggleFavorite = useCallback(
@@ -81,7 +91,7 @@ export function FavoritesProvider({ children }: Readonly<{ children: React.React
         } else {
           await favoritesAPI.addFavorite(product.id);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         await refreshFavorites();
         throw error;
       }
@@ -90,8 +100,8 @@ export function FavoritesProvider({ children }: Readonly<{ children: React.React
   );
 
   const value = useMemo(
-    () => ({ favorites, favoriteCount, isFavorite, isLoading, error, refreshFavorites, toggleFavorite }),
-    [favorites, favoriteCount, isFavorite, isLoading, error, refreshFavorites, toggleFavorite],
+    () => ({ favorites: isAuthenticated ? favorites : [], favoriteCount: isAuthenticated ? favoriteCount : 0, isFavorite, isLoading: isAuthenticated && isLoading, error: isAuthenticated ? error : null, refreshFavorites, toggleFavorite }),
+    [favorites, favoriteCount, isAuthenticated, isFavorite, isLoading, error, refreshFavorites, toggleFavorite],
   );
 
   return <FavoritesContext.Provider value={value}>{children}</FavoritesContext.Provider>;

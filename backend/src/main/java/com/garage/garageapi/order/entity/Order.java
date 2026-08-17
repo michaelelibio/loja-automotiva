@@ -3,6 +3,7 @@ package com.garage.garageapi.order.entity;
 import com.garage.garageapi.address.entity.Address;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.user.entity.User;
+import com.garage.garageapi.shipping.provider.ShippingProvider;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,6 +20,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -47,6 +49,18 @@ public class Order {
 
     @Column(name = "shipping_cost", nullable = false, precision = 12, scale = 2)
     private BigDecimal shippingCost;
+
+    @Column(name = "shipping_code", nullable = false, length = 50)
+    @ColumnDefault("'LEGACY'")
+    private String shippingCode;
+
+    @Column(name = "shipping_name", nullable = false, length = 120)
+    @ColumnDefault("'Frete legado'")
+    private String shippingName;
+
+    @Column(name = "shipping_estimated_days", nullable = false)
+    @ColumnDefault("0")
+    private Integer shippingEstimatedDays;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total;
@@ -101,11 +115,20 @@ public class Order {
 
     public Order(User user, Address address, BigDecimal subtotal, BigDecimal shippingCost,
                  Duration expiration) {
+        this(user, address, subtotal,
+                new ShippingProvider.Option("LEGACY", "Frete legado", shippingCost, 0), expiration);
+    }
+
+    public Order(User user, Address address, BigDecimal subtotal, ShippingProvider.Option shipping,
+                 Duration expiration) {
         this.user = user;
         this.status = OrderStatus.PENDING_PAYMENT;
         this.subtotal = subtotal;
-        this.shippingCost = shippingCost;
-        this.total = subtotal.add(shippingCost);
+        this.shippingCode = shipping.code();
+        this.shippingName = shipping.name();
+        this.shippingCost = shipping.price();
+        this.shippingEstimatedDays = shipping.estimatedDays();
+        this.total = subtotal.add(shipping.price());
         this.recipientName = address.getRecipientName();
         this.zipCode = address.getZipCode();
         this.street = address.getStreet();
@@ -136,6 +159,9 @@ public class Order {
     public OrderStatus getStatus() { return status; }
     public BigDecimal getSubtotal() { return subtotal; }
     public BigDecimal getShippingCost() { return shippingCost; }
+    public String getShippingCode() { return shippingCode; }
+    public String getShippingName() { return shippingName; }
+    public Integer getShippingEstimatedDays() { return shippingEstimatedDays; }
     public BigDecimal getTotal() { return total; }
     public String getRecipientName() { return recipientName; }
     public String getZipCode() { return zipCode; }

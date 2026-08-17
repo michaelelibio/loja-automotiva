@@ -15,6 +15,9 @@ import com.garage.garageapi.shared.exception.ResourceNotFoundException;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.user.entity.User;
 import com.garage.garageapi.user.service.UserService;
+import com.garage.garageapi.shipping.provider.ShippingProvider;
+import com.garage.garageapi.shipping.service.ShippingService;
+import com.garage.garageapi.stock.service.StockService;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -37,14 +40,19 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final UserService userService;
     private final Duration orderExpiration;
+    private final ShippingService shippingService;
+    private final StockService stockService;
 
     public OrderService(OrderRepository orderRepository, AddressRepository addressRepository,
                         ProductRepository productRepository, UserService userService,
+                        ShippingService shippingService, StockService stockService,
                         @Value("${app.order.expiration:PT24H}") Duration orderExpiration) {
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
         this.productRepository = productRepository;
         this.userService = userService;
+        this.shippingService = shippingService;
+        this.stockService = stockService;
         this.orderExpiration = orderExpiration;
     }
 
@@ -74,7 +82,7 @@ public class OrderService {
                 throw new InactiveProductException(
                         "Produto inativo não pode ser incluído no pedido: " + product.getId());
             }
-            if (product.getStockQuantity() < requestedQuantity) {
+            if (!product.canFulfill(requestedQuantity)) {
                 throw new ResourceConflictException(
                         "Estoque insuficiente para o produto " + product.getName() + ".");
             }
@@ -85,12 +93,20 @@ public class OrderService {
         }
         subtotal = money(subtotal);
 
-        snapshots.forEach(snapshot -> snapshot.product().decreaseStock(snapshot.quantity()));
+        List<ShippingProvider.Item> shippingItems = snapshots.stream()
+                .map(snapshot -> shippingService.item(snapshot.product(), snapshot.quantity()))
+                .toList();
+        ShippingProvider.Option shipping = shippingService.select(address.getZipCode(),
+                shippingItems, request.shippingCode());
 
-        Order order = new Order(user, address, subtotal, ZERO_MONEY, orderExpiration);
+        Order order = new Order(user, address, subtotal, shipping, orderExpiration);
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
-        return OrderResponse.from(orderRepository.saveAndFlush(order));
+        orderRepository.saveAndFlush(order);
+        snapshots.stream().filter(snapshot -> snapshot.product().requiresLocalStock())
+                .forEach(snapshot -> stockService.recordSale(
+                        snapshot.product(), snapshot.quantity(), order.getId()));
+        return OrderResponse.from(order);
     }
 
     @Transactional(readOnly = true)

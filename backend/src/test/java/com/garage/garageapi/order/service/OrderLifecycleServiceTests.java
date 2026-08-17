@@ -4,6 +4,7 @@ import com.garage.garageapi.address.entity.Address;
 import com.garage.garageapi.order.entity.Order;
 import com.garage.garageapi.order.entity.OrderStatus;
 import com.garage.garageapi.order.repository.OrderRepository;
+import com.garage.garageapi.order.email.OrderEmailNotificationService;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.user.entity.User;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class OrderLifecycleServiceTests {
     private static final Instant TRANSITION_TIME = Instant.parse("2026-08-14T18:00:00Z");
@@ -95,6 +98,26 @@ class OrderLifecycleServiceTests {
         assertConflict(paid::cancel);
         assertConflict(paid::expire);
         assertConflict(() -> service(order()).transition(1L, OrderStatus.EXPIRED));
+    }
+
+    @Test
+    void validOperationalTransitionsNotifyExactlyOnceAndInvalidTransitionDoesNotNotify() {
+        Order order = order();
+        order.markPaid();
+        OrderRepository repository = mock(OrderRepository.class);
+        OrderEmailNotificationService notifications = mock(OrderEmailNotificationService.class);
+        when(repository.findByIdForLifecycleUpdate(1L)).thenReturn(Optional.of(order));
+        OrderLifecycleService service = new OrderLifecycleService(repository,
+                Clock.fixed(TRANSITION_TIME, ZoneOffset.UTC), notifications);
+
+        service.transition(1L, OrderStatus.PROCESSING);
+        service.transition(1L, OrderStatus.SHIPPED);
+        service.transition(1L, OrderStatus.DELIVERED);
+        verify(notifications).afterCommit(order, OrderStatus.PROCESSING);
+        verify(notifications).afterCommit(order, OrderStatus.SHIPPED);
+        verify(notifications).afterCommit(order, OrderStatus.DELIVERED);
+        assertConflict(() -> service.transition(1L, OrderStatus.DELIVERED));
+        org.mockito.Mockito.verifyNoMoreInteractions(notifications);
     }
 
     private OrderLifecycleService service(Order order) {

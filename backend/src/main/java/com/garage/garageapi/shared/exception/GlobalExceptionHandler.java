@@ -2,9 +2,14 @@ package com.garage.garageapi.shared.exception;
 
 import com.garage.garageapi.auth.exception.InvalidCredentialsException;
 import com.garage.garageapi.auth.exception.InvalidGoogleTokenException;
+import com.garage.garageapi.auth.exception.InvalidAccountTokenException;
+import com.garage.garageapi.auth.exception.InvalidCurrentPasswordException;
+import com.garage.garageapi.auth.exception.AccountEmailDeliveryException;
 import com.garage.garageapi.auth.exception.UserDisabledException;
 import com.garage.garageapi.favorite.exception.InactiveProductException;
+import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import com.garage.garageapi.payment.gateway.PaymentProviderException;
+import com.garage.garageapi.shipping.exception.InvalidShippingOptionException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +36,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, exception.getMessage(), request.getRequestURI(), Map.of());
     }
 
+    @ExceptionHandler(InvalidAccountTokenException.class)
+    public ResponseEntity<ApiError> handleInvalidAccountToken(InvalidAccountTokenException exception,
+                                                               HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<ApiError> handleInvalidCurrentPassword(
+            InvalidCurrentPasswordException exception, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException exception,
                                                     HttpServletRequest request) {
@@ -49,6 +66,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI(), Map.of());
     }
 
+    @ExceptionHandler(InvalidShippingOptionException.class)
+    public ResponseEntity<ApiError> handleInvalidShippingOption(
+            InvalidShippingOptionException exception, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException exception,
                                                       HttpServletRequest request) {
@@ -62,6 +85,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handlePaymentProvider(PaymentProviderException exception,
                                                            HttpServletRequest request) {
         return build(HttpStatus.BAD_GATEWAY, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(AccountEmailDeliveryException.class)
+    public ResponseEntity<ApiError> handleAccountEmailDelivery(
+            AccountEmailDeliveryException exception, HttpServletRequest request) {
+        return build(HttpStatus.BAD_GATEWAY, "Não foi possível enviar o e-mail da conta",
+                request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(CjIntegrationException.class)
+    public ResponseEntity<ApiError> handleCjIntegration(CjIntegrationException exception,
+                                                        HttpServletRequest request) {
+        HttpStatus status = switch (exception.getReason()) {
+            case NOT_CONFIGURED -> HttpStatus.SERVICE_UNAVAILABLE;
+            case RATE_LIMIT -> HttpStatus.TOO_MANY_REQUESTS;
+            default -> HttpStatus.BAD_GATEWAY;
+        };
+        return build(status, exception.getMessage(), request.getRequestURI(), Map.of());
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String message, String path,

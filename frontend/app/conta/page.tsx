@@ -9,6 +9,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { VehiclesPanel } from '@/components/VehiclesPanel';
 import { AddressesPanel } from '@/components/AddressesPanel';
 import { OrdersPanel } from '@/components/OrdersPanel';
+import { ChangePasswordForm } from '@/components/ChangePasswordForm';
 import { useAuth } from '@/context/AuthContext';
 import { useFavorites } from '@/context/FavoritesContext';
 
@@ -45,6 +46,8 @@ export default function ContaPage() {
   }, [isLoading, sessionError, isAuthenticated, router]);
 
   useEffect(() => {
+    // O perfil chega após a restauração assíncrona da sessão e precisa preencher o formulário.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(user?.name ?? '');
   }, [user?.name]);
 
@@ -160,9 +163,9 @@ export default function ContaPage() {
             <>
               <AccountHeading eyebrow="CONFIGURAÇÕES" title="Sua conta" description="Consulte seus dados, endereços e informações de segurança." />
               <div className="account-settings">
-                <nav className="settings-tabs" aria-label="Seções de configurações">
+                <nav className="settings-tabs" aria-label="Seções de configurações" role="tablist">
                   {settingsSections.map((section) => (
-                    <button key={section.id} type="button" className={settingsSection === section.id ? 'active' : ''} aria-selected={settingsSection === section.id} onClick={() => setSettingsSection(section.id)}>
+                    <button key={section.id} type="button" role="tab" className={settingsSection === section.id ? 'active' : ''} aria-selected={settingsSection === section.id} onClick={() => setSettingsSection(section.id)}>
                       {section.label}
                     </button>
                   ))}
@@ -180,6 +183,7 @@ export default function ContaPage() {
                         <input value={user?.email ?? ''} readOnly aria-readonly="true" />
                       </label>
                       <div className="account-readonly-row"><span>Tipo de login</span><strong>{loginMethod}</strong></div>
+                      <div className="account-readonly-row"><span>Status do e-mail</span><strong className={user?.emailVerified ? 'email-verified' : 'email-unverified'}>{user?.emailVerified ? 'E-mail verificado' : 'E-mail ainda não verificado'}</strong></div>
                       <div className="account-form-actions">
                         <button type="submit" disabled={isSaving || !name.trim()}>{isSaving ? 'Salvando...' : 'Salvar alterações'}</button>
                         {saveStatus === 'success' && <p className="account-form-feedback success" role="status">Alterações salvas.</p>}
@@ -195,7 +199,7 @@ export default function ContaPage() {
                         {user?.authProvider === 'LOCAL' && <div><span>Senha</span><strong>••••••••</strong></div>}
                       </div>
                       {user?.authProvider === 'LOCAL' ? (
-                        <button type="button" className="account-secondary-action" disabled>Alterar senha — em breve</button>
+                        <ChangePasswordForm />
                       ) : (
                         <p className="account-note">A senha desta conta é gerenciada pelo Google.</p>
                       )}
@@ -222,8 +226,4 @@ function AccountHeading({ eyebrow, title, description }: { eyebrow: string; titl
 
 function AccountCard({ index, title, description, action, onClick }: { index: string; title: string; description: string; action: string; onClick: () => void }) {
   return <div className="account-card"><div><div className="card-index">{index}</div><h3>{title}</h3><p>{description}</p></div><div className="card-action"><button type="button" onClick={onClick}>{action} →</button></div></div>;
-}
-
-function AccountEmptyState({ eyebrow, title, description, action, compact = false }: { eyebrow: string; title: string; description: string; action?: string; compact?: boolean }) {
-  return <div className={`account-empty-state ${compact ? 'compact' : ''}`}><p className="eyebrow">{eyebrow}</p><h2>{title}</h2><p>{description}</p>{action && <button type="button" disabled>{action}</button>}</div>;
 }

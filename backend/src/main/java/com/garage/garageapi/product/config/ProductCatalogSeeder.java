@@ -2,6 +2,7 @@ package com.garage.garageapi.product.config;
 
 import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.repository.ProductRepository;
+import com.garage.garageapi.stock.service.StockService;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,9 +16,11 @@ import java.util.List;
 @ConditionalOnProperty(name = "app.seed.products.enabled", havingValue = "true", matchIfMissing = true)
 public class ProductCatalogSeeder implements ApplicationRunner {
     private final ProductRepository productRepository;
+    private final StockService stockService;
 
-    public ProductCatalogSeeder(ProductRepository productRepository) {
+    public ProductCatalogSeeder(ProductRepository productRepository, StockService stockService) {
         this.productRepository = productRepository;
+        this.stockService = stockService;
     }
 
     @Override
@@ -25,8 +28,10 @@ public class ProductCatalogSeeder implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         developmentCatalog().stream()
                 .filter(product -> !productRepository.existsBySlug(product.slug()))
-                .map(ProductSeed::toEntity)
-                .forEach(productRepository::save);
+                .forEach(seed -> {
+                    Product product = productRepository.saveAndFlush(seed.toEntity());
+                    stockService.recordInitialStock(product, seed.stockQuantity(), null);
+                });
     }
 
     private List<ProductSeed> developmentCatalog() {
@@ -97,7 +102,7 @@ public class ProductCatalogSeeder implements ApplicationRunner {
         Product toEntity() {
             return new Product(name, slug, description, longDescription,
                     new BigDecimal(price), oldPrice == null ? null : new BigDecimal(oldPrice),
-                    category, stockQuantity, null, true);
+                    category, 0, null, true);
         }
     }
 }

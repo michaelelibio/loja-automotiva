@@ -23,6 +23,7 @@ export function AddressesPanel() {
   const [saving, setSaving] = useState(false);
   const [processing, setProcessing] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const lastCep = useRef('');
   const numberRef = useRef<HTMLInputElement>(null);
 
@@ -32,7 +33,13 @@ export function AddressesPanel() {
     catch { setError('Não foi possível carregar seus endereços.'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    api.getAddresses().then((data) => { if (active) setAddresses(data); })
+      .catch(() => { if (active) setError('Não foi possível carregar seus endereços.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!formOpen) return;
@@ -68,14 +75,14 @@ export function AddressesPanel() {
     if (zipCode.length !== 8) return setFormError('CEP deve possuir 8 dígitos.');
     if (!form.recipientName.trim() || !form.street.trim() || !form.number.trim() || !form.neighborhood.trim() || !form.city.trim() || form.state.length !== 2) return setFormError('Preencha todos os campos obrigatórios.');
     const payload: AddressRequest = { label: form.label.trim(), recipientName: form.recipientName.trim(), zipCode, street: form.street.trim(), number: form.number.trim(), complement: form.complement.trim(), neighborhood: form.neighborhood.trim(), city: form.city.trim(), state: form.state.toUpperCase(), isPrimary: editing ? editing.isPrimary : form.isPrimary };
-    setSaving(true); setFormError(null);
-    try { if (editing) await api.updateAddress(editing.id, payload); else await api.createAddress(payload); setFormOpen(false); setEditing(null); await load(); }
+    setSaving(true); setFormError(null); setFeedback(null);
+    try { const wasEditing = Boolean(editing); if (editing) await api.updateAddress(editing.id, payload); else await api.createAddress(payload); setFormOpen(false); setEditing(null); await load(); setFeedback(wasEditing ? 'Endereço atualizado com sucesso.' : 'Endereço adicionado com sucesso.'); }
     catch (reason) { setFormError(reason instanceof Error ? reason.message : 'Não foi possível salvar o endereço.'); }
     finally { setSaving(false); }
   }
 
   async function makePrimary(id: number) {
-    setProcessing(id); setActionError(null);
+    setProcessing(id); setActionError(null); setFeedback(null);
     try {
       const updatedAddress = await api.setPrimaryAddress(id);
       setAddresses((current) => current
@@ -83,14 +90,16 @@ export function AddressesPanel() {
           ? updatedAddress
           : { ...address, isPrimary: false })
         .sort((first, second) => Number(second.isPrimary) - Number(first.isPrimary)));
+      setFeedback('Endereço principal atualizado.');
     } catch {
       setActionError('Não foi possível definir o endereço principal.');
     } finally { setProcessing(null); }
   }
-  async function remove(id: number) { setProcessing(id); try { await api.deleteAddress(id); setConfirmDelete(null); await load(); } catch { setError('Não foi possível excluir o endereço.'); } finally { setProcessing(null); } }
+  async function remove(id: number) { setProcessing(id); setFeedback(null); try { await api.deleteAddress(id); setConfirmDelete(null); await load(); setFeedback('Endereço excluído com sucesso.'); } catch { setError('Não foi possível excluir o endereço.'); } finally { setProcessing(null); } }
 
   return <div className="addresses-panel">
     <div className="addresses-heading"><div><p className="eyebrow">ENDEREÇOS</p><h2>Seus endereços</h2></div>{addresses.length > 0 && <button type="button" onClick={openCreate}>Adicionar endereço</button>}</div>
+    {feedback && <p className="panel-action-feedback" role="status">{feedback}</p>}
     {loading && <p className="account-status">Carregando seus endereços...</p>}
     {error && <div className="addresses-error" role="alert"><p>{error}</p><button type="button" onClick={() => void load()}>Tentar novamente</button></div>}
     {actionError && <p className="address-action-error" role="alert">{actionError}</p>}

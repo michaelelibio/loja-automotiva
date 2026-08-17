@@ -43,6 +43,21 @@ public class Payment {
     @Column(name = "provider_order_id", unique = true, length = 255)
     private String providerOrderId;
 
+    @Column(name = "provider_preference_id", unique = true, length = 255)
+    private String providerPreferenceId;
+
+    @Column(name = "external_reference", unique = true, length = 255)
+    private String externalReference;
+
+    @Column(name = "checkout_url", length = 2000)
+    private String checkoutUrl;
+
+    @Column(name = "provider_payment_type", length = 100)
+    private String providerPaymentType;
+
+    @Column(name = "provider_payment_method_id", length = 100)
+    private String providerPaymentMethodId;
+
     @Column(name = "idempotency_key", unique = true, length = 36)
     private String idempotencyKey;
 
@@ -89,6 +104,11 @@ public class Payment {
     public PaymentStatus getStatus() { return status; }
     public String getProviderPaymentId() { return providerPaymentId; }
     public String getProviderOrderId() { return providerOrderId; }
+    public String getProviderPreferenceId() { return providerPreferenceId; }
+    public String getExternalReference() { return externalReference; }
+    public String getCheckoutUrl() { return checkoutUrl; }
+    public String getProviderPaymentType() { return providerPaymentType; }
+    public String getProviderPaymentMethodId() { return providerPaymentMethodId; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getQrCode() { return qrCode; }
     public String getQrCodeBase64() { return qrCodeBase64; }
@@ -105,6 +125,11 @@ public class Payment {
         status = PaymentStatus.FAILED;
     }
 
+    /**
+     * Legacy hydration hook retained for historical PIX fixtures and migrations only.
+     * New payment flows must use Checkout Pro fields.
+     */
+    @Deprecated(forRemoval = false)
     public void applyProviderResult(String providerOrderId, String providerPaymentId,
                                     PaymentStatus status, String qrCode,
                                     String qrCodeBase64, Instant expiresAt, Instant paidAt) {
@@ -117,10 +142,20 @@ public class Payment {
         this.paidAt = paidAt;
     }
 
-    public void applyProviderResult(String providerPaymentId, PaymentStatus status, String qrCode,
-                                    String qrCodeBase64, Instant expiresAt, Instant paidAt) {
-        applyProviderResult(providerOrderId, providerPaymentId, status, qrCode, qrCodeBase64,
-                expiresAt, paidAt);
+    public void applyCheckoutPreference(String preferenceId, String externalReference,
+                                        String checkoutUrl) {
+        this.providerPreferenceId = preferenceId;
+        this.externalReference = externalReference;
+        this.checkoutUrl = checkoutUrl;
+    }
+
+    public void synchronizeCheckoutPayment(String providerPaymentId, PaymentStatus providerStatus,
+                                           Instant providerPaidAt, String paymentType,
+                                           String paymentMethodId) {
+        if (this.providerPaymentId == null) this.providerPaymentId = providerPaymentId;
+        this.providerPaymentType = paymentType;
+        this.providerPaymentMethodId = paymentMethodId;
+        synchronizeProviderStatus(providerStatus, providerPaidAt);
     }
 
     public boolean synchronizeProviderStatus(PaymentStatus providerStatus, Instant providerPaidAt) {

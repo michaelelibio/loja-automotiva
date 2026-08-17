@@ -6,10 +6,11 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,11 +27,20 @@ export default function LoginPage() {
       } else {
         setError(result.message ?? 'Credenciais inválidas');
       }
-    } catch (err: any) {
-      setError(err?.message ?? 'Erro ao conectar com o servidor');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao conectar com o servidor');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    setError(null);
+    setLoading(true);
+    const result = await loginWithGoogle(credential);
+    if (result.success) router.push('/');
+    else setError(result.message ?? 'Não foi possível entrar com o Google. Tente novamente.');
+    setLoading(false);
   };
 
   return (
@@ -61,13 +71,13 @@ export default function LoginPage() {
                 <button className="btn-primary" type="submit" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</button>
 
                 <div className="auth-links">
-                  <Link href="#" className="text-link inline">Esqueceu sua senha?</Link>
+                  <Link href="/esqueci-senha" className="text-link inline">Esqueci minha senha</Link>
                   <Link href="/cadastro" className="text-link inline">Não tem uma conta? Criar conta</Link>
                 </div>
 
                 <div className="divider">OU</div>
 
-                <button className="btn-google" type="button" disabled title="Continuar com Google (em breve)">Continuar com Google</button>
+                <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
               </form>
             </section>
           </div>

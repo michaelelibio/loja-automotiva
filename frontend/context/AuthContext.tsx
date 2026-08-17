@@ -10,6 +10,7 @@ type AuthContextValue = {
   isLoading: boolean;
   sessionError: string | null;
   login: (payload: LoginRequest) => Promise<{ success: boolean; message?: string }>;
+  loginWithGoogle: (credential: string) => Promise<{ success: boolean; message?: string }>;
   register: (payload: RegisterRequest) => Promise<{ success: boolean; message?: string }>;
   updateProfile: (payload: UpdateUserRequest) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
@@ -60,8 +61,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       setUser(data.user ?? null);
       setSessionError(null);
       return { success: true };
-    } catch (err: any) {
-      return { success: false, message: err?.message ?? 'Erro ao autenticar' };
+    } catch (err: unknown) {
+      return { success: false, message: err instanceof Error ? err.message : 'Erro ao autenticar' };
     } finally {
       setIsLoading(false);
     }
@@ -74,8 +75,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       if (data && data.user) setUser(data.user);
       setSessionError(null);
       return { success: true };
-    } catch (err: any) {
-      return { success: false, message: err?.message ?? 'Erro ao cadastrar' };
+    } catch (err: unknown) {
+      return { success: false, message: err instanceof Error ? err.message : 'Erro ao cadastrar' };
     } finally {
       setIsLoading(false);
     }
@@ -87,24 +88,41 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     setSessionError(null);
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    setIsLoading(true);
+    try {
+      const data = await authAPI.googleLogin({ credential });
+      setUser(data.user ?? null);
+      setSessionError(null);
+      return { success: true };
+    } catch (err: unknown) {
+      const message = err instanceof authAPI.AuthApiError && err.status === 409
+        ? 'Já existe uma conta com este e-mail. Entre com e-mail e senha.'
+        : 'Não foi possível entrar com o Google. Tente novamente.';
+      return { success: false, message };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const updateProfile = async (payload: UpdateUserRequest) => {
     try {
       const updatedUser = await authAPI.updateCurrentUser(payload);
       setUser(updatedUser);
       setSessionError(null);
       return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (authAPI.isUnauthorizedError(err)) {
         authAPI.logout();
         setUser(null);
         setSessionError(null);
       }
-      return { success: false, message: err?.message ?? 'Não foi possível salvar as alterações.' };
+      return { success: false, message: err instanceof Error ? err.message : 'Não foi possível salvar as alterações.' };
     }
   };
 
   const value = useMemo(
-    () => ({ user, isAuthenticated: !!user, isLoading, sessionError, login, register, updateProfile, logout }),
+    () => ({ user, isAuthenticated: !!user, isLoading, sessionError, login, loginWithGoogle, register, updateProfile, logout }),
     [user, isLoading, sessionError],
   );
 
