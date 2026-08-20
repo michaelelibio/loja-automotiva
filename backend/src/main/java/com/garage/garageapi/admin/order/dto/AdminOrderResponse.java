@@ -11,10 +11,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import com.garage.garageapi.product.entity.FulfillmentType;
+import com.garage.garageapi.shipping.provider.ShippingProvider;
 
 public record AdminOrderResponse(
         Long id, OrderStatus status, BigDecimal subtotal, BigDecimal shippingCost, BigDecimal total,
         String shippingCode, String shippingName, Integer shippingEstimatedDays,
+        String shippingProvider, BigDecimal shippingProviderAmount,
+        String shippingProviderCurrency, List<ShippingProvider.Leg> shippingLegs,
         Instant createdAt, Instant expiresAt, Instant updatedAt, Instant processingAt,
         Instant shippedAt, Instant deliveredAt, Customer customer,
         ShippingAddress shippingAddress, List<Item> items, PaymentSummary payment
@@ -23,7 +26,9 @@ public record AdminOrderResponse(
         return new AdminOrderResponse(
                 order.getId(), order.getStatus(), order.getSubtotal(), order.getShippingCost(),
                 order.getTotal(), order.getShippingCode(), order.getShippingName(),
-                order.getShippingEstimatedDays(), order.getCreatedAt(), order.getExpiresAt(), order.getUpdatedAt(),
+                order.getShippingEstimatedDays(), order.getShippingProvider(),
+                order.getShippingProviderAmount(), order.getShippingProviderCurrency(),
+                order.getShippingLegs(), order.getCreatedAt(), order.getExpiresAt(), order.getUpdatedAt(),
                 order.getProcessingAt(), order.getShippedAt(), order.getDeliveredAt(),
                 new Customer(order.getUser().getId(), order.getUser().getName(),
                         order.getUser().getEmail()),

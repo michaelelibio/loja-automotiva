@@ -82,7 +82,13 @@ export function CheckoutForm() {
       } catch (reason) {
         if (controller.signal.aborted) return;
         if (reason instanceof ShippingApiError && reason.status === 401) { logout(); router.replace('/login'); return; }
-        setShippingError('Não foi possível calcular o frete. Confira o endereço e tente novamente.');
+        if (reason instanceof ShippingApiError && reason.status === 409) {
+          setShippingError('Uma opção selecionada está indisponível para entrega no momento.');
+        } else if (reason instanceof ShippingApiError && reason.status >= 500) {
+          setShippingError('O serviço de entrega está temporariamente indisponível. Tente novamente.');
+        } else {
+          setShippingError('Não foi possível calcular o frete. Confira o endereço e tente novamente.');
+        }
       } finally { if (!controller.signal.aborted) setShippingLoading(false); }
     }
     void loadQuote();

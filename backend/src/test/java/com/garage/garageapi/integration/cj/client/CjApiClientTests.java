@@ -14,6 +14,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -66,6 +69,24 @@ class CjApiClientTests {
                         ]}
                         """);
                 });
+        server.createContext("/api2.0/v1/product/stock/queryByVid", exchange -> {
+            accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
+            variantProductId.set(exchange.getRequestURI().getQuery());
+            respond(exchange, 200, """
+                    {"code":200,"result":true,"data":[{"vid":"VID-1","areaId":"1",
+                    "areaEn":"China Warehouse","countryCode":"CN","totalInventoryNum":25,
+                    "cjInventoryNum":5,"factoryInventoryNum":20}]}
+                    """);
+        });
+        server.createContext("/api2.0/v1/logistic/freightCalculate", exchange -> {
+            accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, """
+                    {"code":200,"result":true,"data":[{"logisticName":"CJPacket",
+                    "logisticAging":"7-12","logisticPrice":4.71,"taxesFee":0.20,
+                    "clearanceOperationFee":0.10,"totalPostageFee":5.01}]}
+                    """);
+        });
         server.start();
         client = new CjApiClient(RestClient.builder()
                 .baseUrl("http://127.0.0.1:" + server.getAddress().getPort()).build());
@@ -122,6 +143,51 @@ class CjApiClientTests {
                 .containsEntry("option2", "XL");
         assertThat(response.variants().get(0).weightGrams()).isEqualByComparingTo("3.25");
         assertThat(response.variants().get(1).name()).isEqualTo("Red");
+    }
+
+    @Test
+    void mapsInventoryByVariantId() {
+        var response = client.getVariantInventory("SECRET", "VID-1");
+        assertThat(accessTokenHeader.get()).isEqualTo("SECRET");
+        assertThat(variantProductId.get()).isEqualTo("vid=VID-1");
+        assertThat(response.warehouses()).singleElement().satisfies(warehouse -> {
+            assertThat(warehouse.countryCode()).isEqualTo("CN");
+            assertThat(warehouse.totalInventory()).isEqualTo(25);
+        });
+    }
+
+    @Test
+    void mapsFreightRequestAndOfficialResponseFields() {
+        var response = client.calculateFreight("SECRET", "CN", "BR", "89229030",
+                List.of(Map.of("vid", "VID-1", "quantity", 3)));
+        assertThat(requestBody.get()).contains("\"startCountryCode\":\"CN\"")
+                .contains("\"endCountryCode\":\"BR\"")
+                .contains("\"zip\":\"89229030\"")
+                .contains("\"vid\":\"VID-1\"")
+                .contains("\"quantity\":3");
+        assertThat(response.options()).singleElement().satisfies(option -> {
+            assertThat(option.logisticName()).isEqualTo("CJPacket");
+            assertThat(option.logisticPriceUsd()).isEqualByComparingTo("4.71");
+            assertThat(option.totalPostageFeeUsd()).isEqualByComparingTo("5.01");
+        });
+    }
+
+    @Test
+    void rejectsInvalidInventoryAndFreightResponses() throws IOException {
+        server.removeContext("/api2.0/v1/product/stock/queryByVid");
+        server.createContext("/api2.0/v1/product/stock/queryByVid", exchange -> respond(exchange, 200,
+                "{\"code\":200,\"result\":true,\"data\":[{\"vid\":\"VID-1\",\"countryCode\":\"CN\",\"totalInventoryNum\":-1}]}"));
+        assertThatThrownBy(() -> client.getVariantInventory("TOKEN", "VID-1"))
+                .isInstanceOfSatisfying(CjIntegrationException.class, exception ->
+                        assertThat(exception.getReason()).isEqualTo(CjIntegrationException.Reason.INVALID_RESPONSE));
+
+        server.removeContext("/api2.0/v1/logistic/freightCalculate");
+        server.createContext("/api2.0/v1/logistic/freightCalculate", exchange -> respond(exchange, 200,
+                "{\"code\":200,\"result\":true,\"data\":[{\"logisticName\":\"CJPacket\",\"logisticAging\":\"soon\",\"logisticPrice\":-1}]}"));
+        assertThatThrownBy(() -> client.calculateFreight("TOKEN", "CN", "BR", "89229030",
+                List.of(Map.of("vid", "VID-1", "quantity", 1))))
+                .isInstanceOfSatisfying(CjIntegrationException.class, exception ->
+                        assertThat(exception.getReason()).isEqualTo(CjIntegrationException.Reason.INVALID_RESPONSE));
     }
 
     @Test

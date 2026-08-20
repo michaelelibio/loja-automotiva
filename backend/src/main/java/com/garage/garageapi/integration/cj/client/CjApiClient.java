@@ -3,6 +3,8 @@ package com.garage.garageapi.integration.cj.client;
 import com.garage.garageapi.integration.cj.config.CjProperties;
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
 import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
+import com.garage.garageapi.integration.cj.dto.CjVariantInventoryResponse;
+import com.garage.garageapi.integration.cj.dto.CjFreightResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,12 @@ public class CjApiClient {
 
     private static final String PRODUCT_VARIANT_QUERY =
             "/api2.0/v1/product/variant/query";
+
+    private static final String PRODUCT_STOCK_QUERY_BY_VID =
+            "/api2.0/v1/product/stock/queryByVid";
+
+    private static final String FREIGHT_CALCULATE =
+            "/api2.0/v1/logistic/freightCalculate";
 
     private static final JsonMapper DIAGNOSTIC_JSON =
             JsonMapper.builder().build();
@@ -265,6 +273,74 @@ public class CjApiClient {
                         );
                 }
         }
+
+    public CjVariantInventoryResponse getVariantInventory(String accessToken, String variantId) {
+        try {
+            JsonNode response = restClient.get()
+                    .uri(builder -> builder.path(PRODUCT_STOCK_QUERY_BY_VID)
+                            .queryParam("vid", variantId).build())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .header("CJ-Access-Token", accessToken)
+                    .retrieve().body(JsonNode.class);
+            JsonNode data = successfulData(response, "consulta de disponibilidade");
+            if (!data.isArray()) {
+                throw new CjIntegrationException("Resposta inválida da CJ durante consulta de disponibilidade",
+                        CjIntegrationException.Reason.INVALID_RESPONSE);
+            }
+            List<CjVariantInventoryResponse.Warehouse> warehouses = new ArrayList<>();
+            for (JsonNode warehouse : data) {
+                String returnedVid = text(warehouse, "vid");
+                if (StringUtils.hasText(returnedVid) && !variantId.equals(returnedVid)) {
+                    throw new CjIntegrationException("Resposta inválida da CJ durante consulta de disponibilidade",
+                            CjIntegrationException.Reason.INVALID_RESPONSE);
+                }
+                warehouses.add(new CjVariantInventoryResponse.Warehouse(
+                        text(warehouse, "areaId"), text(warehouse, "areaEn"),
+                        requiredText(warehouse, "countryCode"),
+                        requiredNonNegativeInteger(warehouse, "totalInventoryNum")));
+            }
+            return new CjVariantInventoryResponse(variantId, List.copyOf(warehouses));
+        } catch (RestClientResponseException exception) {
+            throw httpFailure("consulta de disponibilidade", exception);
+        } catch (RestClientException exception) {
+            throw new CjIntegrationException("Falha temporária ao consultar disponibilidade da CJ",
+                    exception, CjIntegrationException.Reason.UPSTREAM);
+        }
+    }
+
+    public CjFreightResponse calculateFreight(String accessToken, String originCountry,
+                                              String destinationCountry, String zipCode,
+                                              List<Map<String, Object>> products) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("startCountryCode", originCountry);
+        body.put("endCountryCode", destinationCountry);
+        body.put("zip", zipCode);
+        body.put("products", products);
+        try {
+            JsonNode response = restClient.post().uri(FREIGHT_CALCULATE)
+                    .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
+                    .header("CJ-Access-Token", accessToken).body(body)
+                    .retrieve().body(JsonNode.class);
+            JsonNode data = successfulData(response, "cotação de frete");
+            if (!data.isArray()) {
+                throw new CjIntegrationException("Resposta inválida da CJ durante cotação de frete",
+                        CjIntegrationException.Reason.INVALID_RESPONSE);
+            }
+            List<CjFreightResponse.Option> options = new ArrayList<>();
+            for (JsonNode option : data) {
+                options.add(new CjFreightResponse.Option(requiredText(option, "logisticName"),
+                        requiredText(option, "logisticAging"), requiredDecimal(option, "logisticPrice"),
+                        decimal(option, "taxesFee"), decimal(option, "clearanceOperationFee"),
+                        decimal(option, "totalPostageFee")));
+            }
+            return new CjFreightResponse(List.copyOf(options));
+        } catch (RestClientResponseException exception) {
+            throw httpFailure("cotação de frete", exception);
+        } catch (RestClientException exception) {
+            throw new CjIntegrationException("Falha temporária ao calcular frete da CJ",
+                    exception, CjIntegrationException.Reason.UPSTREAM);
+        }
+    }
 
     private void logProductRequest(
             String keyword,
@@ -748,6 +824,24 @@ public class CjApiClient {
                     CjIntegrationException.Reason.INVALID_RESPONSE
             );
         }
+    }
+
+    private BigDecimal requiredDecimal(JsonNode node, String field) {
+        BigDecimal value = decimal(node, field);
+        if (value == null || value.signum() < 0) {
+            throw new CjIntegrationException("Valor inválido retornado pela CJ",
+                    CjIntegrationException.Reason.INVALID_RESPONSE);
+        }
+        return value;
+    }
+
+    private int requiredNonNegativeInteger(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        if (!value.isIntegralNumber() || value.asLong() < 0 || value.asLong() > Integer.MAX_VALUE) {
+            throw new CjIntegrationException("Estoque inválido retornado pela CJ",
+                    CjIntegrationException.Reason.INVALID_RESPONSE);
+        }
+        return value.asInt();
     }
 
     private int integer(

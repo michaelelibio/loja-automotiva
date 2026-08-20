@@ -21,6 +21,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -61,6 +63,19 @@ public class Order {
     @Column(name = "shipping_estimated_days", nullable = false)
     @ColumnDefault("0")
     private Integer shippingEstimatedDays;
+
+    @Column(name = "shipping_provider", length = 30)
+    private String shippingProvider;
+
+    @Column(name = "shipping_provider_amount", precision = 19, scale = 4)
+    private BigDecimal shippingProviderAmount;
+
+    @Column(name = "shipping_provider_currency", length = 3)
+    private String shippingProviderCurrency;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "shipping_legs", columnDefinition = "jsonb")
+    private List<ShippingProvider.Leg> shippingLegs;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total;
@@ -128,6 +143,10 @@ public class Order {
         this.shippingName = shipping.name();
         this.shippingCost = shipping.price();
         this.shippingEstimatedDays = shipping.estimatedDays();
+        this.shippingProvider = shipping.provider();
+        this.shippingProviderAmount = shipping.providerAmount();
+        this.shippingProviderCurrency = shipping.providerCurrency();
+        this.shippingLegs = List.copyOf(shipping.legs());
         this.total = subtotal.add(shipping.price());
         this.recipientName = address.getRecipientName();
         this.zipCode = address.getZipCode();
@@ -162,6 +181,12 @@ public class Order {
     public String getShippingCode() { return shippingCode; }
     public String getShippingName() { return shippingName; }
     public Integer getShippingEstimatedDays() { return shippingEstimatedDays; }
+    public String getShippingProvider() { return shippingProvider; }
+    public BigDecimal getShippingProviderAmount() { return shippingProviderAmount; }
+    public String getShippingProviderCurrency() { return shippingProviderCurrency; }
+    public List<ShippingProvider.Leg> getShippingLegs() {
+        return shippingLegs == null ? List.of() : List.copyOf(shippingLegs);
+    }
     public BigDecimal getTotal() { return total; }
     public String getRecipientName() { return recipientName; }
     public String getZipCode() { return zipCode; }

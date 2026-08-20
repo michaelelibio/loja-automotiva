@@ -10,6 +10,7 @@ import com.garage.garageapi.favorite.exception.InactiveProductException;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import com.garage.garageapi.payment.gateway.PaymentProviderException;
 import com.garage.garageapi.shipping.exception.InvalidShippingOptionException;
+import com.garage.garageapi.shipping.exception.DropshippingUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleInvalidShippingOption(
             InvalidShippingOptionException exception, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(DropshippingUnavailableException.class)
+    public ResponseEntity<ApiError> handleDropshippingUnavailable(
+            DropshippingUnavailableException exception, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, exception.getMessage(), request.getRequestURI(), Map.of());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

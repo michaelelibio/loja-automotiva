@@ -15,6 +15,12 @@ export type AdminOrder = AdminOrderSummary & {
   shippingCode: string;
   shippingName: string;
   shippingEstimatedDays: number;
+  shippingProvider: string | null;
+  shippingProviderAmount: number | null;
+  shippingProviderCurrency: string | null;
+  shippingLegs: Array<{ provider: string; code: string; name: string; originCountry: string;
+    amount: number; currency: string; priceBrl: number; estimatedDays: number;
+    supplierVariantIds: string[] }>;
   customer: { userId: number; name: string; email: string };
   shippingAddress: { recipientName: string; zipCode: string; street: string; number: string; complement: string | null; neighborhood: string; city: string; state: string };
   items: Array<{ productId: number; productName: string; productSlug: string;

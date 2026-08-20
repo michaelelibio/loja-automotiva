@@ -107,7 +107,8 @@ public class OrderService {
         subtotal = money(subtotal);
 
         List<ShippingProvider.Item> shippingItems = snapshots.stream()
-                .map(snapshot -> shippingService.item(snapshot.product(), snapshot.quantity()))
+                .map(snapshot -> shippingService.item(snapshot.product(), snapshot.variant(),
+                        snapshot.quantity()))
                 .toList();
         ShippingProvider.Option shipping = shippingService.select(address.getZipCode(),
                 shippingItems, request.shippingCode());

@@ -6,5 +6,9 @@ export type OrderItem = { productId: number; productName: string; productSlug: s
   fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING' | null;
   unitPrice: number; quantity: number; subtotal: number };
 export type ShippingAddress = { recipientName: string; zipCode: string; street: string; number: string; complement: string | null; neighborhood: string; city: string; state: string };
-export type OrderShipping = { code: string; name: string; price: number; estimatedDays: number };
+export type OrderShipping = { code: string; name: string; price: number; estimatedDays: number;
+  provider: string | null; providerAmount: number | null; providerCurrency: string | null;
+  legs: Array<{ provider: string; code: string; name: string; originCountry: string;
+    amount: number; currency: string; priceBrl: number; estimatedDays: number;
+    supplierVariantIds: string[] }> };
 export type Order = { id: number; status: OrderStatus; subtotal: number; shippingCost: number; total: number; createdAt: string; expiresAt: string; updatedAt: string; shippingAddress: ShippingAddress; shipping: OrderShipping; items: OrderItem[] };

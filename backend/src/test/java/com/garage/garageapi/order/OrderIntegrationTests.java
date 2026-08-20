@@ -24,6 +24,10 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.garage.garageapi.shipping.availability.ProductAvailabilityProvider;
+import com.garage.garageapi.integration.cj.service.CjCommerceService;
+import com.garage.garageapi.integration.cj.dto.CjFreightResponse;
 
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
@@ -36,6 +40,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,9 +55,19 @@ class OrderIntegrationTests {
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired JwtService jwtService;
+    @MockitoBean ProductAvailabilityProvider availabilityProvider;
+    @MockitoBean CjCommerceService commerceService;
 
     @BeforeEach
-    void cleanBefore() { cleanDatabase(); }
+    void cleanBefore() {
+        cleanDatabase();
+        when(availabilityProvider.check(anyString(), anyInt())).thenReturn(
+                new ProductAvailabilityProvider.Availability(true,
+                        java.util.List.of(new ProductAvailabilityProvider.Warehouse("1", "CN", 1000))));
+        when(commerceService.freight(anyString(), eq("BR"), anyString(), anyList()))
+                .thenReturn(new CjFreightResponse(java.util.List.of(new CjFreightResponse.Option(
+                        "CJPacket", "7-12", new BigDecimal("5.00"), null, null, null))));
+    }
 
     @AfterEach
     void cleanAfter() { cleanDatabase(); }
@@ -346,6 +362,10 @@ class OrderIntegrationTests {
                 .andExpect(jsonPath("$.items[0].productVariantId").value(variant.getId()))
                 .andExpect(jsonPath("$.items[0].variantName").value("Preto"))
                 .andExpect(jsonPath("$.items[0].fulfillmentType").value("DROPSHIPPING"))
+                .andExpect(jsonPath("$.shipping.provider").value("CJ"))
+                .andExpect(jsonPath("$.shipping.providerCurrency").value("USD"))
+                .andExpect(jsonPath("$.shipping.providerAmount").value(5.00))
+                .andExpect(jsonPath("$.shipping.legs[0].originCountry").value("CN"))
                 .andReturn().getResponse().getContentAsString();
         Long orderId = Long.valueOf(response.replaceAll(".*\\\"id\\\":([0-9]+).*", "$1"));
 
@@ -361,6 +381,13 @@ class OrderIntegrationTests {
         assertThat(snapshot.getLengthMm()).isEqualByComparingTo("120");
         assertThat(snapshot.getWidthMm()).isEqualByComparingTo("80");
         assertThat(snapshot.getHeightMm()).isEqualByComparingTo("60");
+        var savedOrder = orderRepository.findById(orderId).orElseThrow();
+        assertThat(savedOrder.getShippingProvider()).isEqualTo("CJ");
+        assertThat(savedOrder.getShippingProviderCurrency()).isEqualTo("USD");
+        assertThat(savedOrder.getShippingProviderAmount()).isEqualByComparingTo("5.00");
+        assertThat(savedOrder.getShippingLegs()).hasSize(1);
+        assertThat(savedOrder.getShippingLegs().get(0).supplierVariantIds())
+                .containsExactly("cj-variant-1");
         assertThat(productRepository.findById(product.getId()).orElseThrow().getStockQuantity()).isZero();
 
         variant.updateSupplierData("CJ", "cj-variant-1", "cj-produto-cj", "CHANGED",
