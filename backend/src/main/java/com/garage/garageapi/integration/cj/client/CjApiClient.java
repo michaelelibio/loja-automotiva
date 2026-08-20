@@ -7,6 +7,7 @@ import com.garage.garageapi.integration.cj.dto.CjVariantInventoryResponse;
 import com.garage.garageapi.integration.cj.dto.CjFreightResponse;
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderResponse;
+import com.garage.garageapi.integration.cj.dto.CjOrderLookupResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 @Component
@@ -62,6 +64,9 @@ public class CjApiClient {
 
     private static final String CREATE_ORDER_V2 =
             "/api2.0/v1/shopping/order/createOrderV2";
+
+    private static final String GET_ORDER_DETAIL =
+            "/api2.0/v1/shopping/order/getOrderDetail";
 
     private static final JsonMapper DIAGNOSTIC_JSON =
             JsonMapper.builder().build();
@@ -353,7 +358,7 @@ public class CjApiClient {
                     .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
                     .header("CJ-Access-Token", accessToken).body(request)
                     .retrieve().body(JsonNode.class);
-            JsonNode data = successfulData(response, "criação de pedido");
+            JsonNode data = createOrderData(response);
             String orderId = requiredText(data, "orderId");
             return new CjCreateOrderResponse(orderId, text(data, "shipmentOrderId"),
                     text(data, "orderNumber"), text(data, "orderStatus"));
@@ -363,6 +368,45 @@ public class CjApiClient {
             throw new CjIntegrationException("Falha temporária ao criar pedido na CJ", exception,
                     CjIntegrationException.Reason.UPSTREAM);
         }
+    }
+
+    public Optional<CjOrderLookupResponse> findOrder(String accessToken, String orderNumber) {
+        try {
+            JsonNode response = restClient.get().uri(builder -> builder.path(GET_ORDER_DETAIL)
+                            .queryParam("orderId", orderNumber).build())
+                    .accept(MediaType.APPLICATION_JSON).header("CJ-Access-Token", accessToken)
+                    .retrieve().body(JsonNode.class);
+            if (isOrderNotFound(response)) return Optional.empty();
+            JsonNode data = successfulData(response, "consulta de pedido");
+            return Optional.of(new CjOrderLookupResponse(requiredText(data, "orderId"),
+                    text(data, "shipmentOrderId"), requiredText(data, "orderNum"),
+                    text(data, "orderStatus")));
+        } catch (RestClientResponseException exception) {
+            throw httpFailure("consulta de pedido", exception);
+        } catch (RestClientException exception) {
+            throw new CjIntegrationException("Falha temporária ao consultar pedido na CJ", exception,
+                    CjIntegrationException.Reason.UPSTREAM);
+        }
+    }
+
+    private JsonNode createOrderData(JsonNode response) {
+        if (response != null && !response.path("result").asBoolean(false)) {
+            String message = text(response, "message");
+            String normalized = message == null ? "" : message.toLowerCase(java.util.Locale.ROOT);
+            if (normalized.contains("duplicate") || normalized.contains("already exist")
+                    || normalized.contains("already been used")
+                    || (normalized.contains("order") && normalized.contains("exist"))) {
+                throw new CjIntegrationException("Referência de pedido já existente na CJ",
+                        CjIntegrationException.Reason.CONFLICT);
+            }
+        }
+        return successfulData(response, "criação de pedido");
+    }
+
+    private boolean isOrderNotFound(JsonNode response) {
+        return response != null && !response.path("result").asBoolean(false)
+                && response.path("code").asInt() == 1600300
+                && "order not found".equalsIgnoreCase(text(response, "message"));
     }
 
     private void logProductRequest(
@@ -764,6 +808,11 @@ public class CjApiClient {
                     exception,
                     CjIntegrationException.Reason.RATE_LIMIT
             );
+        }
+
+        if (status == 409) {
+            return new CjIntegrationException("Conflito retornado pela CJ", exception,
+                    CjIntegrationException.Reason.CONFLICT);
         }
 
         return new CjIntegrationException(

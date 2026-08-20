@@ -97,6 +97,15 @@ class CjApiClientTests {
                     "orderNumber":"INGARAGE-10","orderStatus":"CREATED"}}
                     """);
         });
+        server.createContext("/api2.0/v1/shopping/order/getOrderDetail", exchange -> {
+            accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
+            variantProductId.set(exchange.getRequestURI().getQuery());
+            respond(exchange, 200, """
+                    {"code":200,"result":true,"message":"Success","data":{
+                    "orderId":"CJ-ORDER-1","orderNum":"INGARAGE-10","cjOrderId":"DP-1",
+                    "orderStatus":"CREATED"}}
+                    """);
+        });
         server.start();
         client = new CjApiClient(RestClient.builder()
                 .baseUrl("http://127.0.0.1:" + server.getAddress().getPort()).build());
@@ -226,6 +235,34 @@ class CjApiClientTests {
                 "CJPacket", "CN", 1, List.of(new CjCreateOrderRequest.Product("VID-1", 1, null)));
 
         assertThatThrownBy(() -> client.createOrder("TOKEN", request))
+                .isInstanceOfSatisfying(CjIntegrationException.class, exception ->
+                        assertThat(exception.getReason()).isEqualTo(CjIntegrationException.Reason.INVALID_RESPONSE));
+    }
+
+    @Test
+    void findsOrderByExactCustomOrderNumber() {
+        var response = client.findOrder("TOKEN", "INGARAGE-10").orElseThrow();
+        assertThat(response.orderId()).isEqualTo("CJ-ORDER-1");
+        assertThat(response.orderNumber()).isEqualTo("INGARAGE-10");
+        assertThat(response.orderStatus()).isEqualTo("CREATED");
+        assertThat(variantProductId.get()).isEqualTo("orderId=INGARAGE-10");
+        assertThat(accessTokenHeader.get()).isEqualTo("TOKEN");
+    }
+
+    @Test
+    void representsOfficialOrderNotFoundAsEmpty() throws IOException {
+        server.removeContext("/api2.0/v1/shopping/order/getOrderDetail");
+        server.createContext("/api2.0/v1/shopping/order/getOrderDetail", exchange -> respond(exchange, 200,
+                "{\"code\":1600300,\"result\":false,\"message\":\"order not found\",\"data\":null}"));
+        assertThat(client.findOrder("TOKEN", "INGARAGE-404")).isEmpty();
+    }
+
+    @Test
+    void rejectsLookupResponseWithoutOrderId() throws IOException {
+        server.removeContext("/api2.0/v1/shopping/order/getOrderDetail");
+        server.createContext("/api2.0/v1/shopping/order/getOrderDetail", exchange -> respond(exchange, 200,
+                "{\"code\":200,\"result\":true,\"data\":{\"orderNum\":\"INGARAGE-10\"}}"));
+        assertThatThrownBy(() -> client.findOrder("TOKEN", "INGARAGE-10"))
                 .isInstanceOfSatisfying(CjIntegrationException.class, exception ->
                         assertThat(exception.getReason()).isEqualTo(CjIntegrationException.Reason.INVALID_RESPONSE));
     }

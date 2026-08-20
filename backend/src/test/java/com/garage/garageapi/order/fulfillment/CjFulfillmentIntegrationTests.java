@@ -4,6 +4,7 @@ import com.garage.garageapi.address.entity.Address;
 import com.garage.garageapi.address.repository.AddressRepository;
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderResponse;
+import com.garage.garageapi.integration.cj.dto.CjOrderLookupResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import com.garage.garageapi.integration.cj.service.CjCommerceService;
 import com.garage.garageapi.order.entity.Order;
@@ -31,6 +32,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +54,11 @@ class CjFulfillmentIntegrationTests {
     @Autowired UserRepository userRepository;
     @MockitoBean CjCommerceService commerceService;
 
-    @BeforeEach void before() { clean(); reset(commerceService); }
+    @BeforeEach void before() {
+        clean();
+        reset(commerceService);
+        when(commerceService.findOrder(anyString())).thenReturn(java.util.Optional.empty());
+    }
     @AfterEach void after() { clean(); }
 
     @Test
@@ -157,6 +163,115 @@ class CjFulfillmentIntegrationTests {
         assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.CREATED);
         assertThat(fulfillment().getAttemptCount()).isEqualTo(2);
         verify(commerceService, times(2)).createOrder(any());
+    }
+
+    @Test
+    void failedFulfillmentReconcilesExistingOrderWithoutCreatingAgain() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+        when(commerceService.createOrder(any())).thenThrow(new CjIntegrationException("timeout",
+                CjIntegrationException.Reason.UPSTREAM));
+        service.fulfill(fixture.order().getId());
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.FAILED);
+        clearInvocations(commerceService);
+        when(commerceService.findOrder("INGARAGE-" + fixture.order().getId())).thenReturn(Optional.of(
+                new CjOrderLookupResponse("CJ-RECOVERED", "SHIP-RECOVERED",
+                        "INGARAGE-" + fixture.order().getId(), "CREATED")));
+
+        service.fulfill(fixture.order().getId());
+
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.CREATED);
+        assertThat(fulfillment().getSupplierOrderId()).isEqualTo("CJ-RECOVERED");
+        assertThat(fulfillment().getAttemptCount()).isOne();
+        verify(commerceService, never()).createOrder(any());
+    }
+
+    @Test
+    void createdReconciliationIsIdempotentWithoutQuery() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+        when(commerceService.createOrder(any())).thenReturn(
+                new CjCreateOrderResponse("CJ-CREATED", null, null, "CREATED"));
+        service.fulfill(fixture.order().getId());
+        clearInvocations(commerceService);
+
+        assertThat(service.reconcile(fixture.order().getId()))
+                .isEqualTo(CjFulfillmentService.ReconciliationResult.FOUND);
+        verifyNoInteractions(commerceService);
+    }
+
+    @Test
+    void reconciliationNotFoundIsNotTechnicalFailureAndDoesNotCountAttempt() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+
+        assertThat(service.reconcile(fixture.order().getId()))
+                .isEqualTo(CjFulfillmentService.ReconciliationResult.NOT_FOUND);
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.PENDING);
+        assertThat(fulfillment().getAttemptCount()).isZero();
+        verify(commerceService, never()).createOrder(any());
+    }
+
+    @Test
+    void divergentReturnedOrderNumberDoesNotReconcileOrCreate() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+        when(commerceService.findOrder(anyString())).thenReturn(Optional.of(
+                new CjOrderLookupResponse("CJ-WRONG", null, "INGARAGE-OTHER", "CREATED")));
+
+        service.fulfill(fixture.order().getId());
+
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.FAILED);
+        assertThat(fulfillment().getAttemptCount()).isZero();
+        verify(commerceService, never()).createOrder(any());
+    }
+
+    @Test
+    void technicalLookupFailureDoesNotCreateBlindlyAndKeepsPaymentPaid() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+        when(commerceService.findOrder(anyString())).thenThrow(new CjIntegrationException("timeout",
+                CjIntegrationException.Reason.UPSTREAM));
+
+        service.fulfill(fixture.order().getId());
+
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.FAILED);
+        assertThat(fulfillment().getAttemptCount()).isZero();
+        assertThat(orderRepository.findById(fixture.order().getId()).orElseThrow().getStatus().name())
+                .isEqualTo("PAID");
+        verify(commerceService, never()).createOrder(any());
+    }
+
+    @Test
+    void duplicateCreationReconcilesOnlyWhenExactOrderCanBeProven() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+        when(commerceService.findOrder(anyString())).thenReturn(Optional.empty(), Optional.of(
+                new CjOrderLookupResponse("CJ-DUPLICATE", null,
+                        "INGARAGE-" + fixture.order().getId(), "CREATED")));
+        when(commerceService.createOrder(any())).thenThrow(new CjIntegrationException("duplicate",
+                CjIntegrationException.Reason.CONFLICT));
+
+        service.fulfill(fixture.order().getId());
+
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.CREATED);
+        assertThat(fulfillment().getSupplierOrderId()).isEqualTo("CJ-DUPLICATE");
+        verify(commerceService, times(1)).createOrder(any());
+        verify(commerceService, times(2)).findOrder(anyString());
+    }
+
+    @Test
+    void duplicateCreationWithoutReconciliationProofRemainsFailed() {
+        Fixture fixture = fixture(true, true, false);
+        pay(fixture.order());
+        when(commerceService.createOrder(any())).thenThrow(new CjIntegrationException("duplicate",
+                CjIntegrationException.Reason.CONFLICT));
+
+        service.fulfill(fixture.order().getId());
+
+        assertThat(fulfillment().getStatus()).isEqualTo(FulfillmentStatus.FAILED);
+        assertThat(fulfillment().getSupplierOrderId()).isNull();
+        verify(commerceService, times(2)).findOrder(anyString());
     }
 
     @Test

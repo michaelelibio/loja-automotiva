@@ -2,6 +2,8 @@ package com.garage.garageapi.order.fulfillment;
 
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
 import com.garage.garageapi.integration.cj.service.CjCommerceService;
+import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
+import com.garage.garageapi.integration.cj.dto.CjOrderLookupResponse;
 import com.garage.garageapi.order.entity.Order;
 import com.garage.garageapi.order.entity.OrderItem;
 import com.garage.garageapi.order.repository.OrderRepository;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CjFulfillmentService {
@@ -35,18 +38,65 @@ public class CjFulfillmentService {
         CjFulfillmentStateService.Claim claim = stateService.claim(orderId);
         if (claim == null) return;
         try {
-            Order order = orderRepository.findByIdWithItems(orderId).orElseThrow();
             OrderFulfillment fulfillment = fulfillmentRepository.findByOrderId(orderId).orElseThrow();
+            Order order = orderRepository.findByIdWithItems(orderId).orElseThrow();
             CjCreateOrderRequest request = request(order, fulfillment.getExternalReference());
-            var response = commerceService.createOrder(request);
-            stateService.complete(orderId, claim.token(), response.orderId(), response.shipmentOrderId());
-            log.info("CJ fulfillment created; orderId={}; supplierOrderId={}", orderId, response.orderId());
+            if (reconcileClaimed(orderId, claim.token(), fulfillment.getExternalReference())) return;
+            if (!stateService.markCreationAttempt(orderId, claim.token())) return;
+            try {
+                var response = commerceService.createOrder(request);
+                stateService.complete(orderId, claim.token(), response.orderId(), response.shipmentOrderId());
+                log.info("CJ fulfillment created; orderId={}; supplierOrderId={}", orderId, response.orderId());
+            } catch (CjIntegrationException exception) {
+                if (exception.getReason() != CjIntegrationException.Reason.CONFLICT
+                        || !reconcileClaimed(orderId, claim.token(), fulfillment.getExternalReference())) {
+                    throw exception;
+                }
+            }
         } catch (RuntimeException exception) {
             stateService.fail(orderId, claim.token(), safeMessage(exception));
             log.warn("CJ fulfillment failed; orderId={}; reason={}", orderId,
                     exception.getClass().getSimpleName());
         }
     }
+
+    public ReconciliationResult reconcile(Long orderId) {
+        OrderFulfillment current = fulfillmentRepository.findByOrderId(orderId).orElse(null);
+        if (current == null || current.getStatus() == FulfillmentStatus.NOT_REQUIRED) {
+            return ReconciliationResult.NOT_REQUIRED;
+        }
+        if (current.getStatus() == FulfillmentStatus.CREATED) return ReconciliationResult.FOUND;
+        CjFulfillmentStateService.Claim claim = stateService.claim(orderId);
+        if (claim == null) return ReconciliationResult.BUSY;
+        try {
+            boolean found = reconcileClaimed(orderId, claim.token(), current.getExternalReference());
+            if (!found) stateService.release(orderId, claim.token(), claim.previousStatus());
+            return found ? ReconciliationResult.FOUND : ReconciliationResult.NOT_FOUND;
+        } catch (RuntimeException exception) {
+            stateService.fail(orderId, claim.token(), "Falha temporária ao reconciliar pedido no fornecedor");
+            throw exception;
+        }
+    }
+
+    private boolean reconcileClaimed(Long orderId, String token, String externalReference) {
+        Optional<CjOrderLookupResponse> result = commerceService.findOrder(externalReference);
+        if (result.isEmpty()) {
+            log.info("CJ fulfillment reconciliation not found; orderId={}; externalReference={}",
+                    orderId, externalReference);
+            return false;
+        }
+        var found = result.orElseThrow();
+        if (!externalReference.equals(found.orderNumber())) {
+            throw new CjIntegrationException("Referência divergente na resposta de reconciliação CJ",
+                    CjIntegrationException.Reason.INVALID_RESPONSE);
+        }
+        stateService.complete(orderId, token, found.orderId(), found.shipmentOrderId());
+        log.info("CJ fulfillment reconciled; orderId={}; externalReference={}; supplierOrderId={}",
+                orderId, externalReference, found.orderId());
+        return true;
+    }
+
+    public enum ReconciliationResult { FOUND, NOT_FOUND, NOT_REQUIRED, BUSY }
 
     private CjCreateOrderRequest request(Order order, String reference) {
         List<OrderItem> items = order.getItems().stream().filter(item ->

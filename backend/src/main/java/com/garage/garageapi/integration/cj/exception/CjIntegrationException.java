@@ -16,6 +16,6 @@ public class CjIntegrationException extends RuntimeException {
     public Reason getReason() { return reason; }
 
     public enum Reason {
-        NOT_CONFIGURED, AUTHENTICATION, RATE_LIMIT, UPSTREAM, INVALID_RESPONSE
+        NOT_CONFIGURED, AUTHENTICATION, RATE_LIMIT, UPSTREAM, INVALID_RESPONSE, CONFLICT
     }
 }

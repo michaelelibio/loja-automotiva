@@ -73,17 +73,34 @@ public class OrderFulfillment {
         status = FulfillmentStatus.PROCESSING;
         processingToken = UUID.randomUUID().toString();
         processingStartedAt = now;
-        attemptCount++;
         lastError = null;
         updatedAt = now;
         return processingToken;
+    }
+
+    public boolean markCreationAttempt(String token, Instant now) {
+        if (status != FulfillmentStatus.PROCESSING || !processingToken.equals(token)) return false;
+        attemptCount++;
+        updatedAt = now;
+        return true;
+    }
+
+    public boolean release(String token, FulfillmentStatus target, Instant now) {
+        if (status != FulfillmentStatus.PROCESSING || !processingToken.equals(token)
+                || (target != FulfillmentStatus.PENDING && target != FulfillmentStatus.FAILED)) return false;
+        status = target;
+        processingToken = null;
+        updatedAt = now;
+        return true;
     }
 
     public boolean complete(String token, String orderId, String shipmentOrderId, Instant now) {
         if (status != FulfillmentStatus.PROCESSING || !processingToken.equals(token)) return false;
         status = FulfillmentStatus.CREATED;
         supplierOrderId = orderId;
-        supplierShipmentOrderId = shipmentOrderId;
+        if (shipmentOrderId != null && !shipmentOrderId.isBlank()) {
+            supplierShipmentOrderId = shipmentOrderId;
+        }
         processingToken = null;
         createdExternallyAt = now;
         updatedAt = now;

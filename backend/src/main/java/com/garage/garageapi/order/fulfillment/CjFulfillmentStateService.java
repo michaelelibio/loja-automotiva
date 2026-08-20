@@ -19,8 +19,22 @@ public class CjFulfillmentStateService {
     public Claim claim(Long orderId) {
         OrderFulfillment fulfillment = repository.findByOrderIdForUpdate(orderId).orElse(null);
         if (fulfillment == null || fulfillment.getOrder().getStatus() != OrderStatus.PAID) return null;
+        FulfillmentStatus previousStatus = fulfillment.getStatus();
         String token = fulfillment.claim(Instant.now());
-        return token == null ? null : new Claim(fulfillment.getId(), token);
+        return token == null ? null : new Claim(fulfillment.getId(), token, previousStatus);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean markCreationAttempt(Long orderId, String token) {
+        return repository.findByOrderIdForUpdate(orderId)
+                .map(fulfillment -> fulfillment.markCreationAttempt(token, Instant.now()))
+                .orElse(false);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void release(Long orderId, String token, FulfillmentStatus target) {
+        repository.findByOrderIdForUpdate(orderId).ifPresent(fulfillment ->
+                fulfillment.release(token, target, Instant.now()));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -42,5 +56,5 @@ public class CjFulfillmentStateService {
         return message.length() <= 500 ? message : message.substring(0, 500);
     }
 
-    public record Claim(Long fulfillmentId, String token) { }
+    public record Claim(Long fulfillmentId, String token, FulfillmentStatus previousStatus) { }
 }

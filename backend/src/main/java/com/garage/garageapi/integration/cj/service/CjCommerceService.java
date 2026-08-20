@@ -5,11 +5,13 @@ import com.garage.garageapi.integration.cj.dto.CjFreightResponse;
 import com.garage.garageapi.integration.cj.dto.CjVariantInventoryResponse;
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
 import com.garage.garageapi.integration.cj.dto.CjCreateOrderResponse;
+import com.garage.garageapi.integration.cj.dto.CjOrderLookupResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 @Service
@@ -34,6 +36,10 @@ public class CjCommerceService {
 
     public CjCreateOrderResponse createOrder(CjCreateOrderRequest request) {
         return authenticated(token -> client.createOrder(token, request));
+    }
+
+    public Optional<CjOrderLookupResponse> findOrder(String orderNumber) {
+        return authenticated(token -> client.findOrder(token, orderNumber));
     }
 
     private <T> T authenticated(Function<String, T> operation) {
