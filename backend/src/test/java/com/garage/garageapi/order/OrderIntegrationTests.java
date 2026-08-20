@@ -42,6 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.reset;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -172,6 +173,86 @@ class OrderIntegrationTests {
         assertThat(persisted.getTotal()).isEqualByComparingTo("98.90");
         assertThat(productRepository.findById(product.getId()).orElseThrow().getStockQuantity())
                 .isEqualTo(98);
+    }
+
+    @Test
+    void cjShippingCodeFromQuoteSurvivesRequotePriceDeadlineAndCaseChanges() throws Exception {
+        User user = user("cj-shipping-stable@example.com");
+        Address address = address(user, "Rua", "10");
+        Product product = cjProduct("Produto CJ frete", "produto-cj-frete", "100.00");
+        ProductVariant variant = variant(product, "CJ-VID-STABLE", "SKU-STABLE", "Preto",
+                "10.00", "100", "10", "10", "10");
+        when(commerceService.freight(anyString(), eq("BR"), anyString(), anyList()))
+                .thenReturn(new CjFreightResponse(java.util.List.of(new CjFreightResponse.Option(
+                        "CJPacket Postal", "7-12", new BigDecimal("5.00"), null, null, null))))
+                .thenReturn(new CjFreightResponse(java.util.List.of(new CjFreightResponse.Option(
+                        "CJPacket Postal", "15-20", new BigDecimal("9.00"), null, null, null))));
+
+        String quoted = quote(user, product.getId(), variant.getId());
+        String code = quoted.replaceFirst("(?s).*?\"code\":\"([^\"]+)\".*", "$1");
+        assertThat(code).startsWith("CJ-CN-");
+        String body = "{\"addressId\":" + address.getId() + ",\"shippingCode\":\""
+                + code.toLowerCase(java.util.Locale.ROOT) + "\",\"shippingPrice\":0,"
+                + "\"shippingCost\":0,\"items\":[{\"productId\":" + product.getId()
+                + ",\"variantId\":" + variant.getId() + ",\"quantity\":1}]}";
+
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.shipping.code").value(code))
+                .andExpect(jsonPath("$.shippingCost").value(49.50))
+                .andExpect(jsonPath("$.shipping.estimatedDays").value(20))
+                .andExpect(jsonPath("$.items[0].productVariantId").value(variant.getId()));
+        assertThat(orderRepository.findAll()).hasSize(1);
+        assertThat(orderRepository.findAll().get(0).getShippingCost()).isEqualByComparingTo("49.50");
+    }
+
+    @Test
+    void tamperedOrDisappearedCjShippingMethodIsRejected() throws Exception {
+        User user = user("cj-shipping-invalid@example.com");
+        Address address = address(user, "Rua", "10");
+        Product product = cjProduct("Produto CJ inválido", "produto-cj-invalido", "100.00");
+        ProductVariant variant = variant(product, "CJ-VID-INVALID", "SKU-INVALID", "Preto",
+                "10.00", "100", "10", "10", "10");
+
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody(address, product, variant, "CJ-CN-000000000000")))
+                .andExpect(status().isBadRequest());
+
+        String quoted = quote(user, product.getId(), variant.getId());
+        String code = quoted.replaceFirst("(?s).*?\"code\":\"([^\"]+)\".*", "$1");
+        reset(commerceService);
+        when(commerceService.freight(anyString(), eq("BR"), anyString(), anyList()))
+                .thenReturn(new CjFreightResponse(java.util.List.of(new CjFreightResponse.Option(
+                        "DHL Official", "3-5", new BigDecimal("20.00"), null, null, null))));
+
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody(address, product, variant, code)))
+                .andExpect(status().isBadRequest());
+        assertThat(orderRepository.count()).isZero();
+    }
+
+    @Test
+    void cjRequoteTechnicalFailureNeverCreatesOrderWithStaleFreight() throws Exception {
+        User user = user("cj-shipping-failure@example.com");
+        Address address = address(user, "Rua", "10");
+        Product product = cjProduct("Produto CJ falha", "produto-cj-falha", "100.00");
+        ProductVariant variant = variant(product, "CJ-VID-FAIL", "SKU-FAIL", "Preto",
+                "10.00", "100", "10", "10", "10");
+        String quoted = quote(user, product.getId(), variant.getId());
+        String code = quoted.replaceFirst("(?s).*?\"code\":\"([^\"]+)\".*", "$1");
+        reset(commerceService);
+        when(commerceService.freight(anyString(), eq("BR"), anyString(), anyList()))
+                .thenThrow(new com.garage.garageapi.integration.cj.exception.CjIntegrationException(
+                        "Falha temporária", com.garage.garageapi.integration.cj.exception.CjIntegrationException.Reason.UPSTREAM));
+
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody(address, product, variant, code)))
+                .andExpect(status().isBadGateway());
+        assertThat(orderRepository.count()).isZero();
     }
 
     @Test
@@ -494,6 +575,21 @@ class OrderIntegrationTests {
                 product.getSupplierProductId(), sku, name, Map.of("option1", name),
                 new BigDecimal(cost), "USD", null, new BigDecimal(weight),
                 new BigDecimal(length), new BigDecimal(width), new BigDecimal(height)));
+    }
+
+    private String quote(User user, Long productId, Long variantId) throws Exception {
+        return mockMvc.perform(post("/api/shipping/quote").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"zipCode\":\"89229040\",\"items\":[{\"productId\":"
+                                + productId + ",\"variantId\":" + variantId
+                                + ",\"quantity\":1}]}"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    private String orderBody(Address address, Product product, ProductVariant variant, String code) {
+        return "{\"addressId\":" + address.getId() + ",\"shippingCode\":\"" + code
+                + "\",\"items\":[{\"productId\":" + product.getId() + ",\"variantId\":"
+                + variant.getId() + ",\"quantity\":1}]}";
     }
 
     private String bearer(User user) { return "Bearer " + jwtService.issue(user).value(); }

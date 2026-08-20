@@ -61,9 +61,9 @@ public class ShippingService {
                                           String requestedCode) {
         List<ShippingProvider.Option> quoted = options(normalizeZipCode(zipCode), items);
         if (requestedCode == null || requestedCode.isBlank()) return quoted.get(0);
-        String code = requestedCode.trim().toUpperCase(Locale.ROOT);
+        String code = normalizeShippingCode(requestedCode);
         return quoted.stream()
-                .filter(option -> option.code().equals(code))
+                .filter(option -> normalizeShippingCode(option.code()).equals(code))
                 .findFirst()
                 .orElseThrow(() -> new InvalidShippingOptionException(
                         "Opção de frete inválida: " + code));
@@ -143,6 +143,10 @@ public class ShippingService {
     }
 
     private String normalizeZipCode(String zipCode) { return zipCode.replace("-", ""); }
+
+    private String normalizeShippingCode(String code) {
+        return code.trim().toUpperCase(Locale.ROOT);
+    }
 
     private record ItemKey(Long productId, Long variantId) implements Comparable<ItemKey> {
         @Override public int compareTo(ItemKey other) {

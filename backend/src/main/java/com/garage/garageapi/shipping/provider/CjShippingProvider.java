@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -90,7 +91,8 @@ public class CjShippingProvider {
                 }
                 int estimatedDays = maxDays(source.logisticAging());
                 BigDecimal brl = usd.multiply(exchangeRate).setScale(2, RoundingMode.HALF_UP);
-                String code = "CJ-" + origin + "-" + digest(source.logisticName());
+                String code = "CJ-" + origin.toUpperCase(Locale.ROOT) + "-"
+                        + digest(canonicalLogisticName(source.logisticName()));
                 List<String> variantIds = items.stream().map(ShippingProvider.Item::supplierVariantId)
                         .distinct().sorted().toList();
                 var leg = new ShippingProvider.Leg("CJ", source.logisticName(),
@@ -132,10 +134,14 @@ public class CjShippingProvider {
             byte[] hash = MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder result = new StringBuilder();
-            for (int index = 0; index < 6; index++) result.append(String.format("%02x", hash[index]));
+            for (int index = 0; index < 6; index++) result.append(String.format("%02X", hash[index]));
             return result.toString();
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
         }
+    }
+
+    private String canonicalLogisticName(String value) {
+        return value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 }
