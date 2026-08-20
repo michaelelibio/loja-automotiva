@@ -3,6 +3,7 @@ package com.garage.garageapi.payment.service;
 import com.garage.garageapi.order.email.OrderEmailNotificationService;
 import com.garage.garageapi.order.entity.Order;
 import com.garage.garageapi.order.entity.OrderStatus;
+import com.garage.garageapi.order.fulfillment.OrderFulfillmentNotificationService;
 import com.garage.garageapi.payment.entity.Payment;
 import com.garage.garageapi.payment.entity.PaymentMethod;
 import com.garage.garageapi.payment.entity.PaymentStatus;
@@ -16,11 +17,14 @@ import org.springframework.util.StringUtils;
 public class CheckoutProWebhookUpdater {
     private final PaymentRepository paymentRepository;
     private final OrderEmailNotificationService emailNotificationService;
+    private final OrderFulfillmentNotificationService fulfillmentNotificationService;
 
     public CheckoutProWebhookUpdater(PaymentRepository paymentRepository,
-                                     OrderEmailNotificationService emailNotificationService) {
+                                     OrderEmailNotificationService emailNotificationService,
+                                     OrderFulfillmentNotificationService fulfillmentNotificationService) {
         this.paymentRepository = paymentRepository;
         this.emailNotificationService = emailNotificationService;
+        this.fulfillmentNotificationService = fulfillmentNotificationService;
     }
 
     @Transactional
@@ -37,6 +41,7 @@ public class CheckoutProWebhookUpdater {
             if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
                 order.markPaid();
                 emailNotificationService.afterCommit(order, OrderStatus.PAID);
+                fulfillmentNotificationService.afterCommit(order.getId());
             }
         }
     }

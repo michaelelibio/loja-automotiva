@@ -9,6 +9,7 @@ import com.garage.garageapi.order.dto.OrderResponse;
 import com.garage.garageapi.order.entity.Order;
 import com.garage.garageapi.order.entity.OrderItem;
 import com.garage.garageapi.order.repository.OrderRepository;
+import com.garage.garageapi.order.fulfillment.OrderFulfillmentInitializer;
 import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.entity.ProductVariant;
 import com.garage.garageapi.product.repository.ProductRepository;
@@ -45,11 +46,13 @@ public class OrderService {
     private final ShippingService shippingService;
     private final StockService stockService;
     private final ProductVariantRepository productVariantRepository;
+    private final OrderFulfillmentInitializer fulfillmentInitializer;
 
     public OrderService(OrderRepository orderRepository, AddressRepository addressRepository,
                         ProductRepository productRepository, UserService userService,
                         ShippingService shippingService, StockService stockService,
                         ProductVariantRepository productVariantRepository,
+                        OrderFulfillmentInitializer fulfillmentInitializer,
                         @Value("${app.order.expiration:PT24H}") Duration orderExpiration) {
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
@@ -58,6 +61,7 @@ public class OrderService {
         this.shippingService = shippingService;
         this.stockService = stockService;
         this.productVariantRepository = productVariantRepository;
+        this.fulfillmentInitializer = fulfillmentInitializer;
         this.orderExpiration = orderExpiration;
     }
 
@@ -117,6 +121,7 @@ public class OrderService {
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.variant(), snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
         orderRepository.saveAndFlush(order);
+        fulfillmentInitializer.initialize(order);
         products.stream().filter(Product::requiresLocalStock)
                 .forEach(product -> stockService.recordSale(product,
                         requestedQuantities.get(product.getId()), order.getId()));

@@ -3,6 +3,8 @@ package com.garage.garageapi.integration.cj.service;
 import com.garage.garageapi.integration.cj.client.CjApiClient;
 import com.garage.garageapi.integration.cj.dto.CjFreightResponse;
 import com.garage.garageapi.integration.cj.dto.CjVariantInventoryResponse;
+import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
+import com.garage.garageapi.integration.cj.dto.CjCreateOrderResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +30,10 @@ public class CjCommerceService {
                                      String zipCode, List<Map<String, Object>> products) {
         return authenticated(token -> client.calculateFreight(token, originCountry,
                 destinationCountry, zipCode, products));
+    }
+
+    public CjCreateOrderResponse createOrder(CjCreateOrderRequest request) {
+        return authenticated(token -> client.createOrder(token, request));
     }
 
     private <T> T authenticated(Function<String, T> operation) {

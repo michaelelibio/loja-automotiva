@@ -106,6 +106,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @EntityGraph(attributePaths = "items")
     Optional<Order> findByIdAndUserId(Long id, Long userId);
 
+    @EntityGraph(attributePaths = "items")
+    @Query("select o from Order o where o.id = :id")
+    Optional<Order> findByIdWithItems(@Param("id") Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from Order o where o.id = :id and o.user.id = :userId")
     Optional<Order> findByIdAndUserIdForUpdate(@Param("id") Long id, @Param("userId") Long userId);

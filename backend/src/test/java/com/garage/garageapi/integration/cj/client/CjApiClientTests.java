@@ -2,6 +2,7 @@ package com.garage.garageapi.integration.cj.client;
 
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
 import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
+import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -85,6 +86,15 @@ class CjApiClientTests {
                     {"code":200,"result":true,"data":[{"logisticName":"CJPacket",
                     "logisticAging":"7-12","logisticPrice":4.71,"taxesFee":0.20,
                     "clearanceOperationFee":0.10,"totalPostageFee":5.01}]}
+                    """);
+        });
+        server.createContext("/api2.0/v1/shopping/order/createOrderV2", exchange -> {
+            accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, """
+                    {"code":200,"result":true,"message":"Success","data":{
+                    "orderId":"CJ-ORDER-1","shipmentOrderId":"CJ-SHIP-1",
+                    "orderNumber":"INGARAGE-10","orderStatus":"CREATED"}}
                     """);
         });
         server.start();
@@ -186,6 +196,36 @@ class CjApiClientTests {
                 "{\"code\":200,\"result\":true,\"data\":[{\"logisticName\":\"CJPacket\",\"logisticAging\":\"soon\",\"logisticPrice\":-1}]}"));
         assertThatThrownBy(() -> client.calculateFreight("TOKEN", "CN", "BR", "89229030",
                 List.of(Map.of("vid", "VID-1", "quantity", 1))))
+                .isInstanceOfSatisfying(CjIntegrationException.class, exception ->
+                        assertThat(exception.getReason()).isEqualTo(CjIntegrationException.Reason.INVALID_RESPONSE));
+    }
+
+    @Test
+    void createsUnpaidOrderUsingOfficialV2Contract() {
+        CjCreateOrderRequest request = new CjCreateOrderRequest("INGARAGE-10", "89229040",
+                "Brazil", "BR", "SC", "Joinville", "Cliente", "Rua", "Centro", "10",
+                3, "CJPacket", "CN", 1,
+                List.of(new CjCreateOrderRequest.Product("VID-1", 2, "order-item-1")));
+
+        var response = client.createOrder("TOKEN", request);
+
+        assertThat(response.orderId()).isEqualTo("CJ-ORDER-1");
+        assertThat(response.shipmentOrderId()).isEqualTo("CJ-SHIP-1");
+        assertThat(accessTokenHeader.get()).isEqualTo("TOKEN");
+        assertThat(requestBody.get()).contains("\"payType\":3", "\"logisticName\":\"CJPacket\"",
+                "\"vid\":\"VID-1\"", "\"quantity\":2");
+    }
+
+    @Test
+    void rejectsAmbiguousCreateOrderResponseWithoutExternalId() throws IOException {
+        server.removeContext("/api2.0/v1/shopping/order/createOrderV2");
+        server.createContext("/api2.0/v1/shopping/order/createOrderV2", exchange -> respond(exchange, 200,
+                "{\"code\":200,\"result\":true,\"data\":{\"orderStatus\":\"CREATED\"}}"));
+        CjCreateOrderRequest request = new CjCreateOrderRequest("INGARAGE-10", "89229040",
+                "Brazil", "BR", "SC", "Joinville", "Cliente", "Rua", null, "10", 3,
+                "CJPacket", "CN", 1, List.of(new CjCreateOrderRequest.Product("VID-1", 1, null)));
+
+        assertThatThrownBy(() -> client.createOrder("TOKEN", request))
                 .isInstanceOfSatisfying(CjIntegrationException.class, exception ->
                         assertThat(exception.getReason()).isEqualTo(CjIntegrationException.Reason.INVALID_RESPONSE));
     }

@@ -5,6 +5,8 @@ import com.garage.garageapi.integration.cj.dto.CjProductResponse;
 import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import com.garage.garageapi.integration.cj.dto.CjVariantInventoryResponse;
 import com.garage.garageapi.integration.cj.dto.CjFreightResponse;
+import com.garage.garageapi.integration.cj.dto.CjCreateOrderRequest;
+import com.garage.garageapi.integration.cj.dto.CjCreateOrderResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,9 @@ public class CjApiClient {
 
     private static final String FREIGHT_CALCULATE =
             "/api2.0/v1/logistic/freightCalculate";
+
+    private static final String CREATE_ORDER_V2 =
+            "/api2.0/v1/shopping/order/createOrderV2";
 
     private static final JsonMapper DIAGNOSTIC_JSON =
             JsonMapper.builder().build();
@@ -339,6 +344,24 @@ public class CjApiClient {
         } catch (RestClientException exception) {
             throw new CjIntegrationException("Falha temporária ao calcular frete da CJ",
                     exception, CjIntegrationException.Reason.UPSTREAM);
+        }
+    }
+
+    public CjCreateOrderResponse createOrder(String accessToken, CjCreateOrderRequest request) {
+        try {
+            JsonNode response = restClient.post().uri(CREATE_ORDER_V2)
+                    .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
+                    .header("CJ-Access-Token", accessToken).body(request)
+                    .retrieve().body(JsonNode.class);
+            JsonNode data = successfulData(response, "criação de pedido");
+            String orderId = requiredText(data, "orderId");
+            return new CjCreateOrderResponse(orderId, text(data, "shipmentOrderId"),
+                    text(data, "orderNumber"), text(data, "orderStatus"));
+        } catch (RestClientResponseException exception) {
+            throw httpFailure("criação de pedido", exception);
+        } catch (RestClientException exception) {
+            throw new CjIntegrationException("Falha temporária ao criar pedido na CJ", exception,
+                    CjIntegrationException.Reason.UPSTREAM);
         }
     }
 
