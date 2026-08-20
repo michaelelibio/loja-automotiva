@@ -2,6 +2,7 @@ package com.garage.garageapi.integration.cj.controller;
 
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
 import com.garage.garageapi.integration.cj.dto.CjProductImportResponse;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import com.garage.garageapi.integration.cj.service.CjProductImportService;
 import com.garage.garageapi.integration.cj.service.CjProductService;
 import jakarta.validation.constraints.Max;
@@ -40,6 +41,11 @@ public class CjIntegrationController {
     @GetMapping("/products/{productId}")
     public CjProductResponse.Product product(@PathVariable String productId) {
         return productService.get(productId);
+    }
+
+    @GetMapping("/products/{productId}/variants")
+    public CjProductVariantsResponse variants(@PathVariable String productId) {
+        return productService.getVariants(productId);
     }
 
     @PostMapping("/products/{productId}/import")

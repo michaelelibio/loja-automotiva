@@ -25,13 +25,16 @@ public class CjProductImportService {
     private final CjProductService cjProductService;
     private final ProductRepository productRepository;
     private final ExchangeRateService exchangeRateService;
+    private final CjProductVariantSyncService variantSyncService;
 
     public CjProductImportService(CjProductService cjProductService,
                                   ProductRepository productRepository,
-                                  ExchangeRateService exchangeRateService) {
+                                  ExchangeRateService exchangeRateService,
+                                  CjProductVariantSyncService variantSyncService) {
         this.cjProductService = cjProductService;
         this.productRepository = productRepository;
         this.exchangeRateService = exchangeRateService;
+        this.variantSyncService = variantSyncService;
     }
 
     @Transactional
@@ -71,7 +74,9 @@ public class CjProductImportService {
                 Instant.now());
         product.configureFulfillment(FulfillmentType.DROPSHIPPING);
 
-        return CjProductImportResponse.from(productRepository.saveAndFlush(product));
+        Product saved = productRepository.saveAndFlush(product);
+        variantSyncService.sync(saved);
+        return CjProductImportResponse.from(saved);
     }
 
     private String uniqueSlug(String name, String supplierProductId) {

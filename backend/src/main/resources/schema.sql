@@ -106,6 +106,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_products_sku ON products (sku);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_products_supplier_product_id
     ON products (supplier_product_id);
 
+CREATE TABLE IF NOT EXISTS product_variants (
+    id BIGSERIAL PRIMARY KEY,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    supplier VARCHAR(50) NOT NULL,
+    supplier_variant_id VARCHAR(150) NOT NULL,
+    supplier_product_id VARCHAR(150) NOT NULL,
+    supplier_sku VARCHAR(150),
+    name VARCHAR(500),
+    attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
+    supplier_cost NUMERIC(19, 4),
+    supplier_cost_currency VARCHAR(3) NOT NULL,
+    image_url VARCHAR(500),
+    weight_grams NUMERIC(19, 4),
+    length_mm NUMERIC(19, 4),
+    width_mm NUMERIC(19, 4),
+    height_mm NUMERIC(19, 4),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_product_variants_supplier_variant
+        UNIQUE (supplier, supplier_variant_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_product_variants_product
+    ON product_variants (product_id);
+
 CREATE TABLE IF NOT EXISTS stock_movements (
     id BIGSERIAL PRIMARY KEY,
     product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,

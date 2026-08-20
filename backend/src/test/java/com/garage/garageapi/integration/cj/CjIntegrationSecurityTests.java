@@ -4,6 +4,7 @@ import com.garage.garageapi.integration.cj.dto.CjProductResponse;
 import com.garage.garageapi.integration.cj.service.CjProductService;
 import com.garage.garageapi.integration.cj.service.CjProductImportService;
 import com.garage.garageapi.integration.cj.dto.CjProductImportResponse;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -62,6 +63,31 @@ class CjIntegrationSecurityTests {
         mockMvc.perform(post("/api/admin/integrations/cj/products/cj-1/import")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unauthenticatedVariantRequestIsRejected() throws Exception {
+        mockMvc.perform(get("/api/admin/integrations/cj/products/PID-1/variants"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void regularUserCannotQueryVariants() throws Exception {
+        mockMvc.perform(get("/api/admin/integrations/cj/products/PID-1/variants")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanQueryVariantsWithoutPersistence() throws Exception {
+        when(productService.getVariants("PID-1"))
+                .thenReturn(new CjProductVariantsResponse("PID-1", java.util.List.of()));
+
+        mockMvc.perform(get("/api/admin/integrations/cj/products/PID-1/variants")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"productId\":\"PID-1\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"variants\":[]")));
     }
 
     @Test

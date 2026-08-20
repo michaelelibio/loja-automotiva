@@ -5,6 +5,7 @@ import com.garage.garageapi.admin.product.dto.AdminProductPageResponse;
 import com.garage.garageapi.admin.product.dto.AdminProductRequest;
 import com.garage.garageapi.admin.product.dto.AdminProductResponse;
 import com.garage.garageapi.admin.product.dto.AdminProductUpdateRequest;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantSyncResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -63,5 +64,10 @@ public class AdminProductController {
     public AdminProductResponse setActive(@PathVariable Long id,
                                           @Valid @RequestBody AdminProductActiveRequest request) {
         return productService.setActive(id, request.active());
+    }
+
+    @PostMapping("/{id}/cj/sync-variants")
+    public CjProductVariantSyncResponse syncCjVariants(@PathVariable Long id) {
+        return productService.syncCjVariants(id);
     }
 }

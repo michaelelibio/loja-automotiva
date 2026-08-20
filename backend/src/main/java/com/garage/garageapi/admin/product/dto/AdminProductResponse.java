@@ -6,6 +6,7 @@ import com.garage.garageapi.product.entity.FulfillmentType;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 public record AdminProductResponse(
         Long id, String name, String slug, String description, String longDescription,
@@ -14,7 +15,8 @@ public record AdminProductResponse(
         String supplier, String supplierProductId, BigDecimal supplierCostUsd,
         BigDecimal supplierExchangeRate, Instant supplierCostUpdatedAt,
         FulfillmentType fulfillmentType, Boolean availableForSale,
-        Instant createdAt, Instant updatedAt
+        Instant createdAt, Instant updatedAt,
+        List<AdminProductVariantResponse> variants
 ) {
     public static AdminProductResponse from(Product product) {
         return new AdminProductResponse(product.getId(), product.getName(), product.getSlug(),
@@ -24,6 +26,7 @@ public record AdminProductResponse(
                 product.getProductType(), product.getSupplier(), product.getSupplierProductId(),
                 product.getSupplierCostUsd(), product.getSupplierExchangeRate(),
                 product.getSupplierCostUpdatedAt(), product.getFulfillmentType(),
-                product.isAvailableForSale(), product.getCreatedAt(), product.getUpdatedAt());
+                product.isAvailableForSale(), product.getCreatedAt(), product.getUpdatedAt(),
+                product.getVariants().stream().map(AdminProductVariantResponse::from).toList());
     }
 }

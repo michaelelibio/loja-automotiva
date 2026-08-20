@@ -2,6 +2,7 @@ package com.garage.garageapi.integration.cj.service;
 
 import com.garage.garageapi.integration.cj.client.CjApiClient;
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.springframework.stereotype.Service;
 
@@ -37,10 +38,24 @@ public class CjProductService {
             }
 
             tokenService.invalidateAccessToken(token);
-
             String renewedToken = tokenService.getValidAccessToken();
-
             return client.getProduct(renewedToken, productId);
+        }
+    }
+
+    public CjProductVariantsResponse getVariants(String productId) {
+        String token = tokenService.getValidAccessToken();
+
+        try {
+            return client.getProductVariants(token, productId);
+        } catch (CjIntegrationException exception) {
+            if (exception.getReason() != CjIntegrationException.Reason.AUTHENTICATION) {
+                throw exception;
+            }
+
+            tokenService.invalidateAccessToken(token);
+            String renewedToken = tokenService.getValidAccessToken();
+            return client.getProductVariants(renewedToken, productId);
         }
     }
 }

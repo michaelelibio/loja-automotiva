@@ -2,6 +2,7 @@ package com.garage.garageapi.integration.cj;
 
 import com.garage.garageapi.integration.cj.dto.CjProductImportResponse;
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import com.garage.garageapi.integration.cj.currency.ExchangeRateService;
 import com.garage.garageapi.integration.cj.service.CjProductImportService;
@@ -18,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,6 +36,9 @@ class CjProductImportServiceTests {
     @BeforeEach
     void exchangeRate() {
         when(exchangeRateService.usdToBrl()).thenReturn(new BigDecimal("5.50"));
+        when(cjProductService.getVariants(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> new CjProductVariantsResponse(
+                        invocation.getArgument(0), List.of()));
     }
 
     @Test

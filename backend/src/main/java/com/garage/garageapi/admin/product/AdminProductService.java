@@ -7,6 +7,8 @@ import com.garage.garageapi.admin.product.dto.AdminProductUpdateRequest;
 import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.entity.ProductType;
 import com.garage.garageapi.product.repository.ProductRepository;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantSyncResponse;
+import com.garage.garageapi.integration.cj.service.CjProductVariantSyncService;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.shared.exception.ResourceNotFoundException;
 import com.garage.garageapi.stock.service.StockService;
@@ -27,12 +29,15 @@ public class AdminProductService {
     private final ProductRepository productRepository;
     private final StockService stockService;
     private final UserService userService;
+    private final CjProductVariantSyncService cjVariantSyncService;
 
     public AdminProductService(ProductRepository productRepository, StockService stockService,
-                               UserService userService) {
+                               UserService userService,
+                               CjProductVariantSyncService cjVariantSyncService) {
         this.productRepository = productRepository;
         this.stockService = stockService;
         this.userService = userService;
+        this.cjVariantSyncService = cjVariantSyncService;
     }
 
     @Transactional(readOnly = true)
@@ -100,6 +105,11 @@ public class AdminProductService {
         Product product = find(id);
         product.setActive(active);
         return AdminProductResponse.from(product);
+    }
+
+    @Transactional
+    public CjProductVariantSyncResponse syncCjVariants(Long id) {
+        return cjVariantSyncService.sync(find(id));
     }
 
     private Product find(Long id) {

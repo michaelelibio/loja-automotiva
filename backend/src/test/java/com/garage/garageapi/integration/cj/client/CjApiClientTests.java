@@ -1,6 +1,7 @@
 package com.garage.garageapi.integration.cj.client;
 
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -21,12 +22,14 @@ class CjApiClientTests {
     private HttpServer server;
     private AtomicReference<String> requestBody;
     private AtomicReference<String> accessTokenHeader;
+    private AtomicReference<String> variantProductId;
     private CjApiClient client;
 
     @BeforeEach
     void setUp() throws IOException {
         requestBody = new AtomicReference<>();
         accessTokenHeader = new AtomicReference<>();
+        variantProductId = new AtomicReference<>();
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api2.0/v1/authentication/getAccessToken", exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -48,6 +51,21 @@ class CjApiClientTests {
                       }]}]}}
                     """);
         });
+                server.createContext("/api2.0/v1/product/variant/query", exchange -> {
+                    accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
+                    variantProductId.set(exchange.getRequestURI().getQuery());
+                    respond(exchange, 200, """
+                        {"code":200,"result":true,"message":"Success","data":[
+                          {"vid":"VID-1","pid":"PID-1","variantNameEn":"Black XL",
+                           "variantSku":"SKU-1","variantImage":"https://example.test/black.jpg",
+                           "variantKey":"Black-XL","variantStandard":"long=10,width=5,height=2",
+                           "variantLength":10,"variantWidth":5,"variantHeight":2,"variantVolume":100,
+                           "variantWeight":3.25,"variantSellPrice":12.34},
+                          {"vid":"VID-2","pid":"PID-1","variantName":"Red",
+                           "variantSku":"SKU-2","variantKey":"Red","variantSellPrice":"13.50"}
+                        ]}
+                        """);
+                });
         server.start();
         client = new CjApiClient(RestClient.builder()
                 .baseUrl("http://127.0.0.1:" + server.getAddress().getPort()).build());
@@ -86,6 +104,63 @@ class CjApiClientTests {
             assertThat(product.priceUsd()).isEqualByComparingTo("12.34");
         });
         assertThat(response.toString()).doesNotContain("SECRET_ACCESS");
+    }
+
+    @Test
+    void mapsSingleAndMultipleVariantsUsingPid() {
+        CjProductVariantsResponse response = client.getProductVariants("SECRET_ACCESS", "PID-1");
+
+        assertThat(accessTokenHeader.get()).isEqualTo("SECRET_ACCESS");
+        assertThat(variantProductId.get()).isEqualTo("pid=PID-1");
+        assertThat(response.productId()).isEqualTo("PID-1");
+        assertThat(response.variants()).hasSize(2);
+        assertThat(response.variants().get(0).cjVariantId()).isEqualTo("VID-1");
+        assertThat(response.variants().get(0).cjProductId()).isEqualTo("PID-1");
+        assertThat(response.variants().get(0).priceUsd()).isEqualByComparingTo("12.34");
+        assertThat(response.variants().get(0).attributes())
+                .containsEntry("option1", "Black")
+                .containsEntry("option2", "XL");
+        assertThat(response.variants().get(0).weightGrams()).isEqualByComparingTo("3.25");
+        assertThat(response.variants().get(1).name()).isEqualTo("Red");
+    }
+
+    @Test
+    void acceptsEmptyVariantResponse() throws IOException {
+        server.removeContext("/api2.0/v1/product/variant/query");
+        server.createContext("/api2.0/v1/product/variant/query", exchange ->
+                respond(exchange, 200, "{\"code\":200,\"result\":true,\"data\":[]}"));
+
+        assertThat(client.getProductVariants("TOKEN", "EMPTY").variants()).isEmpty();
+    }
+
+    @Test
+    void rejectsInvalidVariantJson() throws IOException {
+        server.removeContext("/api2.0/v1/product/variant/query");
+        server.createContext("/api2.0/v1/product/variant/query", exchange ->
+                respond(exchange, 200, "not-json"));
+
+        assertThatThrownBy(() -> client.getProductVariants("TOKEN", "INVALID"))
+                .isInstanceOf(CjIntegrationException.class)
+                .hasMessage("Falha temporária ao consultar variantes da CJ");
+    }
+
+    @Test
+    void classifiesVariantAuthenticationRateLimitAndUpstreamFailures() throws IOException {
+        for (int status : new int[]{401, 403, 429, 500}) {
+            server.removeContext("/api2.0/v1/product/variant/query");
+            server.createContext("/api2.0/v1/product/variant/query", exchange ->
+                    respond(exchange, status, "{}"));
+
+            assertThatThrownBy(() -> client.getProductVariants("TOKEN", "FAIL"))
+                    .isInstanceOfSatisfying(CjIntegrationException.class, exception -> {
+                        CjIntegrationException.Reason expected = status == 429
+                                ? CjIntegrationException.Reason.RATE_LIMIT
+                                : status == 401 || status == 403
+                                ? CjIntegrationException.Reason.AUTHENTICATION
+                                : CjIntegrationException.Reason.UPSTREAM;
+                        assertThat(exception.getReason()).isEqualTo(expected);
+                    });
+        }
     }
 
     @Test

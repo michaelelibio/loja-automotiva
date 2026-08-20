@@ -2,6 +2,7 @@ package com.garage.garageapi.integration.cj.client;
 
 import com.garage.garageapi.integration.cj.config.CjProperties;
 import com.garage.garageapi.integration.cj.dto.CjProductResponse;
+import com.garage.garageapi.integration.cj.dto.CjProductVariantsResponse;
 import com.garage.garageapi.integration.cj.exception.CjIntegrationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -44,6 +46,9 @@ public class CjApiClient {
 
     private static final String PRODUCT_QUERY =
             "/api2.0/v1/product/query";
+
+    private static final String PRODUCT_VARIANT_QUERY =
+            "/api2.0/v1/product/variant/query";
 
     private static final JsonMapper DIAGNOSTIC_JSON =
             JsonMapper.builder().build();
@@ -218,6 +223,48 @@ public class CjApiClient {
             );
         }
     }
+
+        public CjProductVariantsResponse getProductVariants(
+                        String accessToken,
+                        String productId
+        ) {
+                try {
+                        JsonNode response = restClient
+                                        .get()
+                                        .uri(builder -> builder
+                                                        .path(PRODUCT_VARIANT_QUERY)
+                                                        .queryParam("pid", productId)
+                                                        .build()
+                                        )
+                                        .accept(MediaType.APPLICATION_JSON)
+                                        .header("CJ-Access-Token", accessToken)
+                                        .retrieve()
+                                        .body(JsonNode.class);
+
+                        JsonNode data = successfulData(response, "consulta de variantes");
+                        if (!data.isArray()) {
+                                throw new CjIntegrationException(
+                                                "Resposta inválida da CJ durante consulta de variantes",
+                                                CjIntegrationException.Reason.INVALID_RESPONSE
+                                );
+                        }
+
+                        List<CjProductVariantsResponse.Variant> variants = new ArrayList<>();
+                        for (JsonNode variant : data) {
+                                variants.add(mapVariant(variant));
+                        }
+
+                        return new CjProductVariantsResponse(productId, List.copyOf(variants));
+                } catch (RestClientResponseException exception) {
+                        throw httpFailure("consulta de variantes", exception);
+                } catch (RestClientException exception) {
+                        throw new CjIntegrationException(
+                                        "Falha temporária ao consultar variantes da CJ",
+                                        exception,
+                                        CjIntegrationException.Reason.UPSTREAM
+                        );
+                }
+        }
 
     private void logProductRequest(
             String keyword,
@@ -556,6 +603,40 @@ public class CjApiClient {
         );
     }
 
+        private CjProductVariantsResponse.Variant mapVariant(JsonNode variant) {
+                String variantKey = text(variant, "variantKey");
+                Map<String, String> attributes = new LinkedHashMap<>();
+                if (StringUtils.hasText(variantKey)) {
+                        String[] options = variantKey.split("-", -1);
+                        for (int index = 0; index < options.length; index++) {
+                                if (StringUtils.hasText(options[index])) {
+                                        attributes.put("option" + (index + 1), options[index].trim());
+                                }
+                        }
+                }
+
+                String name = text(variant, "variantNameEn");
+                if (!StringUtils.hasText(name)) {
+                        name = text(variant, "variantName");
+                }
+
+                return new CjProductVariantsResponse.Variant(
+                                requiredText(variant, "vid"),
+                                requiredText(variant, "pid"),
+                                text(variant, "variantSku"),
+                                name,
+                                decimal(variant, "variantSellPrice"),
+                                text(variant, "variantImage"),
+                                Map.copyOf(attributes),
+                                text(variant, "variantStandard"),
+                                optionalInteger(variant, "variantLength"),
+                                optionalInteger(variant, "variantWidth"),
+                                optionalInteger(variant, "variantHeight"),
+                                decimal(variant, "variantVolume"),
+                                decimal(variant, "variantWeight")
+                );
+        }
+
     private CjIntegrationException httpFailure(
             String operation,
             RestClientResponseException exception
@@ -681,6 +762,11 @@ public class CjApiClient {
                 ? value.asInt()
                 : fallback;
     }
+
+        private Integer optionalInteger(JsonNode node, String field) {
+                JsonNode value = node.path(field);
+                return value.isNumber() ? value.asInt() : null;
+        }
 
     private long longValue(
             JsonNode node,
