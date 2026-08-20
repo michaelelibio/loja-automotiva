@@ -17,7 +17,13 @@ export type AdminOrder = AdminOrderSummary & {
   shippingEstimatedDays: number;
   customer: { userId: number; name: string; email: string };
   shippingAddress: { recipientName: string; zipCode: string; street: string; number: string; complement: string | null; neighborhood: string; city: string; state: string };
-  items: Array<{ productId: number; productName: string; productSlug: string; unitPrice: number; quantity: number; subtotal: number }>;
+  items: Array<{ productId: number; productName: string; productSlug: string;
+    productVariantId: number | null; variantName: string | null;
+    fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING' | null;
+    supplier: string | null; supplierProductId: string | null; supplierVariantId: string | null;
+    supplierSku: string | null; supplierCost: number | null; supplierCostCurrency: string | null;
+    weightGrams: number | null; lengthMm: number | null; widthMm: number | null; heightMm: number | null;
+    unitPrice: number; quantity: number; subtotal: number }>;
   payment: { method: 'PIX' | 'MERCADO_PAGO'; status: AdminPaymentStatus; paidAt: string | null } | null;
 };
 

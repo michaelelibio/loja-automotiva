@@ -59,7 +59,8 @@ export function CheckoutForm() {
     return product ? [{ ...item, product }] : [];
   }), [items, availableProducts]);
   const subtotal = useMemo(() => cartProducts.reduce((sum, item) => sum + item.product.price * item.quantity, 0), [cartProducts]);
-  const requestItems = useMemo(() => cartProducts.map((item) => ({ productId: Number(item.productId), quantity: item.quantity })), [cartProducts]);
+  const requestItems = useMemo(() => cartProducts.map((item) => ({ productId: Number(item.productId),
+    ...(item.variantId ? { variantId: Number(item.variantId) } : {}), quantity: item.quantity })), [cartProducts]);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId) ?? null;
   const selectedShipping = shippingOptions.find((option) => option.code === selectedShippingCode) ?? null;
   const visualTotal = subtotal + (selectedShipping?.price ?? 0);
@@ -110,8 +111,8 @@ export function CheckoutForm() {
   if (authLoading || sessionError || !isAuthenticated || !isHydrated) return <section className="checkout-section checkout-state"><p>{sessionError ?? 'Preparando seu checkout...'}</p></section>;
 
   return <section className="checkout-section"><form onSubmit={submit}><div className="checkout-columns"><div className="checkout-panel">
-    <section className="checkout-fieldset"><h2>Produtos</h2>{cartProducts.length === 0 ? <div className="checkout-empty"><p>Seu carrinho está vazio.</p><Link href="/produtos">Ver produtos</Link></div> : <div className="checkout-products">{cartProducts.map(({ product, quantity }) => <article key={product.id}>
-      <div className="checkout-product-image" style={{ backgroundColor: product.accent }}>{product.image && <img src={product.image} alt="" />}</div><div><h3>{product.name}</h3><p>{currency.format(product.price)} por unidade</p><span>Quantidade: {quantity}</span></div><strong>{currency.format(product.price * quantity)}</strong>
+    <section className="checkout-fieldset"><h2>Produtos</h2>{cartProducts.length === 0 ? <div className="checkout-empty"><p>Seu carrinho está vazio.</p><Link href="/produtos">Ver produtos</Link></div> : <div className="checkout-products">{cartProducts.map(({ product, variantId, quantity }) => <article key={`${product.id}:${variantId ?? ''}`}>
+      <div className="checkout-product-image" style={{ backgroundColor: product.accent }}>{product.image && <img src={product.image} alt="" />}</div><div><h3>{product.name}</h3>{variantId && <p>{product.variants.find((variant) => variant.id === variantId)?.name}</p>}<p>{currency.format(product.price)} por unidade</p><span>Quantidade: {quantity}</span></div><strong>{currency.format(product.price * quantity)}</strong>
     </article>)}</div>}</section>
     <section className="checkout-fieldset"><div className="checkout-section-heading"><h2>Endereço de entrega</h2>{addresses.length > 0 && <Link href="/conta#addresses">Gerenciar endereços</Link>}</div>
       {addressesLoading && <p className="account-status">Carregando endereços...</p>}

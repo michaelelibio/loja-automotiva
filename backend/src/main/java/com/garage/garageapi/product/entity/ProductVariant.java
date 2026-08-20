@@ -117,6 +117,8 @@ public class ProductVariant {
         this.active = true;
     }
 
+    public void setActive(boolean active) { this.active = active; }
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

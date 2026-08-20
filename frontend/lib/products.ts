@@ -18,6 +18,16 @@ export type Product = {
   image: string;
   images: string[];
   featured?: boolean;
+  requiresVariantSelection: boolean;
+  variants: ProductVariant[];
+};
+
+export type ProductVariant = {
+  id: string;
+  name: string;
+  sku?: string;
+  attributes: Record<string, string>;
+  imageUrl?: string;
 };
 
 export type BackendProductResponse = {
@@ -35,6 +45,9 @@ export type BackendProductResponse = {
   active: boolean;
   fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING';
   availableForSale: boolean;
+  requiresVariantSelection?: boolean;
+  variants?: Array<{ id: number; name: string | null; sku: string | null;
+    attributes: Record<string, string> | null; imageUrl: string | null }>;
   [key: string]: unknown;
 };
 
@@ -138,6 +151,16 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     : typeof payload.highlighted === 'boolean'
       ? payload.highlighted
       : fallbackSource?.featured ?? false;
+  const variants = Array.isArray(payload.variants) ? payload.variants.flatMap((variant) => {
+    const variantId = parseText(variant?.id);
+    if (!variantId) return [];
+    return [{ id: variantId, name: parseText(variant.name) || parseText(variant.sku) || `Opção ${variantId}`,
+      sku: parseText(variant.sku) || undefined,
+      attributes: variant.attributes && typeof variant.attributes === 'object' ? variant.attributes : {},
+      imageUrl: parseText(variant.imageUrl) || undefined }];
+  }) : fallbackSource?.variants ?? [];
+  const requiresVariantSelection = typeof payload.requiresVariantSelection === 'boolean'
+    ? payload.requiresVariantSelection : variants.length > 0;
 
   if (!id || !slug) {
     throw new Error('Produto inválido retornado pela API: faltando id ou slug.');
@@ -161,6 +184,8 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     image,
     images,
     featured,
+    requiresVariantSelection,
+    variants,
   };
 }
 

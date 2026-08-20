@@ -4,8 +4,12 @@ import com.garage.garageapi.address.entity.Address;
 import com.garage.garageapi.address.repository.AddressRepository;
 import com.garage.garageapi.auth.service.JwtService;
 import com.garage.garageapi.order.repository.OrderRepository;
+import com.garage.garageapi.order.repository.OrderItemRepository;
 import com.garage.garageapi.product.entity.Product;
+import com.garage.garageapi.product.entity.ProductVariant;
+import com.garage.garageapi.product.entity.FulfillmentType;
 import com.garage.garageapi.product.repository.ProductRepository;
+import com.garage.garageapi.product.repository.ProductVariantRepository;
 import com.garage.garageapi.user.entity.User;
 import com.garage.garageapi.user.repository.UserRepository;
 import com.garage.garageapi.shipping.provider.FixedShippingProvider;
@@ -24,6 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,8 +42,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrderIntegrationTests {
     @Autowired MockMvc mockMvc;
     @Autowired OrderRepository orderRepository;
+    @Autowired OrderItemRepository orderItemRepository;
     @Autowired AddressRepository addressRepository;
     @Autowired ProductRepository productRepository;
+    @Autowired ProductVariantRepository productVariantRepository;
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired JwtService jwtService;
@@ -323,6 +331,83 @@ class OrderIntegrationTests {
                 .andExpect(jsonPath("$.items[0].unitPrice").value(89.90));
     }
 
+    @Test
+    void cjProductWithValidVariantPersistsImmutableSupplierSnapshot() throws Exception {
+        User user = user("cj-variant@example.com");
+        Address address = address(user, "Rua CJ", "10");
+        Product product = cjProduct("Produto CJ", "produto-cj", "129.90");
+        ProductVariant variant = variant(product, "cj-variant-1", "CJ-SKU-BLACK", "Preto",
+                "12.3456", "420", "120", "80", "60");
+
+        String response = mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request(address.getId(), item(product.getId(), variant.getId(), 2))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.items[0].productVariantId").value(variant.getId()))
+                .andExpect(jsonPath("$.items[0].variantName").value("Preto"))
+                .andExpect(jsonPath("$.items[0].fulfillmentType").value("DROPSHIPPING"))
+                .andReturn().getResponse().getContentAsString();
+        Long orderId = Long.valueOf(response.replaceAll(".*\\\"id\\\":([0-9]+).*", "$1"));
+
+        var snapshot = orderItemRepository.findAll().stream()
+                .filter(item -> item.getProductId().equals(product.getId())).findFirst().orElseThrow();
+        assertThat(snapshot.getSupplier()).isEqualTo("CJ");
+        assertThat(snapshot.getSupplierProductId()).isEqualTo("cj-produto-cj");
+        assertThat(snapshot.getSupplierVariantId()).isEqualTo("cj-variant-1");
+        assertThat(snapshot.getSupplierSku()).isEqualTo("CJ-SKU-BLACK");
+        assertThat(snapshot.getSupplierCost()).isEqualByComparingTo("12.3456");
+        assertThat(snapshot.getSupplierCostCurrency()).isEqualTo("USD");
+        assertThat(snapshot.getWeightGrams()).isEqualByComparingTo("420");
+        assertThat(snapshot.getLengthMm()).isEqualByComparingTo("120");
+        assertThat(snapshot.getWidthMm()).isEqualByComparingTo("80");
+        assertThat(snapshot.getHeightMm()).isEqualByComparingTo("60");
+        assertThat(productRepository.findById(product.getId()).orElseThrow().getStockQuantity()).isZero();
+
+        variant.updateSupplierData("CJ", "cj-variant-1", "cj-produto-cj", "CHANGED",
+                "Nome alterado", Map.of("option1", "Azul"), new BigDecimal("99.0000"),
+                "USD", null, new BigDecimal("999"), null, null, null);
+        productVariantRepository.saveAndFlush(variant);
+
+        var unchanged = orderItemRepository.findById(snapshot.getId()).orElseThrow();
+        assertThat(unchanged.getSupplierSku()).isEqualTo("CJ-SKU-BLACK");
+        assertThat(unchanged.getVariantName()).isEqualTo("Preto");
+        assertThat(unchanged.getSupplierCost()).isEqualByComparingTo("12.3456");
+        assertThat(unchanged.getWeightGrams()).isEqualByComparingTo("420");
+    }
+
+    @Test
+    void productWithVariantsRequiresExistingActiveVariantFromSameProduct() throws Exception {
+        User user = user("variant-validation@example.com");
+        Address address = address(user, "Rua", "10");
+        Product first = cjProduct("Primeiro CJ", "primeiro-cj", "10.00");
+        Product second = cjProduct("Segundo CJ", "segundo-cj", "20.00");
+        ProductVariant firstVariant = variant(first, "variant-first", "FIRST", "Primeira",
+                "1.00", "10", "1", "2", "3");
+        ProductVariant secondVariant = variant(second, "variant-second", "SECOND", "Segunda",
+                "2.00", "20", "4", "5", "6");
+
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request(address.getId(), item(first.getId(), 999999L, 1))))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request(address.getId(), item(first.getId(), secondVariant.getId(), 1))))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request(address.getId(), item(first.getId(), 1))))
+                .andExpect(status().isConflict());
+
+        firstVariant.setActive(false);
+        productVariantRepository.saveAndFlush(firstVariant);
+        mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request(address.getId(), item(first.getId(), firstVariant.getId(), 1))))
+                .andExpect(status().isConflict());
+        assertThat(orderRepository.count()).isZero();
+    }
+
     private Long createOrder(User user, Address address, Product product) throws Exception {
         String response = mockMvc.perform(post("/api/orders").header("Authorization", bearer(user))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -340,6 +425,7 @@ class OrderIntegrationTests {
     private void cleanDatabase() {
         orderRepository.deleteAll();
         addressRepository.deleteAll();
+        productVariantRepository.deleteAll();
         productRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -362,10 +448,36 @@ class OrderIntegrationTests {
                 "Categoria", stockQuantity, null, active));
     }
 
+    private Product cjProduct(String name, String slug, String price) {
+        Product product = new Product(name, slug, null, null, new BigDecimal(price), null,
+                "Categoria", 0, null, true);
+        product.updateAdmin(name, slug, null, null, new BigDecimal(price), null,
+                new BigDecimal("55.00"), "Categoria", null, true, product.getProductType(),
+                "SKU-" + slug.toUpperCase());
+        product.linkSupplier("CJ", "cj-" + slug, new BigDecimal("10.0000"),
+                new BigDecimal("5.500000"), Instant.now());
+        product.configureFulfillment(FulfillmentType.DROPSHIPPING);
+        return productRepository.save(product);
+    }
+
+    private ProductVariant variant(Product product, String supplierVariantId, String sku,
+                                   String name, String cost, String weight, String length,
+                                   String width, String height) {
+        return productVariantRepository.save(new ProductVariant(product, "CJ", supplierVariantId,
+                product.getSupplierProductId(), sku, name, Map.of("option1", name),
+                new BigDecimal(cost), "USD", null, new BigDecimal(weight),
+                new BigDecimal(length), new BigDecimal(width), new BigDecimal(height)));
+    }
+
     private String bearer(User user) { return "Bearer " + jwtService.issue(user).value(); }
 
     private String item(Long productId, int quantity) {
         return "{\"productId\":" + productId + ",\"quantity\":" + quantity + "}";
+    }
+
+    private String item(Long productId, Long variantId, int quantity) {
+        return "{\"productId\":" + productId + ",\"variantId\":" + variantId
+                + ",\"quantity\":" + quantity + "}";
     }
 
     private String request(Long addressId, String... items) {

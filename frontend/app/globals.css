@@ -1242,3 +1242,26 @@ h2 { font-size: clamp(36px, 4.5vw, 61px); letter-spacing: -.055em; line-height: 
   .payment-checkout-option button { width: 100%; }
 }
 
+.variant-selector {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  max-width: 28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.variant-selector select {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid #111;
+  border-radius: 0;
+  background: #fff;
+  color: #111;
+  padding: 0 0.9rem;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}

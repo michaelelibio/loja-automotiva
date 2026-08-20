@@ -11,4 +11,6 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     Optional<ProductVariant> findBySupplierIgnoreCaseAndSupplierVariantId(
             String supplier, String supplierVariantId);
+
+    boolean existsByProductId(Long productId);
 }

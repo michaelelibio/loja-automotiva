@@ -10,6 +10,7 @@ import com.garage.garageapi.payment.entity.PaymentStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import com.garage.garageapi.product.entity.FulfillmentType;
 
 public record AdminOrderResponse(
         Long id, OrderStatus status, BigDecimal subtotal, BigDecimal shippingCost, BigDecimal total,
@@ -39,10 +40,19 @@ public record AdminOrderResponse(
     public record ShippingAddress(String recipientName, String zipCode, String street, String number,
                                   String complement, String neighborhood, String city, String state) { }
 
-    public record Item(Long productId, String productName, String productSlug, BigDecimal unitPrice,
-                       Integer quantity, BigDecimal subtotal) {
+    public record Item(Long productId, String productName, String productSlug,
+                       Long productVariantId, String variantName, FulfillmentType fulfillmentType,
+                       String supplier, String supplierProductId, String supplierVariantId,
+                       String supplierSku, BigDecimal supplierCost, String supplierCostCurrency,
+                       BigDecimal weightGrams, BigDecimal lengthMm, BigDecimal widthMm,
+                       BigDecimal heightMm, BigDecimal unitPrice, Integer quantity,
+                       BigDecimal subtotal) {
         private static Item from(OrderItem item) {
             return new Item(item.getProductId(), item.getProductName(), item.getProductSlug(),
+                    item.getProductVariantId(), item.getVariantName(), item.getFulfillmentType(),
+                    item.getSupplier(), item.getSupplierProductId(), item.getSupplierVariantId(),
+                    item.getSupplierSku(), item.getSupplierCost(), item.getSupplierCostCurrency(),
+                    item.getWeightGrams(), item.getLengthMm(), item.getWidthMm(), item.getHeightMm(),
                     item.getUnitPrice(), item.getQuantity(), item.getSubtotal());
         }
     }

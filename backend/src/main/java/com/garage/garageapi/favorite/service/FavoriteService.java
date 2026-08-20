@@ -42,6 +42,7 @@ public class FavoriteService {
                 .toList();
     }
 
+    @Transactional
     public ProductResponse add(Jwt jwt, Long productId) {
         User user = authenticatedUser(jwt);
         Product product = productRepository.findById(productId)

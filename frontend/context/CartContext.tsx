@@ -6,6 +6,7 @@ import type { Product } from '@/lib/products';
 
 export type CartItem = {
   productId: string;
+  variantId?: string;
   quantity: number;
 };
 
@@ -13,10 +14,10 @@ type CartContextValue = {
   items: CartItem[];
   totalItems: number;
   isHydrated: boolean;
-  addItem: (product: Product, quantity: number) => void;
-  increaseItem: (productId: string) => void;
-  decreaseItem: (productId: string) => void;
-  removeItem: (productId: string) => void;
+  addItem: (product: Product, quantity: number, variantId?: string) => void;
+  increaseItem: (productId: string, variantId?: string) => void;
+  decreaseItem: (productId: string, variantId?: string) => void;
+  removeItem: (productId: string, variantId?: string) => void;
   clearCart: () => void;
   reconcileItems: (validProductIds: string[]) => void;
 };
@@ -38,18 +39,23 @@ function normalizeProductId(value: unknown): string | null {
   return /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0 ? String(Number(id)) : null;
 }
 
+const itemKey = (productId: string, variantId?: string) => `${productId}:${variantId ?? ''}`;
+
 function sanitizeCartItems(value: unknown): CartItem[] {
   if (!Array.isArray(value)) return [];
-  const quantities = new Map<string, number>();
+  const quantities = new Map<string, CartItem>();
   value.forEach((candidate) => {
     if (!candidate || typeof candidate !== 'object') return;
     const item = candidate as Record<string, unknown>;
     const productId = normalizeProductId(item.productId);
+    const variantId = item.variantId == null ? undefined : normalizeProductId(item.variantId) ?? undefined;
     const quantity = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity);
     if (!productId || !Number.isSafeInteger(quantity) || quantity <= 0) return;
-    quantities.set(productId, (quantities.get(productId) ?? 0) + quantity);
+    const key = itemKey(productId, variantId);
+    const current = quantities.get(key);
+    quantities.set(key, { productId, variantId, quantity: (current?.quantity ?? 0) + quantity });
   });
-  return Array.from(quantities, ([productId, quantity]) => ({ productId, quantity }));
+  return Array.from(quantities.values());
 }
 
 function readCartStorage(): StoredCart {
@@ -178,16 +184,18 @@ export function CartProvider({ children }: Readonly<{ children: React.ReactNode 
     items,
     isHydrated: hydrated,
     totalItems: items.reduce((total, item) => total + item.quantity, 0),
-    addItem: (product, quantity) => setItems((current) => {
+    addItem: (product, quantity, requestedVariantId) => setItems((current) => {
       const productId = normalizeProductId(product.id);
+      const variantId = requestedVariantId ? normalizeProductId(requestedVariantId) ?? undefined : undefined;
       if (!productId || !Number.isSafeInteger(quantity) || quantity <= 0) return current;
-      const existing = current.find((item) => item.productId === productId);
-      if (existing) return current.map((item) => item.productId === productId ? { ...item, quantity: item.quantity + quantity } : item);
-      return [...current, { productId, quantity }];
+      const key = itemKey(productId, variantId);
+      const existing = current.find((item) => itemKey(item.productId, item.variantId) === key);
+      if (existing) return current.map((item) => itemKey(item.productId, item.variantId) === key ? { ...item, quantity: item.quantity + quantity } : item);
+      return [...current, { productId, variantId, quantity }];
     }),
-    increaseItem: (productId) => setItems((current) => current.map((item) => item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item)),
-    decreaseItem: (productId) => setItems((current) => current.flatMap((item) => item.productId === productId ? (item.quantity > 1 ? [{ ...item, quantity: item.quantity - 1 }] : []) : [item])),
-    removeItem: (productId) => setItems((current) => current.filter((item) => item.productId !== productId)),
+    increaseItem: (productId, variantId) => setItems((current) => current.map((item) => itemKey(item.productId, item.variantId) === itemKey(productId, variantId) ? { ...item, quantity: item.quantity + 1 } : item)),
+    decreaseItem: (productId, variantId) => setItems((current) => current.flatMap((item) => itemKey(item.productId, item.variantId) === itemKey(productId, variantId) ? (item.quantity > 1 ? [{ ...item, quantity: item.quantity - 1 }] : []) : [item])),
+    removeItem: (productId, variantId) => setItems((current) => current.filter((item) => itemKey(item.productId, item.variantId) !== itemKey(productId, variantId))),
     clearCart: () => setItems([]),
     reconcileItems: (validProductIds) => {
       const validIds = new Set(validProductIds.map(normalizeProductId).filter((id): id is string => id !== null));

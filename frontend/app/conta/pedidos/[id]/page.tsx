@@ -78,9 +78,10 @@ export default function OrderDetailPage() {
         <section className="order-detail-card order-items-card">
           <h2>Itens</h2>
           <div className="order-detail-items">
-            {order.items.map((item) => <article className="order-detail-item" key={item.productId}>
+            {order.items.map((item) => <article className="order-detail-item" key={`${item.productId}:${item.productVariantId ?? ''}`}>
               <div className="order-item-info">
                 {item.productSlug ? <Link href={`/produtos/${item.productSlug}`}>{item.productName}</Link> : <strong>{item.productName}</strong>}
+                {item.variantName && <span>{item.variantName}</span>}
                 <span>Quantidade: {item.quantity}</span>
                 <span>{currency.format(item.unitPrice)} cada</span>
               </div>

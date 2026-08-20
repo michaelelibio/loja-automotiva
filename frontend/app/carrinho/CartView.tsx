@@ -30,13 +30,13 @@ export function CartView() {
   return (
     <section className="cart-section" aria-label="Itens do carrinho">
       <div className="cart-items">
-        {cartProducts.map(({ product, quantity }) => (
-          <article className="cart-item" key={product.id}>
+        {cartProducts.map(({ product, variantId, quantity }) => (
+          <article className="cart-item" key={`${product.id}:${variantId ?? ''}`}>
             <div className="cart-item-image" style={{ backgroundImage: `url(${product.image})`, backgroundColor: product.accent }} />
-            <div className="cart-item-info"><p className="eyebrow">{product.category}</p><h2>{product.name}</h2><span>{currency.format(product.price)} / unidade</span></div>
-            <div className="cart-item-quantity"><span>Quantidade</span><div className="quantity-control"><button type="button" onClick={() => decreaseItem(product.id)} aria-label={`Diminuir ${product.name}`}>−</button><strong>{quantity}</strong><button type="button" onClick={() => increaseItem(product.id)} aria-label={`Aumentar ${product.name}`}>+</button></div></div>
-            <div className="cart-item-subtotal"><span>Subtotal</span><strong>{currency.format(product.price * quantity)}</strong><button type="button" className="remove-item" onClick={() => setPendingRemovalId(product.id)}>Remover</button></div>
-            {pendingRemovalId === product.id && <RemoveConfirmation productName={product.name} onCancel={() => setPendingRemovalId(null)} onConfirm={() => { removeItem(product.id); setPendingRemovalId(null); }} />}
+            <div className="cart-item-info"><p className="eyebrow">{product.category}</p><h2>{product.name}</h2>{variantId && <p>{product.variants.find((variant) => variant.id === variantId)?.name}</p>}<span>{currency.format(product.price)} / unidade</span></div>
+            <div className="cart-item-quantity"><span>Quantidade</span><div className="quantity-control"><button type="button" onClick={() => decreaseItem(product.id, variantId)} aria-label={`Diminuir ${product.name}`}>−</button><strong>{quantity}</strong><button type="button" onClick={() => increaseItem(product.id, variantId)} aria-label={`Aumentar ${product.name}`}>+</button></div></div>
+            <div className="cart-item-subtotal"><span>Subtotal</span><strong>{currency.format(product.price * quantity)}</strong><button type="button" className="remove-item" onClick={() => setPendingRemovalId(`${product.id}:${variantId ?? ''}`)}>Remover</button></div>
+            {pendingRemovalId === `${product.id}:${variantId ?? ''}` && <RemoveConfirmation productName={product.name} onCancel={() => setPendingRemovalId(null)} onConfirm={() => { removeItem(product.id, variantId); setPendingRemovalId(null); }} />}
           </article>
         ))}
       </div>
