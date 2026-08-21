@@ -26,15 +26,18 @@ public class CjProductImportService {
     private final ProductRepository productRepository;
     private final ExchangeRateService exchangeRateService;
     private final CjProductVariantSyncService variantSyncService;
+    private final CjProductMediaSyncService mediaSyncService;
 
     public CjProductImportService(CjProductService cjProductService,
                                   ProductRepository productRepository,
                                   ExchangeRateService exchangeRateService,
-                                  CjProductVariantSyncService variantSyncService) {
+                                  CjProductVariantSyncService variantSyncService,
+                                  CjProductMediaSyncService mediaSyncService) {
         this.cjProductService = cjProductService;
         this.productRepository = productRepository;
         this.exchangeRateService = exchangeRateService;
         this.variantSyncService = variantSyncService;
+        this.mediaSyncService = mediaSyncService;
     }
 
     @Transactional
@@ -75,7 +78,8 @@ public class CjProductImportService {
         product.configureFulfillment(FulfillmentType.DROPSHIPPING);
 
         Product saved = productRepository.saveAndFlush(product);
-        variantSyncService.sync(saved);
+        mediaSyncService.syncImages(saved, source.imageUrl(), source.imageUrls());
+        variantSyncService.sync(saved, source.productKeyEn());
         return CjProductImportResponse.from(saved);
     }
 

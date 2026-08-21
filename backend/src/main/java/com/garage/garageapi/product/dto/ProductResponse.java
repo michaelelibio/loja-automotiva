@@ -3,9 +3,11 @@ package com.garage.garageapi.product.dto;
 import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.entity.ProductType;
 import com.garage.garageapi.product.entity.FulfillmentType;
+import com.garage.garageapi.product.entity.ProductMedia;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Comparator;
 
 public record ProductResponse(
         Long id,
@@ -23,7 +25,8 @@ public record ProductResponse(
         FulfillmentType fulfillmentType,
         Boolean availableForSale,
         Boolean requiresVariantSelection,
-        List<ProductVariantResponse> variants
+        List<ProductVariantResponse> variants,
+        List<ProductMediaResponse> media
 ) {
     public static ProductResponse from(Product product) {
         List<ProductVariantResponse> activeVariants = product.getVariants().stream()
@@ -34,7 +37,12 @@ public record ProductResponse(
                 product.getLongDescription(), product.getPrice(), product.getOldPrice(), product.getCategory(),
                 product.getStockQuantity(), product.getImageUrl(), product.getActive(), product.getProductType(),
                 product.getFulfillmentType(), product.isAvailableForSale(),
-                !product.getVariants().isEmpty(), activeVariants
+                !product.getVariants().isEmpty(), activeVariants,
+                product.getMedia().stream().filter(media -> Boolean.TRUE.equals(media.getActive()))
+                        .sorted(Comparator.comparing(ProductMedia::getPosition)
+                                .thenComparing(ProductMedia::getId,
+                                        Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(ProductMediaResponse::from).toList()
         );
     }
 }

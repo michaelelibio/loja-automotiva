@@ -10,6 +10,8 @@ import com.garage.garageapi.integration.cj.service.CjProductService;
 import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.entity.FulfillmentType;
 import com.garage.garageapi.product.repository.ProductRepository;
+import com.garage.garageapi.product.repository.ProductMediaRepository;
+import com.garage.garageapi.product.entity.ProductMediaSource;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.when;
 class CjProductImportServiceTests {
     @Autowired CjProductImportService importService;
     @Autowired ProductRepository productRepository;
+    @Autowired ProductMediaRepository mediaRepository;
     @MockitoBean CjProductService cjProductService;
     @MockitoBean ExchangeRateService exchangeRateService;
 
@@ -60,6 +63,26 @@ class CjProductImportServiceTests {
         assertThat(saved.getFulfillmentType()).isEqualTo(FulfillmentType.DROPSHIPPING);
         assertThat(saved.getCategory()).isEqualTo("NÃO CATEGORIZADO");
         assertThat(saved.getSku()).isEqualTo("CJ-CLEAN-1");
+        assertThat(mediaRepository.findAllByProductIdAndSourceOrderByPositionAscIdAsc(
+                saved.getId(), ProductMediaSource.CJ)).extracting(media -> media.getUrl())
+                .containsExactly("https://example.test/image.jpg");
+    }
+
+    @Test
+    void importsCompleteImageGalleryWithoutDuplicatingMainImage() {
+        when(cjProductService.get("cj-gallery")).thenReturn(new CjProductResponse.Product(
+                "cj-gallery", "Gallery", "https://example.test/main.jpg",
+                List.of("https://example.test/main.jpg", "https://example.test/two.jpg",
+                        "https://example.test/three.jpg"), "Color-Size",
+                new BigDecimal("1.90"), "category", "Category", "CJ-GALLERY"));
+
+        Product saved = productRepository.findById(importService.importProduct("cj-gallery").id())
+                .orElseThrow();
+
+        assertThat(mediaRepository.findAllByProductIdAndSourceOrderByPositionAscIdAsc(
+                saved.getId(), ProductMediaSource.CJ)).extracting(media -> media.getUrl())
+                .containsExactly("https://example.test/main.jpg",
+                        "https://example.test/two.jpg", "https://example.test/three.jpg");
     }
 
     @Test
@@ -107,8 +130,8 @@ class CjProductImportServiceTests {
     @Test
     void conversionUsesExplicitHalfUpRounding() {
         when(cjProductService.get("cj-round")).thenReturn(new CjProductResponse.Product(
-                "cj-round", "Rounded", null, new BigDecimal("1.999"), null, null,
-                "CJ-ROUND"));
+                "cj-round", "Rounded", null, List.of(), null,
+                new BigDecimal("1.999"), null, null, "CJ-ROUND"));
         when(exchangeRateService.usdToBrl()).thenReturn(new BigDecimal("5.555"));
 
         Product saved = productRepository.findById(importService.importProduct("cj-round").id())
@@ -143,6 +166,7 @@ class CjProductImportServiceTests {
 
     private CjProductResponse.Product source(String id, String name, String sku) {
         return new CjProductResponse.Product(id, name, "https://example.test/image.jpg",
+                List.of("https://example.test/image.jpg"), null,
                 new BigDecimal("1.90"), "cj-category", "CJ Category", sku);
     }
 

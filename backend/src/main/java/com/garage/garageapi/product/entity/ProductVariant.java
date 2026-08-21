@@ -61,6 +61,9 @@ public class ProductVariant {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "raw_variant_key", length = 500)
+    private String rawVariantKey;
+
     @Column(name = "weight_grams", precision = 19, scale = 4)
     private BigDecimal weightGrams;
 
@@ -95,6 +98,18 @@ public class ProductVariant {
                 lengthMm, widthMm, heightMm);
     }
 
+    public ProductVariant(Product product, String supplier, String supplierVariantId,
+                          String supplierProductId, String supplierSku, String name,
+                          Map<String, String> attributes, String rawVariantKey,
+                          BigDecimal supplierCost, String supplierCostCurrency, String imageUrl,
+                          BigDecimal weightGrams, BigDecimal lengthMm, BigDecimal widthMm,
+                          BigDecimal heightMm) {
+        this.product = product;
+        updateSupplierData(supplier, supplierVariantId, supplierProductId, supplierSku, name,
+                attributes, rawVariantKey, supplierCost, supplierCostCurrency, imageUrl,
+                weightGrams, lengthMm, widthMm, heightMm);
+    }
+
     public void updateSupplierData(String supplier, String supplierVariantId,
                                    String supplierProductId, String supplierSku, String name,
                                    Map<String, String> attributes, BigDecimal supplierCost,
@@ -115,6 +130,18 @@ public class ProductVariant {
         this.widthMm = widthMm;
         this.heightMm = heightMm;
         this.active = true;
+    }
+
+    public void updateSupplierData(String supplier, String supplierVariantId,
+                                   String supplierProductId, String supplierSku, String name,
+                                   Map<String, String> attributes, String rawVariantKey,
+                                   BigDecimal supplierCost, String supplierCostCurrency,
+                                   String imageUrl, BigDecimal weightGrams, BigDecimal lengthMm,
+                                   BigDecimal widthMm, BigDecimal heightMm) {
+        updateSupplierData(supplier, supplierVariantId, supplierProductId, supplierSku, name,
+                attributes, supplierCost, supplierCostCurrency, imageUrl, weightGrams,
+                lengthMm, widthMm, heightMm);
+        this.rawVariantKey = rawVariantKey;
     }
 
     public void setActive(boolean active) { this.active = active; }
@@ -140,6 +167,7 @@ public class ProductVariant {
     public BigDecimal getSupplierCost() { return supplierCost; }
     public String getSupplierCostCurrency() { return supplierCostCurrency; }
     public String getImageUrl() { return imageUrl; }
+    public String getRawVariantKey() { return rawVariantKey; }
     public BigDecimal getWeightGrams() { return weightGrams; }
     public BigDecimal getLengthMm() { return lengthMm; }
     public BigDecimal getWidthMm() { return widthMm; }

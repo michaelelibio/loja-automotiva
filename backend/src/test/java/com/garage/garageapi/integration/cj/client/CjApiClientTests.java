@@ -55,6 +55,18 @@ class CjApiClientTests {
                       }]}]}}
                     """);
         });
+        server.createContext("/api2.0/v1/product/query", exchange -> {
+            accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
+            variantProductId.set(exchange.getRequestURI().getQuery());
+            respond(exchange, 200, """
+                    {"code":200,"result":true,"message":"Success","data":{
+                      "pid":"CJ-ID","productNameEn":"Car cleaner","productSku":"CJ-SKU",
+                      "bigImage":"https://example.test/main.jpg",
+                      "productImageSet":["https://example.test/main.jpg","https://example.test/two.jpg"],
+                      "productKeyEn":"Color-Size","sellPrice":"12.34",
+                      "categoryId":"CATEGORY","categoryName":"Car Care"}}
+                    """);
+        });
                 server.createContext("/api2.0/v1/product/variant/query", exchange -> {
                     accessTokenHeader.set(exchange.getRequestHeaders().getFirst("CJ-Access-Token"));
                     variantProductId.set(exchange.getRequestURI().getQuery());
@@ -147,6 +159,31 @@ class CjApiClientTests {
     }
 
     @Test
+    void mapsProductDetailGalleryAndOptionKeys() {
+        CjProductResponse.Product product = client.getProduct("SECRET_ACCESS", "CJ-ID");
+
+        assertThat(variantProductId.get()).isEqualTo("pid=CJ-ID");
+        assertThat(product.imageUrl()).isEqualTo("https://example.test/main.jpg");
+        assertThat(product.imageUrls()).containsExactly("https://example.test/main.jpg",
+                "https://example.test/two.jpg");
+        assertThat(product.productKeyEn()).isEqualTo("Color-Size");
+    }
+
+    @Test
+    void acceptsNullProductImageSetAndMissingProductKeys() throws IOException {
+        server.removeContext("/api2.0/v1/product/query");
+        server.createContext("/api2.0/v1/product/query", exchange -> respond(exchange, 200, """
+                {"code":200,"result":true,"data":{"pid":"CJ-ID","productNameEn":"Product",
+                "productSku":"SKU","bigImage":"https://example.test/main.jpg",
+                "productImageSet":null,"sellPrice":1}}
+                """));
+
+        CjProductResponse.Product product = client.getProduct("TOKEN", "CJ-ID");
+        assertThat(product.imageUrls()).isEmpty();
+        assertThat(product.productKeyEn()).isNull();
+    }
+
+    @Test
     void mapsSingleAndMultipleVariantsUsingPid() {
         CjProductVariantsResponse response = client.getProductVariants("SECRET_ACCESS", "PID-1");
 
@@ -157,6 +194,9 @@ class CjApiClientTests {
         assertThat(response.variants().get(0).cjVariantId()).isEqualTo("VID-1");
         assertThat(response.variants().get(0).cjProductId()).isEqualTo("PID-1");
         assertThat(response.variants().get(0).priceUsd()).isEqualByComparingTo("12.34");
+        assertThat(response.variants().get(0).imageUrl())
+                .isEqualTo("https://example.test/black.jpg");
+        assertThat(response.variants().get(0).variantKey()).isEqualTo("Black-XL");
         assertThat(response.variants().get(0).attributes())
                 .containsEntry("option1", "Black")
                 .containsEntry("option2", "XL");

@@ -221,6 +221,8 @@ public class CjApiClient {
                     requiredText(data, "pid"),
                     text(data, "productNameEn"),
                     text(data, "bigImage"),
+                    stringList(data, "productImageSet"),
+                    text(data, "productKeyEn"),
                     decimal(data, "sellPrice"),
                     text(data, "categoryId"),
                     text(data, "categoryName"),
@@ -739,6 +741,8 @@ public class CjApiClient {
                 id,
                 text(product, "nameEn"),
                 text(product, "bigImage"),
+                List.of(),
+                null,
                 decimal(product, "sellPrice"),
                 text(product, "categoryId"),
                 text(product, "threeCategoryName"),
@@ -770,6 +774,7 @@ public class CjApiClient {
                                 name,
                                 decimal(variant, "variantSellPrice"),
                                 text(variant, "variantImage"),
+                                variantKey,
                                 Map.copyOf(attributes),
                                 text(variant, "variantStandard"),
                                 optionalInteger(variant, "variantLength"),
@@ -779,6 +784,16 @@ public class CjApiClient {
                                 decimal(variant, "variantWeight")
                 );
         }
+
+    private List<String> stringList(JsonNode node, String field) {
+        JsonNode value = node.path(field);
+        if (!value.isArray()) return List.of();
+        List<String> values = new ArrayList<>();
+        value.forEach(item -> {
+            if (item.isString()) values.add(item.asString());
+        });
+        return List.copyOf(values);
+    }
 
     private CjIntegrationException httpFailure(
             String operation,

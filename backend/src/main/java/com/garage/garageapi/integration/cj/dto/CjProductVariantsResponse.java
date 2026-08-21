@@ -15,6 +15,7 @@ public record CjProductVariantsResponse(
             String name,
             BigDecimal priceUsd,
             String imageUrl,
+            String variantKey,
             Map<String, String> attributes,
             String variantStandard,
             Integer lengthMm,

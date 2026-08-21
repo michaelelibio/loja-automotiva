@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -98,6 +99,11 @@ public class Product {
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     @OrderBy("id ASC")
     private List<ProductVariant> variants = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
+    @OrderBy("position ASC, id ASC")
+    @BatchSize(size = 50)
+    private List<ProductMedia> media = new ArrayList<>();
 
     protected Product() {
     }
@@ -233,4 +239,5 @@ public class Product {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<ProductVariant> getVariants() { return variants; }
+    public List<ProductMedia> getMedia() { return media; }
 }

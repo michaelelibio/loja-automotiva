@@ -14,6 +14,8 @@ public record CjProductResponse(
             String cjProductId,
             String name,
             String imageUrl,
+            List<String> imageUrls,
+            String productKeyEn,
             BigDecimal priceUsd,
             String categoryId,
             String categoryName,
