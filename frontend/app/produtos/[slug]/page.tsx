@@ -4,7 +4,7 @@ import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { ProductCard } from '@/components/ProductCard';
 import { fetchProductBySlug, fetchProducts } from '@/lib/products';
-import { ProductPurchase } from './ProductPurchase';
+import { ProductDetailClient } from './ProductDetailClient';
 
 type ProductPageProps = {
   params: Promise<{ slug: string }>;
@@ -12,15 +12,7 @@ type ProductPageProps = {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-
-  let product = null;
-
-  try {
-    product = await fetchProductBySlug(slug);
-  } catch {
-    product = null;
-  }
-
+  const product = await fetchProductBySlug(slug).catch(() => null);
   if (!product) notFound();
 
   const relatedProductsSource = await fetchProducts().catch(() => []);
@@ -33,40 +25,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <Header />
       <div className="product-detail-page">
         <nav className="product-breadcrumb" aria-label="Breadcrumb">
-          <Link href="/">Início</Link><span>/</span><Link href="/produtos">Produtos</Link><span>/</span><strong>{product.name}</strong>
+          <Link href="/">Início</Link><span>/</span><Link href="/produtos">Produtos</Link>
+          <span>/</span><strong>{product.name}</strong>
         </nav>
-
-        <section className="product-detail" aria-labelledby="product-title">
-          <div className="product-gallery">
-            <div className="product-main-image" style={{ backgroundImage: `url(${product.images[0]})`, backgroundColor: product.accent }} aria-label={`Imagem de ${product.name}`} role="img" />
-            <div className="product-thumbnails">
-              {product.images.map((image, index) => <span key={image} className={`product-thumbnail ${index === 0 ? 'active' : ''}`} style={{ backgroundImage: `url(${image})`, backgroundColor: product.accent }} aria-label={`Imagem ${index + 1} de ${product.name}`} />)}
-            </div>
-          </div>
-
-          <div className="product-detail-info">
-            <Link className="product-back-link" href="/produtos">← Voltar para produtos</Link>
-            <div className="product-detail-labels">
-              {product.productType === 'KIT' && <span className="product-detail-type">Kit</span>}
-              <p className="eyebrow">{product.category}</p>
-            </div>
-            <h1 id="product-title">{product.name}</h1>
-            <p className="product-description">{product.description}</p>
-            <div className="detail-price"><strong>{formatPrice(product.price)}</strong>{product.oldPrice && <span>{formatPrice(product.oldPrice)}</span>}</div>
-            <p className={`stock-status ${product.availableForSale ? 'available' : 'unavailable'}`}><span />{product.availableForSale ? product.fulfillmentType === 'DROPSHIPPING' ? 'Disponível' : `Em estoque · ${product.stock} unidades disponíveis` : 'Produto indisponível'}</p>
-            <ProductPurchase product={product} available={product.availableForSale} />
-            <div className="detail-description"><p>{product.longDescription}</p></div>
-            <div className="features"><h2>Principais características</h2><ul>{product.features.map((feature) => <li key={feature}>{feature}</li>)}</ul></div>
-          </div>
-        </section>
-
-        {relatedProducts.length > 0 && <section className="related-products" aria-labelledby="related-title"><div className="section-heading"><div><p className="eyebrow">Para completar o ritual</p><h2 id="related-title">Você também pode gostar</h2></div></div><div className="products-grid">{relatedProducts.map((item) => <ProductCard key={item.id} product={item} />)}</div></section>}
+        <ProductDetailClient product={product} />
+        {relatedProducts.length > 0 && <section className="related-products" aria-labelledby="related-title">
+          <div className="section-heading"><div><p className="eyebrow">Para completar o ritual</p>
+            <h2 id="related-title">Você também pode gostar</h2></div></div>
+          <div className="products-grid">{relatedProducts.map((item) =>
+            <ProductCard key={item.id} product={item} />)}</div>
+        </section>}
       </div>
       <Footer />
     </main>
   );
-}
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }

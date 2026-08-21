@@ -17,6 +17,7 @@ export type Product = {
   accent: string;
   image: string;
   images: string[];
+  media?: ProductMedia[];
   featured?: boolean;
   requiresVariantSelection: boolean;
   variants: ProductVariant[];
@@ -28,6 +29,14 @@ export type ProductVariant = {
   sku?: string;
   attributes: Record<string, string>;
   imageUrl?: string;
+};
+
+export type ProductMedia = {
+  id: string;
+  type: 'IMAGE' | 'VIDEO';
+  url: string;
+  position: number;
+  altText?: string;
 };
 
 export type BackendProductResponse = {
@@ -48,6 +57,8 @@ export type BackendProductResponse = {
   requiresVariantSelection?: boolean;
   variants?: Array<{ id: number; name: string | null; sku: string | null;
     attributes: Record<string, string> | null; imageUrl: string | null }>;
+  media?: Array<{ id: number; type: 'IMAGE' | 'VIDEO'; url: string;
+    position: number; altText: string | null }>;
   [key: string]: unknown;
 };
 
@@ -112,6 +123,23 @@ function normalizeImages(value: unknown, fallbackImage: string): string[] {
   return [''];
 }
 
+function normalizeMedia(value: unknown): ProductMedia[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const media = candidate as Record<string, unknown>;
+    const id = parseText(media.id);
+    const url = parseText(media.url);
+    const type = parseText(media.type).toUpperCase();
+    const position = parseNumber(media.position, 0);
+    if (!id || !url || (type !== 'IMAGE' && type !== 'VIDEO') || seen.has(url)) return [];
+    seen.add(url);
+    return [{ id, type, url, position,
+      altText: parseText(media.altText) || undefined } as ProductMedia];
+  }).sort((left, right) => left.position - right.position);
+}
+
 function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): Product {
   const payloadId = parseText(payload.id ?? payload.productId ?? payload.sku);
   const fallbackSource = fallback ?? fallbackProducts.find((item) => item.slug === payload.slug || item.id === payloadId || item.name === payload.name);
@@ -145,7 +173,11 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
 
   const accent = parseText(payload.accent ?? payload.color ?? payload.themeColor) || fallbackSource?.accent || '#f2f2f2';
   const image = parseText(payload.image ?? payload.imageUrl ?? payload.mainImage ?? payload.thumbnail) || fallbackSource?.image || '';
-  const images = normalizeImages(payload.images ?? payload.gallery ?? payload.photos, image || fallbackSource?.image || '');
+  const media = normalizeMedia(payload.media);
+  const galleryImages = media.filter((item) => item.type === 'IMAGE').map((item) => item.url);
+  const images = normalizeImages(galleryImages.length > 0
+    ? galleryImages : payload.images ?? payload.gallery ?? payload.photos,
+  image || fallbackSource?.image || '');
   const featured = typeof payload.featured === 'boolean'
     ? payload.featured
     : typeof payload.highlighted === 'boolean'
@@ -183,6 +215,7 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     accent,
     image,
     images,
+    media,
     featured,
     requiresVariantSelection,
     variants,
