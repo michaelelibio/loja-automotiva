@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandLogo } from './BrandLogo';
 
 const footerGroups = [
   { label: 'Institucional', links: [{ href: '/contato', text: 'Contato' }] },
@@ -9,14 +10,16 @@ const footerGroups = [
 export function Footer() {
   return (
     <footer className="site-footer">
-      <div>
-        <Link className="brand footer-brand" href="/" aria-label="GARAGE início"><span className="brand-mark">G</span><span>GARAGE<span className="brand-dot">.</span></span></Link>
-        <p>Para quem gosta de carro<br />bem cuidado.</p>
+      <div className="site-footer__inner">
+        <div>
+          <Link className="brand footer-brand" href="/" aria-label="inGarage — página inicial"><BrandLogo variant="light" /></Link>
+          <p>Produtos automotivos para quem faz do cuidado um ritual.</p>
+        </div>
+        <nav className="footer-links" aria-label="Links do rodapé">
+          {footerGroups.map((group) => <div key={group.label}><span className="footer-label">{group.label}</span>{group.links.map((link) => <Link href={link.href} key={link.href}>{link.text}</Link>)}</div>)}
+        </nav>
+        <div className="footer-bottom"><span>© 2026 inGarage. Todos os direitos reservados.</span><span>Seu carro. <strong>Seu ritual.</strong></span></div>
       </div>
-      <nav className="footer-links" aria-label="Links do rodapé">
-        {footerGroups.map((group) => <div key={group.label}><span className="footer-label">{group.label}</span>{group.links.map((link) => <Link href={link.href} key={link.href}>{link.text}</Link>)}</div>)}
-      </nav>
-      <div className="footer-bottom"><span>© GARAGE</span><span>Feito para a estrada.</span></div>
     </footer>
   );
 }

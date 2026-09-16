@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useCart } from '@/context/CartContext';
 import { CartIcon, SearchIcon } from './Icons';
 import { useAuth } from '@/context/AuthContext';
+import { BrandLogo } from './BrandLogo';
 
 export function Header() {
   const { totalItems } = useCart();
@@ -81,21 +82,22 @@ export function Header() {
 
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="GARAGE início">
-        <span className="brand-mark">G</span>
-        <span>GARAGE<span className="brand-dot">.</span></span>
+      <Link className="brand" href="/" aria-label="inGarage — página inicial">
+        <BrandLogo variant="dark" />
       </Link>
 
       <nav className="main-nav" aria-label="Navegação principal">
         <Link href="/produtos">Produtos</Link>
+        <Link href="/#categorias">Categorias</Link>
+        <Link href="/#sobre">Sobre nós</Link>
         <Link href="/contato">Contato</Link>
       </nav>
 
       <div className="header-actions">
-        <label className="search-box">
+        <form className="search-box" action="/produtos" method="get">
           <SearchIcon />
-          <input type="search" placeholder="Buscar produto" aria-label="Buscar produto" />
-        </label>
+          <input type="search" name="busca" placeholder="Buscar produto" aria-label="Buscar produto" />
+        </form>
 
         {isLoading && (
           <span className="auth-loading" role="status" aria-label="Verificando autenticação">
@@ -153,7 +155,7 @@ export function Header() {
             tabIndex={-1}
             onKeyDown={handleDialogKeyDown}
           >
-            <span className="logout-dialog-mark" aria-hidden="true">G</span>
+            <BrandLogo variant="mark" />
             <h2 id="logout-dialog-title">Sair da sua conta?</h2>
             <p id="logout-dialog-description">Tem certeza de que deseja sair? Seu carrinho continuará salvo neste dispositivo.</p>
             <div className="logout-dialog-actions">

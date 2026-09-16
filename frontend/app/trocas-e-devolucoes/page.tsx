@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstitutionalPage } from '@/components/InstitutionalPage';
 
-export const metadata: Metadata = { title: 'Trocas e Devoluções | GARAGE', description: 'Orientações da GARAGE sobre arrependimento, devoluções e produtos com problemas.' };
+export const metadata: Metadata = { title: 'Trocas e Devoluções | inGarage', description: 'Orientações da inGarage sobre arrependimento, devoluções e produtos com problemas.' };
 
 export default function ReturnsPage() {
   return <InstitutionalPage eyebrow="AJUDA" title="Trocas e devoluções" reviewNotice introduction="As solicitações são tratadas conforme o Código de Defesa do Consumidor. Esta página não reduz garantias ou outros direitos previstos em lei." sections={[

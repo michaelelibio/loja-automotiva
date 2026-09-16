@@ -76,7 +76,7 @@ export default function ImportCjProductsPage() {
   }
 
   return <>
-    <header className="admin-page-heading admin-cj-heading"><div><Link href="/admin/produtos">← Produtos</Link><p className="eyebrow">GARAGE / CATÁLOGO</p><h1>Importar da CJ</h1><p>Pesquise o catálogo da CJ. Produtos importados ficam inativos para revisão de preço, categoria e publicação.</p></div></header>
+    <header className="admin-page-heading admin-cj-heading"><div><Link href="/admin/produtos">← Produtos</Link><p className="eyebrow">inGarage / CATÁLOGO</p><h1>Importar da CJ</h1><p>Pesquise o catálogo da CJ. Produtos importados ficam inativos para revisão de preço, categoria e publicação.</p></div></header>
     <section className="admin-cj-panel">
       <form className="admin-cj-search" onSubmit={submit}><label>Buscar produtos na CJ<input type="search" value={draftKeyword} onChange={(event) => setDraftKeyword(event.target.value)} placeholder="Ex.: car light, cleaning, phone holder..." /></label><button type="submit" disabled={loading}>{loading ? 'Buscando…' : 'Buscar'}</button></form>
       {error && <div className="admin-feedback error" role="alert"><p>{error}</p></div>}

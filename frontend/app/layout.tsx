@@ -9,8 +9,8 @@ const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' });
 
 export const metadata: Metadata = {
-  title: 'GARAGE — Cuidado automotivo',
-  description: 'Produtos selecionados para cuidar do seu carro.',
+  title: 'inGarage — Produtos Automotivos',
+  description: 'Produtos automotivos selecionados para cuidar, proteger e valorizar o seu carro.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

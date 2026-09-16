@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstitutionalPage } from '@/components/InstitutionalPage';
 
-export const metadata: Metadata = { title: 'Contato | GARAGE', description: 'Canais de atendimento e orientações para falar com a GARAGE.' };
+export const metadata: Metadata = { title: 'Contato | inGarage', description: 'Canais de atendimento e orientações para falar com a inGarage.' };
 
 export default function ContactPage() {
   return <InstitutionalPage eyebrow="INSTITUCIONAL" title="Contato" reviewNotice introduction="Use o atendimento para dúvidas sobre conta, pedidos, pagamentos, entregas, privacidade, trocas ou devoluções." sections={[

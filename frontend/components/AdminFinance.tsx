@@ -15,8 +15,8 @@ const shortDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const paymentLabels: Record<AdminPaymentStatus, string> = { PENDING: 'Aguardando pagamento', PAID: 'Pago', EXPIRED: 'Expirado', CANCELED: 'Cancelado', FAILED: 'Falhou' };
 const financeStatusLabels = { ...adminOrderStatusLabels, PROCESSING: 'Em processamento' };
-const STATUS_COLORS: Record<AdminOrderStatus, string> = { PENDING_PAYMENT: '#aeb4ad', PAID: '#111316', PROCESSING: '#c8ff00', SHIPPED: '#778f16', DELIVERED: '#3f6b45', CANCELED: '#a94438', EXPIRED: '#d6b3aa' };
-const CHART_COLORS = ['#c8ff00', '#111316', '#778f16', '#aeb4ad', '#3f6b45', '#d6b3aa'];
+const STATUS_COLORS: Record<AdminOrderStatus, string> = { PENDING_PAYMENT: '#aeb4ad', PAID: '#111111', PROCESSING: '#ff4d0a', SHIPPED: '#778f16', DELIVERED: '#3f6b45', CANCELED: '#a94438', EXPIRED: '#d6b3aa' };
+const CHART_COLORS = ['#ff4d0a', '#111111', '#778f16', '#aeb4ad', '#3f6b45', '#d6b3aa'];
 type Preset = 'today' | '7days' | '30days' | 'month' | 'custom';
 
 function isoDate(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }

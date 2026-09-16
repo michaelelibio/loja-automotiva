@@ -22,7 +22,7 @@ function VerifyEmailContent() {
     return () => { active = false; };
   }, [token, router]);
 
-  return <SecurityPage eyebrow="SEGURANÇA DA CONTA" title="Verificação de e-mail" description="Estamos validando a confirmação da sua conta GARAGE.">
+  return <SecurityPage eyebrow="SEGURANÇA DA CONTA" title="Verificação de e-mail" description="Estamos validando a confirmação da sua conta inGarage.">
     <div className={`security-state ${state}`} aria-live="polite">
       {state === 'loading' && <><span className="security-loader" aria-hidden="true" /><h2>Confirmando seu e-mail...</h2><p>Isso deve levar apenas alguns segundos.</p></>}
       {state === 'success' && <><span className="security-state-mark">✓</span><h2>E-mail confirmado com sucesso</h2><p>Sua conta agora está com o endereço de e-mail verificado.</p></>}

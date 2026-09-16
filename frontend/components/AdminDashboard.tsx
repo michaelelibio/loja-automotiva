@@ -13,7 +13,7 @@ const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const shortDate = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
 const STATUS_COLORS: Record<AdminOrderStatus, string> = {
-  PENDING_PAYMENT: '#aeb4ad', PAID: '#111316', PROCESSING: '#c8ff00', SHIPPED: '#778f16',
+  PENDING_PAYMENT: '#aeb4ad', PAID: '#111111', PROCESSING: '#ff4d0a', SHIPPED: '#778f16',
   DELIVERED: '#3f6b45', CANCELED: '#a94438', EXPIRED: '#d6b3aa',
 };
 
@@ -92,7 +92,7 @@ export default function AdminDashboard() {
               <XAxis dataKey="date" tickFormatter={formatDay} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={(value) => `R$ ${Number(value).toLocaleString('pt-BR')}`} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={72} />
               <Tooltip formatter={(value) => [money.format(Number(value)), 'Faturamento']} labelFormatter={(label) => formatDay(String(label))} contentStyle={{ border: '1px solid #111316', borderRadius: 0, fontSize: 11 }} />
-              <Line type="monotone" dataKey="revenue" stroke="#111316" strokeWidth={3} dot={{ fill: '#c8ff00', stroke: '#111316', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+              <Line type="monotone" dataKey="revenue" stroke="#111111" strokeWidth={3} dot={{ fill: '#ff4d0a', stroke: '#111111', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
             </LineChart></ResponsiveContainer>
           </div>}
       </article>

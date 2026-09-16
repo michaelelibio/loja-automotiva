@@ -56,7 +56,7 @@ export default function RegisterPage() {
                 <span className="security-state-mark">✓</span>
                 <p className="eyebrow">CADASTRO CONCLUÍDO</p>
                 <h3>Confirme seu e-mail</h3>
-                <p>Enviamos um link de confirmação para seu e-mail. Você pode continuar usando a GARAGE enquanto isso.</p>
+                <p>Enviamos um link de confirmação para seu e-mail. Você pode continuar usando a inGarage enquanto isso.</p>
                 <div className="security-actions"><Link className="btn-primary" href="/login">Ir para login</Link><Link className="text-link inline" href="/">Continuar na loja</Link></div>
               </div> : <><h3>Cadastrar</h3>
               <form onSubmit={handleSubmit} className="auth-form">

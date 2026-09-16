@@ -5,9 +5,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: '#111316',
-        steel: '#66717d',
-        signal: '#e7ff3f',
+        ink: '#111111',
+        steel: '#666666',
+        signal: '#ff4d0a',
       },
       fontFamily: {
         display: ['var(--font-space-grotesk)'],

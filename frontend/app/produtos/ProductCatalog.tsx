@@ -11,9 +11,9 @@ type ProductTypeFilter = 'all' | Product['productType'];
 
 const categories = ['Todas', 'Lavagem', 'Proteção', 'Detalhamento', 'Acessórios'] as const;
 
-export function ProductCatalog({ products }: { products: Product[] }) {
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<(typeof categories)[number]>('Todas');
+export function ProductCatalog({ products, initialSearch = '', initialCategory = 'Todas' }: { products: Product[]; initialSearch?: string; initialCategory?: string }) {
+  const [search, setSearch] = useState(initialSearch);
+  const [category, setCategory] = useState<(typeof categories)[number]>(categories.find((item) => item === initialCategory) ?? 'Todas');
   const [price, setPrice] = useState<PriceFilter>('all');
   const [productType, setProductType] = useState<ProductTypeFilter>('all');
   const [sort, setSort] = useState<SortOption>('featured');

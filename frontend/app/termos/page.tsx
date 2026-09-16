@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstitutionalPage } from '@/components/InstitutionalPage';
 
-export const metadata: Metadata = { title: 'Termos de Uso | GARAGE', description: 'Condições para utilização da plataforma e realização de compras na GARAGE.' };
+export const metadata: Metadata = { title: 'Termos de Uso | inGarage', description: 'Condições para utilização da plataforma e realização de compras na inGarage.' };
 
 export default function TermsPage() {
-  return <InstitutionalPage eyebrow="LEGAL" title="Termos de Uso" reviewNotice introduction="Estes termos apresentam as condições gerais de uso da GARAGE sem limitar direitos assegurados pela legislação brasileira e pelo Código de Defesa do Consumidor." sections={[
+  return <InstitutionalPage eyebrow="LEGAL" title="Termos de Uso" reviewNotice introduction="Estes termos apresentam as condições gerais de uso da inGarage sem limitar direitos assegurados pela legislação brasileira e pelo Código de Defesa do Consumidor." sections={[
     { title: 'Uso da plataforma', content: <p>O cliente deve utilizar a loja de forma lícita, respeitando estes termos, terceiros e a segurança da plataforma. Tentativas de fraude, acesso indevido, interferência técnica ou uso de conteúdo sem autorização não são permitidas.</p> },
     { title: 'Cadastro e conta', content: <p>O cliente é responsável por fornecer dados verdadeiros e atualizados e por proteger suas credenciais. A conta pode usar e-mail e senha ou autenticação Google. O login é permitido mesmo enquanto a verificação do e-mail estiver pendente.</p> },
     { title: 'Produtos, preços e estoque', content: <p>Características, imagens, preços e disponibilidade são apresentados nas páginas dos produtos. A inclusão no carrinho não reserva estoque. Valores e disponibilidade aplicáveis são confirmados pelo backend na criação do pedido, e erros evidentes serão tratados conforme a legislação.</p> },

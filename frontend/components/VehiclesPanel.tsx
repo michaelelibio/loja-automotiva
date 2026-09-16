@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import * as vehiclesAPI from '@/lib/api/vehicles';
 import type { Vehicle, VehicleRequest } from '@/lib/types/vehicle';
 import { CarIcon } from '@/components/Icons';
+import { BrandLogo } from '@/components/BrandLogo';
+import Image from 'next/image';
 
 type FormValues = { brand: string; model: string; year: string; version: string; licensePlate: string; isPrimary: boolean };
 const emptyForm: FormValues = { brand: '', model: '', year: '', version: '', licensePlate: '', isPrimary: false };
@@ -137,10 +139,10 @@ function VehicleImage({ vehicle }: { vehicle: Vehicle }) {
   return <div className="vehicle-visual">
     <div className="vehicle-image-frame">
       {showImage ? (
-        <img src={vehicle.imageUrl!} alt={`${vehicle.brand} ${vehicle.model}`} onError={() => setFailedUrl(vehicle.imageUrl)} />
+        <Image src={vehicle.imageUrl!} alt={`${vehicle.brand} ${vehicle.model}`} width={320} height={240} unoptimized onError={() => setFailedUrl(vehicle.imageUrl)} />
       ) : (
         <div className="vehicle-image-placeholder" aria-label={`Sem foto de ${vehicle.brand} ${vehicle.model}`} role="img">
-          <span className="vehicle-placeholder-mark">G</span><CarIcon /><small>GARAGE</small>
+          <BrandLogo variant="mark" /><CarIcon /><small>inGarage</small>
         </div>
       )}
     </div>

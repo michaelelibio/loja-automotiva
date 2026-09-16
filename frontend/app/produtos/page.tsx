@@ -2,10 +2,10 @@ import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { ProductCatalog } from './ProductCatalog';
 import { fetchProducts } from '@/lib/products';
-import { products as fallbackProducts } from '@/data/products';
 
-export default async function ProductsPage() {
-  let products = fallbackProducts;
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ busca?: string; categoria?: string }> }) {
+  const { busca, categoria } = await searchParams;
+  let products: Awaited<ReturnType<typeof fetchProducts>> = [];
 
   let apiError = false;
 
@@ -19,12 +19,12 @@ export default async function ProductsPage() {
     <main id="top">
       <Header />
       <section className="catalog-intro" aria-labelledby="catalog-title">
-        <p className="eyebrow">A curadoria GARAGE</p>
+        <p className="eyebrow">A curadoria inGarage</p>
         <h1 id="catalog-title">Produtos</h1>
         <p>Performance, proteção e cuidado para cada detalhe do seu carro.</p>
       </section>
-      {apiError && <div className="api-error-banner">Não foi possível carregar produtos da API. Exibindo dados locais em modo de fallback.</div>}
-      <ProductCatalog products={products} />
+      {apiError && <div className="api-error-banner">Não foi possível carregar produtos. Tente novamente mais tarde.</div>}
+      <ProductCatalog products={products} initialSearch={busca} initialCategory={categoria} />
       <Footer />
     </main>
   );
