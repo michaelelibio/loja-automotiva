@@ -6,9 +6,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Service
 public class OrderFulfillmentNotificationService {
-    private final CjFulfillmentService fulfillmentService;
+    private final SupplierFulfillmentService fulfillmentService;
 
-    public OrderFulfillmentNotificationService(CjFulfillmentService fulfillmentService) {
+    public OrderFulfillmentNotificationService(SupplierFulfillmentService fulfillmentService) {
         this.fulfillmentService = fulfillmentService;
     }
 

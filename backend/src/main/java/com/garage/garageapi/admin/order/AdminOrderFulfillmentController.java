@@ -1,7 +1,7 @@
 package com.garage.garageapi.admin.order;
 
 import com.garage.garageapi.admin.order.dto.AdminOrderFulfillmentResponse;
-import com.garage.garageapi.order.fulfillment.CjFulfillmentService;
+import com.garage.garageapi.order.fulfillment.SupplierFulfillmentService;
 import com.garage.garageapi.order.fulfillment.OrderFulfillmentRepository;
 import com.garage.garageapi.shared.exception.ResourceNotFoundException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,10 +12,10 @@ import org.springframework.web.bind.annotation.*;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminOrderFulfillmentController {
     private final OrderFulfillmentRepository repository;
-    private final CjFulfillmentService fulfillmentService;
+    private final SupplierFulfillmentService fulfillmentService;
 
     public AdminOrderFulfillmentController(OrderFulfillmentRepository repository,
-                                           CjFulfillmentService fulfillmentService) {
+                                           SupplierFulfillmentService fulfillmentService) {
         this.repository = repository;
         this.fulfillmentService = fulfillmentService;
     }

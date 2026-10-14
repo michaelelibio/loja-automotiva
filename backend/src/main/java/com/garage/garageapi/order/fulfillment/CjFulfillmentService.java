@@ -20,12 +20,12 @@ import java.util.Optional;
 @Service
 public class CjFulfillmentService {
     private static final Logger log = LoggerFactory.getLogger(CjFulfillmentService.class);
-    private final CjFulfillmentStateService stateService;
+    private final FulfillmentStateService stateService;
     private final OrderRepository orderRepository;
     private final OrderFulfillmentRepository fulfillmentRepository;
     private final CjCommerceService commerceService;
 
-    public CjFulfillmentService(CjFulfillmentStateService stateService, OrderRepository orderRepository,
+    public CjFulfillmentService(FulfillmentStateService stateService, OrderRepository orderRepository,
                                 OrderFulfillmentRepository fulfillmentRepository,
                                 CjCommerceService commerceService) {
         this.stateService = stateService;
@@ -35,7 +35,7 @@ public class CjFulfillmentService {
     }
 
     public void fulfill(Long orderId) {
-        CjFulfillmentStateService.Claim claim = stateService.claim(orderId);
+        FulfillmentStateService.Claim claim = stateService.claim(orderId);
         if (claim == null) return;
         try {
             OrderFulfillment fulfillment = fulfillmentRepository.findByOrderId(orderId).orElseThrow();
@@ -66,7 +66,7 @@ public class CjFulfillmentService {
             return ReconciliationResult.NOT_REQUIRED;
         }
         if (current.getStatus() == FulfillmentStatus.CREATED) return ReconciliationResult.FOUND;
-        CjFulfillmentStateService.Claim claim = stateService.claim(orderId);
+        FulfillmentStateService.Claim claim = stateService.claim(orderId);
         if (claim == null) return ReconciliationResult.BUSY;
         try {
             boolean found = reconcileClaimed(orderId, claim.token(), current.getExternalReference());

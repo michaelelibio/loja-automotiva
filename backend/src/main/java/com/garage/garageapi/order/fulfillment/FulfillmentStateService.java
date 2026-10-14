@@ -8,10 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 @Service
-public class CjFulfillmentStateService {
+public class FulfillmentStateService {
     private final OrderFulfillmentRepository repository;
 
-    public CjFulfillmentStateService(OrderFulfillmentRepository repository) {
+    public FulfillmentStateService(OrderFulfillmentRepository repository) {
         this.repository = repository;
     }
 

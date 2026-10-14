@@ -6,6 +6,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 
 @Entity
@@ -59,10 +60,11 @@ public class OrderFulfillment {
 
     protected OrderFulfillment() { }
 
-    public OrderFulfillment(Order order, boolean required) {
+    public OrderFulfillment(Order order, String provider) {
         this.order = order;
+        boolean required = provider != null && !provider.isBlank() && !"NONE".equals(provider);
         this.status = required ? FulfillmentStatus.PENDING : FulfillmentStatus.NOT_REQUIRED;
-        this.provider = required ? "CJ" : "NONE";
+        this.provider = required ? provider.toUpperCase(Locale.ROOT) : "NONE";
         this.externalReference = "INGARAGE-" + order.getId();
         this.createdAt = Instant.now();
         this.updatedAt = createdAt;
