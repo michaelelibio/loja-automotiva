@@ -116,4 +116,15 @@ class AuthIntegrationTests {
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void localLoginPreflightUsesFrontendUrlFallback() throws Exception {
+        mockMvc.perform(options("/api/auth/login")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("content-type")));
+    }
 }

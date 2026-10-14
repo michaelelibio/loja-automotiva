@@ -30,6 +30,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -91,9 +93,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource(@Value("${app.security.frontend-url}") String frontendUrl) {
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.security.cors.allowed-origins:${app.security.frontend-url:http://localhost:3000}}")
+            String allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(frontendUrl));
+        configuration.setAllowedOrigins(parseAllowedOrigins(allowedOrigins));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setExposedHeaders(List.of("WWW-Authenticate"));
@@ -102,6 +106,29 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    static List<String> parseAllowedOrigins(String configuredOrigins) {
+        if (configuredOrigins == null || configuredOrigins.isBlank()) {
+            throw new IllegalArgumentException("CORS allowed-origins deve conter ao menos uma origem HTTP/HTTPS explicita.");
+        }
+        return Arrays.stream(configuredOrigins.split(",", -1)).map(String::trim).map(origin -> {
+            try {
+                URI uri = URI.create(origin);
+                String path = uri.getRawPath();
+                if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
+                        || uri.getHost() == null || origin.contains("*") || uri.getRawUserInfo() != null
+                        || uri.getRawQuery() != null || uri.getRawFragment() != null
+                        || (path != null && !path.isEmpty() && !path.equals("/"))
+                        || uri.getPort() == 0 || uri.getPort() > 65535) {
+                    throw new IllegalArgumentException();
+                }
+                return origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin;
+            } catch (IllegalArgumentException exception) {
+                // Do not echo malformed configuration values, which may include credentials.
+                throw new IllegalArgumentException("CORS allowed-origins contem entrada vazia ou invalida; use apenas origens HTTP/HTTPS sem caminhos, credenciais ou curingas.");
+            }
+        }).distinct().toList();
     }
 
     private SecretKey secretKey(String secret) {
