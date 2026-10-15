@@ -39,9 +39,9 @@ public class AliExpressTokenService {
         Instant now = Instant.now();
         if (data == null || data.accessToken() == null || data.accessToken().length() > 2048
                 || (data.refreshToken() != null && data.refreshToken().length() > 2048)) throw reauthorize();
-        Instant accessExpiry = expiry(data.expireTime(), data.expiresIn(), now);
+        Instant accessExpiry = expiry(data.expireTime(), data.expiresIn(), now, "access_token_expiration");
         Instant refreshExpiry = data.refreshExpiresIn() != null && data.refreshExpiresIn() <= 0 ? null
-                : expiry(data.refreshTokenValidTime(), data.refreshExpiresIn(), now);
+                : expiry(data.refreshTokenValidTime(), data.refreshExpiresIn(), now, "refresh_token_expiration");
         if (data.accessToken() == null || data.accessToken().isBlank() || accessExpiry == null || !accessExpiry.isAfter(now)) throw reauthorize();
         if (refreshing && row.refreshExpiresAt() != null && refreshExpiry != null && row.refreshExpiresAt().isBefore(refreshExpiry)) {
             // Refresh rotates credentials but must not extend the original refresh authorization window.
@@ -51,9 +51,13 @@ public class AliExpressTokenService {
                 data.refreshToken() == null || data.refreshToken().isBlank() ? null : cipher.encrypt(data.refreshToken(), authorizationId + ":refresh"),
                 accessExpiry, refreshExpiry);
     }
-    private static Instant expiry(Long absoluteMillis, Long seconds, Instant now) {
+    private static Instant expiry(Long absoluteMillis, Long seconds, Instant now, String field) {
         try { return absoluteMillis != null ? Instant.ofEpochMilli(absoluteMillis) : seconds == null ? null : now.plusSeconds(seconds); }
-        catch (Exception ignored) { throw new AliExpressIntegrationException(AliExpressIntegrationException.Reason.INCOMPLETE); }
+        catch (Exception ignored) {
+            org.slf4j.LoggerFactory.getLogger(AliExpressTokenService.class).warn(
+                    "AliExpress preview incomplete; stage=token_expiry; field={}; condition=invalid_expiration", field);
+            throw new AliExpressIntegrationException(AliExpressIntegrationException.Reason.INCOMPLETE);
+        }
     }
     private AliExpressIntegrationException reauthorize() { return new AliExpressIntegrationException(AliExpressIntegrationException.Reason.AUTHORIZATION_REQUIRED); }
 }

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
 import org.springframework.boot.test.system.*;
 import org.springframework.http.*;
 import org.springframework.mock.http.client.MockClientHttpRequest;
@@ -67,6 +69,28 @@ class AliExpressProductClientTests {
     @Test void mapsTimeoutWithoutExceptionCause() {
         server.expect(anything()).andRespond(withException(new java.net.SocketTimeoutException("synthetic-token")));
         assertThatThrownBy(this::query).isInstanceOfSatisfying(AliExpressIntegrationException.class,e->assertThat(e.getReason()).isEqualTo(AliExpressIntegrationException.Reason.TIMEOUT)).hasNoCause();
+    }
+    @ParameterizedTest
+    @MethodSource("incompleteResponses")
+    void incompleteResponseDiagnosticsContainOnlyShape(String body,String stage,String field,String type,CapturedOutput output) {
+        server.expect(anything()).andRespond(withSuccess(body,MediaType.APPLICATION_JSON));
+        assertThatThrownBy(this::query).isInstanceOfSatisfying(AliExpressIntegrationException.class,
+                        e->assertThat(e.getReason()).isEqualTo(AliExpressIntegrationException.Reason.INCOMPLETE))
+                .hasMessage("Resposta AliExpress incompleta ou invalida; importacao cancelada.").hasNoCause();
+        assertThat(output.getAll()).contains("stage="+stage+"; field="+field+"; condition=expected_object; actualType="+type)
+                .doesNotContain("synthetic-token","synthetic-secret","synthetic-refresh","synthetic-code","https://example.test/oauth/authorize");
+        server.verify();
+    }
+    static java.util.stream.Stream<Arguments> incompleteResponses() {
+        return java.util.stream.Stream.of(
+                Arguments.of("","response_body","$","NO_BODY"),
+                Arguments.of("[]","response_body","$","ARRAY"),
+                Arguments.of("\"synthetic-token\"","response_body","$","STRING"),
+                Arguments.of("{\"rsp_code\":200,\"access_token\":\"synthetic-token\"}","response_result","result","MISSING"),
+                Arguments.of("{\"aliexpress_ds_product_get_response\":{\"rsp_code\":200,\"result\":null}}","response_result","result","NULL"),
+                Arguments.of("{\"rsp_code\":200,\"result\":\"synthetic-token synthetic-secret synthetic-refresh synthetic-code https://example.test/oauth/authorize\"}","response_result","result","STRING"),
+                Arguments.of("{\"rsp_code\":200,\"result\":[]}","response_result","result","ARRAY")
+        );
     }
     private tools.jackson.databind.JsonNode query() { return client.get("1005008752784588","US","USD","en","synthetic-token"); }
 }

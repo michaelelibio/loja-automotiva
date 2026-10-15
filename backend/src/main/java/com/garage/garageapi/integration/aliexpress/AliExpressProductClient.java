@@ -17,6 +17,7 @@ import static com.garage.garageapi.integration.aliexpress.AliExpressIntegrationE
 
 @Component
 public class AliExpressProductClient {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AliExpressProductClient.class);
     private final RestClient client;
     private final String appKey, secret;
     @Autowired
@@ -43,7 +44,7 @@ public class AliExpressProductClient {
             byte[] bytes = form.toString().getBytes(StandardCharsets.UTF_8);
             JsonNode body = client.post().uri("/sync").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .accept(MediaType.APPLICATION_JSON).body(out -> out.write(bytes)).retrieve().body(JsonNode.class);
-            if (body == null || !body.isObject()) throw new AliExpressIntegrationException(INCOMPLETE);
+            if (body == null || !body.isObject()) throw incomplete("response_body", "$", body);
             JsonNode error = body.path("error_response");
             if (!error.isMissingNode()) throw providerError(error.path("code").asText(), error.path("sub_code").asText());
             JsonNode response = body.path("aliexpress_ds_product_get_response");
@@ -51,7 +52,7 @@ public class AliExpressProductClient {
             if (response.has("code") && !"0".equals(response.path("code").asText())) throw providerError(response.path("code").asText(), "");
             if (!"200".equals(response.path("rsp_code").asText())) throw providerError(response.path("rsp_code").asText(), response.path("rsp_msg").asText());
             JsonNode result = response.path("result");
-            if (!result.isObject()) throw new AliExpressIntegrationException(INCOMPLETE);
+            if (!result.isObject()) throw incomplete("response_result", "result", result);
             return result;
         } catch (AliExpressIntegrationException ex) { throw ex; }
         catch (RestClientResponseException ex) {
@@ -66,6 +67,11 @@ public class AliExpressProductClient {
             }
             throw new AliExpressIntegrationException(COMMUNICATION);
         }
+    }
+    private static AliExpressIntegrationException incomplete(String stage, String field, JsonNode node) {
+        LOG.warn("AliExpress preview incomplete; stage={}; field={}; condition=expected_object; actualType={}",
+                stage, field, node == null ? "NO_BODY" : node.getNodeType().name());
+        return new AliExpressIntegrationException(INCOMPLETE);
     }
     private AliExpressIntegrationException providerError(String code, String subCode) {
         String label = (code + " " + subCode).toUpperCase(Locale.ROOT);

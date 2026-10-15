@@ -47,6 +47,20 @@ class AliExpressProductImportIntegrationTests {
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-provider-token"))));
         assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
     }
+    @Test void incompletePreviewKeepsPublicErrorContractAndDoesNotPersist() throws Exception {
+        var malformed=AliExpressProductNormalizerTests.source();
+        ((tools.jackson.databind.node.ObjectNode)malformed.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).remove("sku_id");
+        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(malformed);
+        mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content(PREVIEW))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("Resposta AliExpress incompleta ou invalida; importacao cancelada."))
+                .andExpect(jsonPath("$.fields").isEmpty())
+                .andExpect(jsonPath("$.stage").doesNotExist())
+                .andExpect(jsonPath("$.condition").doesNotExist())
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("sku_id"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-provider-token"))));
+        assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
+    }
     @Test void persistsInactiveProductVariantsImagesAndOriginalCurrencyInOneTransaction() throws Exception {
         var preview=service.preview(ID,"US","USD","en");
         mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(importBody(preview.fingerprint(),Map.of("201",3))))

@@ -66,6 +66,24 @@ class AliExpressTokenPersistenceTests {
         row.update(row.accessCiphertext(),row.refreshCiphertext(),Instant.EPOCH,row.refreshExpiresAt());authorizations.saveAndFlush(row);
         assertThatThrownBy(tokens::accessToken).isInstanceOf(AliExpressIntegrationException.class);verifyNoInteractions(auth);
     }
+    @Test void invalidRefreshAccessExpirationLogsOnlyFixedField(CapturedOutput output) {
+        assertInvalidExpiration(false,output);
+    }
+    @Test void invalidRefreshTokenExpirationLogsOnlyFixedField(CapturedOutput output) {
+        assertInvalidExpiration(true,output);
+    }
+    private void assertInvalidExpiration(boolean refresh,CapturedOutput output) {
+        tokens.store(data("synthetic-access","synthetic-refresh"));
+        var row=authorizations.findAll().get(0);
+        row.update(row.accessCiphertext(),row.refreshCiphertext(),Instant.EPOCH,row.refreshExpiresAt());authorizations.saveAndFlush(row);
+        when(auth.refreshToken("synthetic-refresh")).thenReturn(new AliExpressTokenData("synthetic-sensitive-access","synthetic-sensitive-refresh",
+                refresh?3600L:Long.MAX_VALUE,refresh?Long.MAX_VALUE:7200L,null,null,null,null));
+        assertThatThrownBy(tokens::accessToken).isInstanceOfSatisfying(AliExpressIntegrationException.class,
+                e->assertThat(e.getReason()).isEqualTo(AliExpressIntegrationException.Reason.INCOMPLETE)).hasNoCause();
+        assertThat(output.getAll()).contains("stage=token_expiry; field="+(refresh?"refresh_token_expiration":"access_token_expiration")+"; condition=invalid_expiration")
+                .doesNotContain("synthetic-sensitive-access","synthetic-sensitive-refresh");
+        assertThat(authorizations.findAll().get(0).accessCiphertext()).isEqualTo(row.accessCiphertext());
+    }
     @Test void rejectedRefreshDoesNotExposeOrReplaceTokens() {
         tokens.store(data("synthetic-access","synthetic-refresh"));
         var row=authorizations.findAll().get(0);

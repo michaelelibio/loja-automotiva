@@ -12,94 +12,136 @@ import static com.garage.garageapi.integration.aliexpress.AliExpressIntegrationE
 @Component
 public class AliExpressProductNormalizer {
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AliExpressProductNormalizer.class);
     public AliExpressProductPreview normalize(JsonNode result, String requestedId, String country) {
+        Diagnostic diagnostic = new Diagnostic("result", "$");
         try {
+            diagnostic.stage = "base";
+            diagnostic.field = "ae_item_base_info_dto";
             JsonNode base = result.path("ae_item_base_info_dto");
-            String id = required(base, "product_id", 150);
-            if (!id.equals(requestedId)) throw new AliExpressIntegrationException(INCOMPLETE);
-            String name = required(base, "subject", 1000);
-            String status = text(base, "product_status_type");
+            String id = required(base, "product_id", 150, diagnostic);
+            if (!id.equals(requestedId)) throw diagnostic.fail("product_id_mismatch");
+            String name = required(base, "subject", 1000, diagnostic);
+            String status = text(base, "product_status_type", diagnostic);
             if (status != null && !status.equalsIgnoreCase("onSelling")) throw new AliExpressIntegrationException(UNAVAILABLE);
-            String rawDescription = Optional.ofNullable(text(base, "detail")).orElse("");
-            if (rawDescription.length() > 200_000) throw new AliExpressIntegrationException(INCOMPLETE);
+            diagnostic.stage = "description";
+            String rawDescription = Optional.ofNullable(text(base, "detail", diagnostic)).orElse("");
+            if (rawDescription.length() > 200_000) throw diagnostic.fail("description_too_long");
             var document = Jsoup.parse(rawDescription);
             document.select("script,style,iframe,object,embed").remove();
             String description = document.text();
             List<String> warnings = new ArrayList<>();
             if (name.length() > 150) warnings.add("Titulo resumido no catalogo; titulo completo preservado nos metadados.");
             if (description.length() > 5000) warnings.add("Descricao resumida no catalogo; texto completo preservado nos metadados do fornecedor.");
-            List<String> images = images(text(result.path("ae_multimedia_info_dto"), "image_urls"), warnings);
+            diagnostic.stage = "main_images";
+            List<String> images = images(text(result.path("ae_multimedia_info_dto"), "image_urls", diagnostic), warnings, diagnostic);
             List<AliExpressProductPreview.Variant> variants = new ArrayList<>();
             Set<String> skuIds = new HashSet<>();
-            for (JsonNode sku : array(result.path("ae_item_sku_info_dtos"), "ae_item_sku_info_d_t_o")) {
-                String skuId = required(sku, "sku_id", 150);
-                if (!skuIds.add(skuId)) throw new AliExpressIntegrationException(INCOMPLETE);
-                String raw = text(sku, "sku_attr");
-                if (raw != null && raw.length() > 500) throw new AliExpressIntegrationException(INCOMPLETE);
+            diagnostic.stage = "variants";
+            diagnostic.field = "ae_item_sku_info_dtos";
+            for (JsonNode sku : array(result.path("ae_item_sku_info_dtos"), "ae_item_sku_info_d_t_o", diagnostic)) {
+                diagnostic.stage = "variant";
+                diagnostic.variantIndex++;
+                diagnostic.propertyIndex = -1;
+                String skuId = required(sku, "sku_id", 150, diagnostic);
+                if (!skuIds.add(skuId)) throw diagnostic.fail("duplicate_sku_id");
+                String raw = text(sku, "sku_attr", diagnostic);
+                if (raw != null && raw.length() > 500) throw diagnostic.fail("sku_attr_too_long");
                 Map<String,String> attrs = new TreeMap<>();
                 List<String> variantImages = new ArrayList<>();
                 // Keep property IDs as keys. Labels and raw sku_attr may disagree; never derive IDs from labels.
-                for (JsonNode prop : array(sku.path("ae_sku_property_dtos"), "ae_sku_property_d_t_o")) {
-                    String propertyId = text(prop, "sku_property_id");
-                    String valueId = text(prop, "property_value_id");
-                    String key = propertyId == null ? text(prop, "sku_property_name") : propertyId;
-                    String label = text(prop, "property_value_definition_name");
-                    if (label == null) label = text(prop, "sku_property_value");
+                diagnostic.stage = "variant_properties";
+                diagnostic.field = "ae_sku_property_dtos";
+                for (JsonNode prop : array(sku.path("ae_sku_property_dtos"), "ae_sku_property_d_t_o", diagnostic)) {
+                    diagnostic.propertyIndex++;
+                    String propertyId = text(prop, "sku_property_id", diagnostic);
+                    String valueId = text(prop, "property_value_id", diagnostic);
+                    String key = propertyId == null ? text(prop, "sku_property_name", diagnostic) : propertyId;
+                    String label = text(prop, "property_value_definition_name", diagnostic);
+                    if (label == null) label = text(prop, "sku_property_value", diagnostic);
                     if (key != null && label != null) {
-                        put(attrs, key, label);
-                        if (valueId != null) put(attrs, key + ":valueId", valueId);
-                        String propertyName = text(prop, "sku_property_name");
-                        if (propertyName != null) put(attrs, key + ":name", propertyName);
+                        put(attrs, key, label, diagnostic);
+                        if (valueId != null) { diagnostic.field = "property_value_id"; put(attrs, key + ":valueId", valueId, diagnostic); }
+                        String propertyName = text(prop, "sku_property_name", diagnostic);
+                        if (propertyName != null) put(attrs, key + ":name", propertyName, diagnostic);
                         if (raw != null && propertyId != null && valueId != null
                                 && !raw.matches("(?s).*(?:^|;)" + java.util.regex.Pattern.quote(propertyId + ":" + valueId) + "(?:#|;|$).*")) {
                             warnings.add("Atributos do SKU " + skuId + " inconsistentes; identificadores originais preservados.");
                         }
                     }
-                    variantImages.addAll(images(text(prop,"sku_image"), warnings));
+                    variantImages.addAll(images(text(prop,"sku_image", diagnostic), warnings, diagnostic));
                 }
-                BigDecimal regular = money(text(sku, "sku_price"));
-                String offer = text(sku, "offer_sale_price");
-                BigDecimal price = offer == null ? regular : money(offer);
-                String currency = required(sku, "currency_code", 3).toUpperCase(Locale.ROOT);
+                diagnostic.propertyIndex = -1;
+                diagnostic.stage = "variant_prices";
+                BigDecimal regular = money(text(sku, "sku_price", diagnostic), diagnostic);
+                String offer = text(sku, "offer_sale_price", diagnostic);
+                BigDecimal price = offer == null ? regular : money(offer, diagnostic);
+                diagnostic.stage = "variant_currency";
+                String currency = required(sku, "currency_code", 3, diagnostic).toUpperCase(Locale.ROOT);
                 java.util.Currency.getInstance(currency);
-                String stockValue = required(sku, "sku_available_stock", 10);
+                diagnostic.stage = "variant_stock";
+                String stockValue = required(sku, "sku_available_stock", 10, diagnostic);
                 int stock = Integer.parseInt(stockValue);
-                if (stock < 0) throw new AliExpressIntegrationException(INCOMPLETE);
-                variants.add(new AliExpressProductPreview.Variant(skuId, bounded(text(sku,"sku_code"),150), raw,
+                if (stock < 0) throw diagnostic.fail("negative_stock");
+                diagnostic.stage = "variant";
+                variants.add(new AliExpressProductPreview.Variant(skuId, bounded(text(sku,"sku_code", diagnostic),150, diagnostic), raw,
                         Collections.unmodifiableMap(attrs), variantImages.stream().distinct().toList(), price, regular, currency, stock));
             }
-            if (variants.isEmpty() || variants.size() > 1000) throw new AliExpressIntegrationException(INCOMPLETE);
+            diagnostic.stage = "variants";
+            diagnostic.field = "ae_item_sku_info_dtos";
+            diagnostic.variantIndex = -1;
+            diagnostic.actualType = "ARRAY";
+            if (variants.isEmpty() || variants.size() > 1000) throw diagnostic.fail(variants.isEmpty() ? "no_variants" : "too_many_variants");
             String currency = variants.get(0).currency();
-            if (variants.stream().anyMatch(v -> !currency.equals(v.currency()))) throw new AliExpressIntegrationException(INCOMPLETE);
+            diagnostic.field = "currency_code";
+            diagnostic.actualType = "NOT_INSPECTED";
+            if (variants.stream().anyMatch(v -> !currency.equals(v.currency()))) throw diagnostic.fail("mixed_currencies");
             Map<String,String> properties = new TreeMap<>();
-            for (JsonNode attr : array(result.path("ae_item_properties"), "ae_item_property")) {
-                String key = text(attr,"attr_name_id");
-                if (key == null) key = text(attr,"attr_name");
-                String value = text(attr,"attr_value");
-                if (key != null && value != null) put(properties,key,value);
+            diagnostic.stage = "product_attributes";
+            diagnostic.field = "ae_item_properties";
+            for (JsonNode attr : array(result.path("ae_item_properties"), "ae_item_property", diagnostic)) {
+                diagnostic.propertyIndex++;
+                String key = text(attr,"attr_name_id", diagnostic);
+                if (key == null) key = text(attr,"attr_name", diagnostic);
+                String value = text(attr,"attr_value", diagnostic);
+                if (key != null && value != null) put(properties,key,value, diagnostic);
             }
-            Map<String,String> pack = fields(result.path("package_info_dto"), "gross_weight", "package_length", "package_width", "package_height", "base_unit", "package_type", "product_unit");
-            Map<String,String> logistics = fields(result.path("logistics_info_dto"), "ship_to_country", "delivery_time");
-            if (logistics.containsKey("ship_to_country") && !country.equalsIgnoreCase(logistics.get("ship_to_country"))) throw new AliExpressIntegrationException(INCOMPLETE);
-            Map<String,String> store = fields(result.path("ae_store_info"), "store_id", "store_name", "store_country_code");
+            diagnostic.propertyIndex = -1;
+            diagnostic.stage = "package_info";
+            Map<String,String> pack = fields(result.path("package_info_dto"), diagnostic, "gross_weight", "package_length", "package_width", "package_height", "base_unit", "package_type", "product_unit");
+            diagnostic.stage = "logistics";
+            Map<String,String> logistics = fields(result.path("logistics_info_dto"), diagnostic, "ship_to_country", "delivery_time");
+            diagnostic.field = "ship_to_country";
+            if (logistics.containsKey("ship_to_country") && !country.equalsIgnoreCase(logistics.get("ship_to_country"))) throw diagnostic.fail("country_mismatch");
+            diagnostic.stage = "store";
+            Map<String,String> store = fields(result.path("ae_store_info"), diagnostic, "store_id", "store_name", "store_country_code");
             warnings.add("Categoria comercial Nacionais e curadoria administrativa; envio nacional nao confirmado.");
             if (!pack.isEmpty()) warnings.add("Peso e dimensoes preservados como informados; unidades nao inferidas.");
             var preview = new AliExpressProductPreview(id,name,description,"ALIEXPRESS",currency,images, List.copyOf(variants),
                     Collections.unmodifiableMap(properties),pack,logistics,store,country,"Nacionais",false,warnings.stream().distinct().toList(),null);
+            diagnostic.stage = "fingerprint";
+            diagnostic.field = "normalized_preview";
+            diagnostic.actualType = "NOT_INSPECTED";
             String fingerprint = AliExpressOAuthStateService.hash(JSON.writeValueAsString(preview));
             return new AliExpressProductPreview(id,name,description,"ALIEXPRESS",currency,images,preview.variants(),preview.attributes(),
                     pack,logistics,store,country,"Nacionais",false,preview.warnings(),fingerprint);
         } catch (AliExpressIntegrationException ex) { throw ex; }
-        catch (Exception ignored) { throw new AliExpressIntegrationException(INCOMPLETE); }
+        catch (Exception exception) { throw diagnostic.fail("unexpected_exception", exception); }
     }
     static List<JsonNode> array(JsonNode node, String wrapper) {
+        return array(node, wrapper, new Diagnostic("array", "collection"));
+    }
+    private static List<JsonNode> array(JsonNode node, String wrapper, Diagnostic diagnostic) {
         if (node.isMissingNode() || node.isNull()) return List.of();
         if (!node.isArray()) node = node.path(wrapper);
         if (node.isMissingNode() || node.isNull()) return List.of();
-        if (!node.isArray()) throw new AliExpressIntegrationException(INCOMPLETE);
+        if (!node.isArray()) { diagnostic.actualType = node.getNodeType().name(); throw diagnostic.fail("expected_array"); }
         List<JsonNode> values = new ArrayList<>(); node.forEach(values::add); return values;
     }
     static List<String> images(String values, List<String> warnings) {
+        return images(values, warnings, new Diagnostic("images", "image_urls"));
+    }
+    private static List<String> images(String values, List<String> warnings, Diagnostic diagnostic) {
         if (values == null) return List.of();
         Set<String> images = new LinkedHashSet<>();
         for (String value : values.split(";")) {
@@ -116,35 +158,57 @@ public class AliExpressProductNormalizer {
                 images.add("https" + value.substring(value.indexOf(':')));
             } catch (IllegalArgumentException ignored) { warnings.add("Imagem invalida ou fora dos CDNs permitidos foi omitida."); }
         }
-        if (images.size() > 100) throw new AliExpressIntegrationException(INCOMPLETE);
+        if (images.size() > 100) throw diagnostic.fail("too_many_images");
         return List.copyOf(images);
     }
     static BigDecimal money(String value) {
-        if (value == null || !value.matches("[0-9]{1,15}(?:\\.[0-9]{1,4})?")) throw new AliExpressIntegrationException(INCOMPLETE);
+        return money(value, new Diagnostic("price", "amount"));
+    }
+    private static BigDecimal money(String value, Diagnostic diagnostic) {
+        if (value == null || !value.matches("[0-9]{1,15}(?:\\.[0-9]{1,4})?")) throw diagnostic.fail("invalid_price_format");
         BigDecimal money = new BigDecimal(value);
-        if (money.signum() <= 0) throw new AliExpressIntegrationException(INCOMPLETE);
+        if (money.signum() <= 0) throw diagnostic.fail("non_positive_price");
         return money;
     }
-    private static Map<String,String> fields(JsonNode node, String... names) {
+    private static Map<String,String> fields(JsonNode node, Diagnostic diagnostic, String... names) {
         Map<String,String> fields = new TreeMap<>();
-        for (String name : names) { String value = text(node,name); if (value != null) put(fields,name,value); }
+        for (String name : names) { String value = text(node,name,diagnostic); if (value != null) put(fields,name,value,diagnostic); }
         return Collections.unmodifiableMap(fields);
     }
-    private static void put(Map<String,String> map, String key, String value) {
-        if (key.length() > 150 || value.length() > 1000 || (map.containsKey(key) && !map.get(key).equals(value))) throw new AliExpressIntegrationException(INCOMPLETE);
+    private static void put(Map<String,String> map, String key, String value, Diagnostic diagnostic) {
+        if (key.length() > 150) { diagnostic.field = "attribute_key"; throw diagnostic.fail("attribute_key_too_long"); }
+        if (value.length() > 1000) throw diagnostic.fail("attribute_value_too_long");
+        if (map.containsKey(key) && !map.get(key).equals(value)) throw diagnostic.fail("conflicting_attribute");
         map.put(key, value);
     }
-    private static String text(JsonNode node, String field) {
+    private static String text(JsonNode node, String field, Diagnostic diagnostic) {
+        diagnostic.field = field;
         JsonNode value = node.path(field);
+        diagnostic.actualType = value.getNodeType().name();
         if (value.isMissingNode() || value.isNull()) return null;
-        if (!value.isValueNode()) throw new AliExpressIntegrationException(INCOMPLETE);
+        if (!value.isValueNode()) throw diagnostic.fail("expected_scalar");
         String text = value.asText().trim(); return text.isEmpty() ? null : text;
     }
-    private static String required(JsonNode node, String field, int length) {
-        String value = bounded(text(node,field),length);
-        if (value == null) throw new AliExpressIntegrationException(INCOMPLETE); return value;
+    private static String required(JsonNode node, String field, int length, Diagnostic diagnostic) {
+        String value = bounded(text(node,field,diagnostic),length,diagnostic);
+        if (value == null) throw diagnostic.fail("required_value_missing_or_blank"); return value;
     }
-    private static String bounded(String value, int length) {
-        if (value != null && value.length() > length) throw new AliExpressIntegrationException(INCOMPLETE); return value;
+    private static String bounded(String value, int length, Diagnostic diagnostic) {
+        if (value != null && value.length() > length) throw diagnostic.fail("value_too_long"); return value;
+    }
+    private static final class Diagnostic {
+        private String stage, field;
+        private String actualType = "NOT_INSPECTED";
+        private int variantIndex = -1, propertyIndex = -1;
+        private Diagnostic(String stage, String field) { this.stage = stage; this.field = field; }
+        private AliExpressIntegrationException fail(String condition) { return fail(condition, null); }
+        private AliExpressIntegrationException fail(String condition, Exception exception) {
+            // Only fixed stage/field/condition names, indices and types. Never log source values,
+            // dynamic attribute keys, exception messages/causes, URLs or response bodies.
+            LOG.warn("AliExpress preview incomplete; stage={}; field={}; condition={}; variantIndex={}; propertyIndex={}; actualType={}; exceptionType={}",
+                    stage, field, condition, variantIndex, propertyIndex, actualType,
+                    exception == null ? "NONE" : exception.getClass().getSimpleName());
+            return new AliExpressIntegrationException(INCOMPLETE);
+        }
     }
 }
