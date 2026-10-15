@@ -14,6 +14,65 @@ class AliExpressProductNormalizerTests {
         try(var stream = AliExpressProductNormalizerTests.class.getResourceAsStream("/aliexpress-product.json")) { return JSON.readTree(stream); }
     }
     private final AliExpressProductNormalizer normalizer = new AliExpressProductNormalizer();
+    static JsonNode confirmedResponse() throws Exception {
+        try (var stream = AliExpressProductNormalizerTests.class.getResourceAsStream("/aliexpress-product-1005010661577657.json")) {
+            return JSON.readTree(stream);
+        }
+    }
+    @Test
+    void normalizesConfirmedNumericProductAndPreservesSentinelAttributes() throws Exception {
+        var source = confirmedResponse().path("aliexpress_ds_product_get_response").path("result");
+        var preview = normalizer.normalize(source,"1005010661577657","BR");
+        assertThat(preview.productId()).isEqualTo("1005010661577657");
+        assertThat(preview.currency()).isEqualTo("BRL");
+        assertThat(preview.logistics()).containsEntry("ship_to_country","Br");
+        var variant = preview.variants().get(0);
+        assertThat(variant.skuId()).isEqualTo("12000053109276547");
+        assertThat(variant.price()).isEqualTo(new java.math.BigDecimal("25.39"));
+        assertThat(variant.regularPrice()).isEqualTo(new java.math.BigDecimal("50.78"));
+        assertThat(variant.currency()).isEqualTo("BRL");
+        assertThat(variant.availableStock()).isEqualTo(98);
+        assertThat(preview.attributes()).containsEntry("name:Head Style","Hexagonal")
+                .containsEntry("name:Major Material","Stainless Steel")
+                .containsEntry("name:Special Features","Adjustable")
+                .containsEntry("name:Applicable Models","Universally Applicable")
+                .containsEntry("name:Origin","Guangdong, China");
+        for (int i = 0; i < 5; i++) assertThat(preview.attributes()).containsEntry("source:"+i+":attr_name_id","-1");
+        assertThat(preview.fingerprint()).isEqualTo(normalizer.normalize(source,"1005010661577657","BR").fingerprint());
+    }
+    @Test
+    void preservesMissingNegativeZeroRepeatedIdsAndConflictingNamesWithoutNamespaceCollisions() throws Exception {
+        var source = (ObjectNode)source();
+        source.set("ae_item_properties", JSON.readTree("""
+            [
+              {"attr_name_id":7,"attr_name":"First","attr_value":"A","attr_value_id":11},
+              {"attr_name_id":7,"attr_name":"Second","attr_value":"B"},
+              {"attr_name":"Same","attr_value":"C"},
+              {"attr_name_id":-1,"attr_name":"Same","attr_value":"D"},
+              {"attr_name_id":0,"attr_value":"E"},
+              {"attr_value":"F"},
+              {"attr_name_id":9,"attr_name":"source:0:key","attr_value":"G"},
+              {"attr_name":"source:0:key","attr_value":"H"},
+              {"attr_name":"property:2","attr_value":"I"}
+            ]
+            """));
+        var attrs = normalizer.normalize(source,"1005008752784588","US").attributes();
+        assertThat(attrs).containsEntry("name:First","A").containsEntry("name:Second","B")
+                .containsEntry("property:2","C").containsEntry("property:3","D")
+                .containsEntry("property:4","E").containsEntry("property:5","F")
+                .containsEntry("9","G").containsEntry("property:7","H").containsEntry("name:property:2","I")
+                .containsEntry("source:0:attr_name_id","7").containsEntry("source:1:attr_name_id","7")
+                .containsEntry("source:0:attr_value_id","11").containsEntry("source:0:key","name:First");
+    }
+    @Test
+    void invalidProductAttributeValuesStillFail() throws Exception {
+        for (String invalid : new String[]{"{}", "[]", "null", "\"\"", "\"" + "x".repeat(1001) + "\""}) {
+            var source = (ObjectNode)source();
+            source.set("ae_item_properties", JSON.readTree("[{\"attr_name_id\":-1,\"attr_name\":\"Test\",\"attr_value\":"+invalid+"}]"));
+            assertThatThrownBy(() -> normalizer.normalize(source,"1005008752784588","US"))
+                    .isInstanceOf(AliExpressIntegrationException.class);
+        }
+    }
     @Test
     void mapsImagesPricesSkusStockAndOriginalAttributes() throws Exception {
         var preview=normalizer.normalize(source(),"1005008752784588","US");

@@ -99,12 +99,36 @@ public class AliExpressProductNormalizer {
             Map<String,String> properties = new TreeMap<>();
             diagnostic.stage = "product_attributes";
             diagnostic.field = "ae_item_properties";
-            for (JsonNode attr : array(result.path("ae_item_properties"), "ae_item_property", diagnostic)) {
+            List<JsonNode> productAttributes = array(result.path("ae_item_properties"), "ae_item_property", diagnostic);
+            Map<String,Integer> idCounts = new HashMap<>(), nameCounts = new HashMap<>();
+            for (JsonNode attr : productAttributes) {
                 diagnostic.propertyIndex++;
-                String key = text(attr,"attr_name_id", diagnostic);
-                if (key == null) key = text(attr,"attr_name", diagnostic);
+                String attributeId = bounded(text(attr,"attr_name_id", diagnostic),150,diagnostic);
+                String attributeName = bounded(text(attr,"attr_name", diagnostic),150,diagnostic);
+                if (attributeId != null) idCounts.merge(attributeId,1,Integer::sum);
+                if (attributeName != null) nameCounts.merge(attributeName,1,Integer::sum);
+            }
+            diagnostic.propertyIndex = -1;
+            for (JsonNode attr : productAttributes) {
+                diagnostic.propertyIndex++;
+                String attributeId = text(attr,"attr_name_id", diagnostic);
+                String attributeName = text(attr,"attr_name", diagnostic);
                 String value = text(attr,"attr_value", diagnostic);
-                if (key != null && value != null) put(properties,key,value, diagnostic);
+                if (value == null) throw diagnostic.fail("required_value_missing_or_blank");
+                // Product property IDs are not SKU IDs: -1 is a common provider sentinel.
+                // Namespaces cannot overlap: numeric IDs, name:, property:, and source:.
+                // Repeated names use source position so even conflicting values survive.
+                String key = attributeId != null && attributeId.matches("[1-9][0-9]*") && idCounts.get(attributeId) == 1
+                        ? attributeId
+                        : attributeName != null && attributeName.length() <= 145 && nameCounts.get(attributeName) == 1
+                            ? "name:" + attributeName : "property:" + diagnostic.propertyIndex;
+                put(properties,key,value,diagnostic);
+                String sourceKey = "source:" + diagnostic.propertyIndex + ":";
+                put(properties,sourceKey + "key",key,diagnostic);
+                if (attributeId != null) put(properties,sourceKey + "attr_name_id",attributeId,diagnostic);
+                if (attributeName != null) put(properties,sourceKey + "attr_name",attributeName,diagnostic);
+                String valueId = text(attr,"attr_value_id",diagnostic);
+                if (valueId != null) put(properties,sourceKey + "attr_value_id",valueId,diagnostic);
             }
             diagnostic.propertyIndex = -1;
             diagnostic.stage = "package_info";

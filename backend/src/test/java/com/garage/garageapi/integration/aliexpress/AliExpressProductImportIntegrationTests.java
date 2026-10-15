@@ -47,6 +47,25 @@ class AliExpressProductImportIntegrationTests {
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-provider-token"))));
         assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
     }
+    @Test void confirmedBrazilPreviewPreservesAttributesPricesAndStockWithoutPersistence() throws Exception {
+        when(client.get("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token"))
+                .thenReturn(AliExpressProductNormalizerTests.confirmedResponse().path("aliexpress_ds_product_get_response").path("result"));
+        mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content("""
+                {"input":"1005010661577657","shipToCountry":"BR","targetCurrency":"BRL","targetLanguage":"pt_BR"}
+                """))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.productId").value("1005010661577657"))
+                .andExpect(jsonPath("$.currency").value("BRL"))
+                .andExpect(jsonPath("$.variants[0].skuId").value("12000053109276547"))
+                .andExpect(jsonPath("$.variants[0].price").value(25.39))
+                .andExpect(jsonPath("$.variants[0].regularPrice").value(50.78))
+                .andExpect(jsonPath("$.variants[0].availableStock").value(98))
+                .andExpect(jsonPath("$.attributes['name:Head Style']").value("Hexagonal"))
+                .andExpect(jsonPath("$.attributes['name:Origin']").value("Guangdong, China"))
+                .andExpect(jsonPath("$.attributes['source:4:attr_name_id']").value("-1"))
+                .andExpect(jsonPath("$.logistics.ship_to_country").value("Br"));
+        verify(client).get("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token");
+        assertThat(products.count()).isZero(); assertThat(variants.count()).isZero(); assertThat(media.count()).isZero();
+    }
     @Test void incompletePreviewKeepsPublicErrorContractAndDoesNotPersist() throws Exception {
         var malformed=AliExpressProductNormalizerTests.source();
         ((tools.jackson.databind.node.ObjectNode)malformed.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).remove("sku_id");

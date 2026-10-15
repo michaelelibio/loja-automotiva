@@ -93,4 +93,16 @@ class AliExpressProductClientTests {
         );
     }
     private tools.jackson.databind.JsonNode query() { return client.get("1005008752784588","US","USD","en","synthetic-token"); }
+    @Test void confirmedResponsePassesClientAndNormalizerWithoutNumericPrecisionLoss(CapturedOutput output) throws Exception {
+        var response = AliExpressProductNormalizerTests.confirmedResponse();
+        server.expect(requestTo("https://api-sg.aliexpress.com/sync"))
+                .andRespond(withSuccess(AliExpressProductNormalizerTests.JSON.writeValueAsString(response),MediaType.APPLICATION_JSON));
+        var result = client.get("1005010661577657","BR","BRL","pt_BR","synthetic-token");
+        var preview = new AliExpressProductNormalizer().normalize(result,"1005010661577657","BR");
+        assertThat(preview.variants().get(0).skuId()).isEqualTo("12000053109276547");
+        assertThat(preview.variants().get(0).price()).isEqualTo(new java.math.BigDecimal("25.39"));
+        assertThat(preview.attributes()).containsEntry("name:Origin","Guangdong, China");
+        assertThat(output.getAll()).doesNotContain("synthetic-token","synthetic-secret","Guangdong", "Call succeeds");
+        server.verify();
+    }
 }

@@ -1,0 +1,30 @@
+{
+  "aliexpress_ds_product_get_response": {
+    "rsp_code": 200,
+    "rsp_msg": "Call succeeds",
+    "result": {
+      "ae_item_base_info_dto": {
+        "product_id": 1005010661577657,
+        "subject": "Synthetic product matching confirmed AliExpress fields",
+        "product_status_type": "onSelling",
+        "currency_code": "BRL"
+      },
+      "ae_multimedia_info_dto": {"image_urls": "https://ae01.alicdn.com/example.jpg"},
+      "ae_item_sku_info_dtos": {"ae_item_sku_info_d_t_o": [{
+        "sku_id": 12000053109276547,
+        "offer_sale_price": 25.39,
+        "sku_price": 50.78,
+        "currency_code": "BRL",
+        "sku_available_stock": 98
+      }]},
+      "ae_item_properties": {"ae_item_property": [
+        {"attr_name_id": -1, "attr_name": "Head Style", "attr_value": "Hexagonal"},
+        {"attr_name_id": -1, "attr_name": "Major Material", "attr_value": "Stainless Steel"},
+        {"attr_name_id": -1, "attr_name": "Special Features", "attr_value": "Adjustable"},
+        {"attr_name_id": -1, "attr_name": "Applicable Models", "attr_value": "Universally Applicable"},
+        {"attr_name_id": -1, "attr_name": "Origin", "attr_value": "Guangdong, China"}
+      ]},
+      "logistics_info_dto": {"ship_to_country": "Br"}
+    }
+  }
+}
