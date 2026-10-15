@@ -1,5 +1,13 @@
 export type AdminOrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED' | 'EXPIRED';
 export type AdminPaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELED' | 'FAILED';
+export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' | 'CREATED' | 'FAILED';
+
+export type AdminOrderFulfillment = {
+  orderId: number; status: AdminFulfillmentStatus; provider: string;
+  supplierOrderId: string | null; supplierShipmentOrderId: string | null;
+  attemptCount: number; lastError: string | null; processingStartedAt: string | null;
+  createdExternallyAt: string | null; updatedAt: string;
+};
 
 export type AdminOrderSummary = {
   id: number; status: AdminOrderStatus; subtotal: number; shippingCost: number; total: number;

@@ -2,3 +2,5 @@
 .env
 .env.*
 *.local
+*.local.ps1
+!.env.example

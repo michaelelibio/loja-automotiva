@@ -1,5 +1,5 @@
 import tokenStorage from '@/lib/auth/tokenStorage';
-import type { AdminOrder, AdminOrderPage, AdminOrderStatus } from '@/lib/types/admin-order';
+import type { AdminOrder, AdminOrderFulfillment, AdminOrderPage, AdminOrderStatus } from '@/lib/types/admin-order';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const endpoint = `${API_BASE}/api/admin/orders`;
@@ -35,5 +35,15 @@ export function getAdminOrder(id: number): Promise<AdminOrder> {
 export function updateAdminOrderStatus(id: number, status: 'PROCESSING' | 'SHIPPED' | 'DELIVERED'): Promise<AdminOrder> {
   return request<AdminOrder>(`${endpoint}/${encodeURIComponent(id)}/status`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+  });
+}
+
+export function getAdminOrderFulfillment(id: number): Promise<AdminOrderFulfillment> {
+  return request<AdminOrderFulfillment>(`${endpoint}/${encodeURIComponent(id)}/fulfillment`);
+}
+
+export function retryAdminOrderFulfillment(id: number): Promise<AdminOrderFulfillment> {
+  return request<AdminOrderFulfillment>(`${endpoint}/${encodeURIComponent(id)}/fulfillment/retry`, {
+    method: 'POST',
   });
 }

@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { AdminOrderApiError, getAdminOrder, updateAdminOrderStatus } from '@/lib/api/admin/orders';
-import { adminOrderStatusLabels, type AdminOrder, type AdminOrderStatus } from '@/lib/types/admin-order';
+import { AdminOrderApiError, getAdminOrder, getAdminOrderFulfillment, retryAdminOrderFulfillment, updateAdminOrderStatus } from '@/lib/api/admin/orders';
+import { adminOrderStatusLabels, type AdminOrder, type AdminOrderFulfillment, type AdminOrderStatus } from '@/lib/types/admin-order';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const paymentLabels = { PENDING: 'Aguardando pagamento', PAID: 'Pago', EXPIRED: 'Expirado', CANCELED: 'Cancelado', FAILED: 'Falhou' } as const;
+const fulfillmentLabels = { NOT_REQUIRED: 'Não necessário', PENDING: 'Pendente', PROCESSING: 'Processando', CREATED: 'Criado no fornecedor', FAILED: 'Falhou' } as const;
 const actions: Partial<Record<AdminOrderStatus, { target: 'PROCESSING' | 'SHIPPED' | 'DELIVERED'; label: string; confirmation: string }>> = {
   PAID: { target: 'PROCESSING', label: 'Iniciar preparação', confirmation: 'Confirmar o início da preparação deste pedido?' },
   PROCESSING: { target: 'SHIPPED', label: 'Marcar como enviado', confirmation: 'Confirmar que este pedido foi enviado?' },
@@ -22,11 +23,12 @@ export default function AdminOrderDetailPage() {
   const params = useParams<{ id: string }>(); const router = useRouter(); const { logout } = useAuth();
   const [order, setOrder] = useState<AdminOrder | null>(null); const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null); const [denied, setDenied] = useState(false);
+  const [fulfillment, setFulfillment] = useState<AdminOrderFulfillment | null>(null); const [retryingFulfillment, setRetryingFulfillment] = useState(false);
   const [confirming, setConfirming] = useState(false); const [updating, setUpdating] = useState(false); const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const id = Number(params.id);
 
   useEffect(() => { if (!Number.isSafeInteger(id) || id <= 0) return; let active = true;
-    getAdminOrder(id).then((data) => { if (active) setOrder(data); }).catch((cause) => { if (!active) return; if (cause instanceof AdminOrderApiError && cause.status === 401) { logout(); router.replace('/login'); return; } if (cause instanceof AdminOrderApiError && cause.status === 403) { setDenied(true); return; } setError(cause instanceof AdminOrderApiError && cause.status === 404 ? 'Pedido não encontrado.' : 'Não foi possível carregar este pedido.'); }).finally(() => { if (active) setLoading(false); });
+    Promise.all([getAdminOrder(id), getAdminOrderFulfillment(id).catch((cause) => cause instanceof AdminOrderApiError && cause.status === 404 ? null : Promise.reject(cause))]).then(([data, fulfillmentData]) => { if (active) { setOrder(data); setFulfillment(fulfillmentData); } }).catch((cause) => { if (!active) return; if (cause instanceof AdminOrderApiError && cause.status === 401) { logout(); router.replace('/login'); return; } if (cause instanceof AdminOrderApiError && cause.status === 403) { setDenied(true); return; } setError(cause instanceof AdminOrderApiError && cause.status === 404 ? 'Pedido não encontrado.' : 'Não foi possível carregar este pedido.'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id, logout, router]);
 
@@ -34,6 +36,12 @@ export default function AdminOrderDetailPage() {
     try { const updated = await updateAdminOrderStatus(order.id, action.target); setOrder(updated); setConfirming(false); setFeedback({ type: 'success', message: `Pedido atualizado para “${adminOrderStatusLabels[updated.status]}”.` }); }
     catch (cause) { if (cause instanceof AdminOrderApiError && cause.status === 401) { logout(); router.replace('/login'); return; } if (cause instanceof AdminOrderApiError && cause.status === 403) { setDenied(true); return; } setConfirming(false); setFeedback({ type: 'error', message: cause instanceof AdminOrderApiError && cause.status === 409 ? 'O pedido mudou de status ou esta transição não é mais permitida. Atualize a página e confira o estado atual.' : 'Não foi possível atualizar o pedido. Tente novamente.' }); }
     finally { setUpdating(false); }
+  }
+
+  async function retryFulfillment() { if (!order || retryingFulfillment) return; setRetryingFulfillment(true); setFeedback(null);
+    try { const updated = await retryAdminOrderFulfillment(order.id); setFulfillment(updated); setFeedback({ type: updated.status === 'FAILED' ? 'error' : 'success', message: updated.status === 'CREATED' ? 'Pedido registrado no adaptador do fornecedor.' : 'Processamento do fornecedor atualizado.' }); }
+    catch (cause) { setFeedback({ type: 'error', message: cause instanceof AdminOrderApiError ? cause.message : 'Não foi possível processar o pedido no fornecedor.' }); }
+    finally { setRetryingFulfillment(false); }
   }
 
   if (!Number.isSafeInteger(id) || id <= 0) return <div className="admin-feedback error"><p>Pedido inválido.</p><Link href="/admin/pedidos">Voltar aos pedidos</Link></div>;
@@ -49,6 +57,7 @@ export default function AdminOrderDetailPage() {
       <section className="admin-card"><h2>Itens</h2><div className="admin-detail-items">{order.items.map((item) => <article key={`${item.productId}:${item.productVariantId ?? ''}`}><div><strong>{item.productName}</strong>{item.variantName && <span>{item.variantName}</span>}<span>{item.quantity} × {currency.format(item.unitPrice)}</span></div><strong>{currency.format(item.subtotal)}</strong></article>)}</div></section>
       <section className="admin-card"><h2>Entrega</h2><div className="admin-payment"><div><span>Serviço</span><strong>{order.shippingName}</strong></div><div><span>Valor</span><strong>{currency.format(order.shippingCost)}</strong></div><div><span>Prazo estimado</span><strong>{order.shippingEstimatedDays} {order.shippingEstimatedDays === 1 ? 'dia' : 'dias'}</strong></div></div></section>
       <section className="admin-card"><h2>Pagamento</h2>{order.payment ? <div className="admin-payment"><div><span>Método</span><strong>{order.payment.method}</strong></div><div><span>Status</span><strong>{paymentLabels[order.payment.status]}</strong></div><div><span>Pago em</span><strong>{timestamp(order.payment.paidAt)}</strong></div></div> : <p className="admin-muted">Nenhuma tentativa de pagamento registrada.</p>}</section>
+      {fulfillment && fulfillment.status !== 'NOT_REQUIRED' && <section className="admin-card"><h2>Fornecedor</h2><div className="admin-payment"><div><span>Integração</span><strong>{fulfillment.provider}</strong></div><div><span>Status</span><strong>{fulfillmentLabels[fulfillment.status]}</strong></div><div><span>Tentativas de criação</span><strong>{fulfillment.attemptCount}</strong></div><div><span>Pedido no fornecedor</span><strong>{fulfillment.supplierOrderId ?? '—'}</strong></div><div><span>Remessa no fornecedor</span><strong>{fulfillment.supplierShipmentOrderId ?? '—'}</strong></div><div><span>Atualizado em</span><strong>{timestamp(fulfillment.updatedAt)}</strong></div></div>{fulfillment.lastError && <p className="admin-action-feedback error" role="alert">{fulfillment.lastError}</p>}{(fulfillment.status === 'PENDING' || fulfillment.status === 'FAILED') && <button type="button" disabled={retryingFulfillment} onClick={() => void retryFulfillment()}>{retryingFulfillment ? 'Processando…' : 'Processar no fornecedor'}</button>}</section>}
       <section className="admin-card"><h2>Linha do tempo</h2><dl className="admin-timestamps"><div><dt>Criado</dt><dd>{timestamp(order.createdAt)}</dd></div><div><dt>Expira</dt><dd>{timestamp(order.expiresAt)}</dd></div><div><dt>Atualizado</dt><dd>{timestamp(order.updatedAt)}</dd></div><div><dt>Em preparação</dt><dd>{timestamp(order.processingAt)}</dd></div><div><dt>Enviado</dt><dd>{timestamp(order.shippedAt)}</dd></div><div><dt>Entregue</dt><dd>{timestamp(order.deliveredAt)}</dd></div></dl></section>
     </div><aside className="admin-order-summary"><h2>Resumo</h2><div><span>Subtotal</span><strong>{currency.format(order.subtotal)}</strong></div><div><span>Frete</span><strong>{currency.format(order.shippingCost)}</strong></div><div className="total"><span>Total</span><strong>{currency.format(order.total)}</strong></div>{action && <div className="admin-transition">{!confirming ? <button type="button" onClick={() => { setFeedback(null); setConfirming(true); }}>{action.label}</button> : <div className="admin-confirm"><p>{action.confirmation}</p><div><button type="button" disabled={updating} onClick={() => setConfirming(false)}>Voltar</button><button type="button" disabled={updating} onClick={() => void transition()}>{updating ? 'Atualizando...' : 'Confirmar'}</button></div></div>}</div>}</aside></div></>;
 }

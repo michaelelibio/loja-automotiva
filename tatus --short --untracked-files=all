@@ -1,0 +1,29 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/ALIEXPRESS-OAUTH.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/pom.xml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressAuthService.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressCallbackController.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/main/java/com/garage/garageapi/product/entity/Product.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/main/java/com/garage/garageapi/product/entity/ProductVariant.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/main/resources/application.properties', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressAuthServiceTests.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressCallbackIntegrationTests.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/admin/pedidos/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/lib/api/admin/orders.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/lib/types/admin-order.ts', LF will be replaced by CRLF the next time Git touches it
+ .gitignore                                         |  2 [32m++[m
+ backend/.env.example                               |  1 [32m+[m
+ backend/ALIEXPRESS-OAUTH.md                        |  6 [32m++++[m[31m--[m
+ backend/pom.xml                                    |  5 [32m+++++[m
+ .../aliexpress/AliExpressAuthService.java          | 20 [32m++++++++++++++[m[31m------[m
+ .../aliexpress/AliExpressCallbackController.java   | 14 [32m++++++++++++[m[31m--[m
+ .../garage/garageapi/product/entity/Product.java   | 16 [32m++++++++++++++++[m
+ .../garageapi/product/entity/ProductVariant.java   |  8 [32m++++++++[m
+ backend/src/main/resources/application.properties  |  3 [32m++[m[31m-[m
+ .../aliexpress/AliExpressAuthServiceTests.java     | 12 [32m++++++++++++[m
+ .../AliExpressCallbackIntegrationTests.java        | 22 [32m+++++++++++++++++++++[m[31m-[m
+ frontend/.gitignore                                |  3 [32m++[m[31m-[m
+ frontend/app/admin/pedidos/[id]/page.tsx           | 15 [32m++++++++++++[m[31m---[m
+ frontend/lib/api/admin/orders.ts                   | 12 [32m+++++++++++[m[31m-[m
+ frontend/lib/types/admin-order.ts                  |  8 [32m++++++++[m
+ 15 files changed, 130 insertions(+), 17 deletions(-)
