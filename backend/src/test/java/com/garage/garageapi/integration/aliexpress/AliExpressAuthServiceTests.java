@@ -58,6 +58,18 @@ class AliExpressAuthServiceTests {
     }
 
     @Test
+    void refreshUsesOfficialEndpointAndDoesNotLogCredentials(CapturedOutput output) {
+        server.expect(requestTo("https://api-sg.aliexpress.com/rest/auth/token/refresh"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(request -> {
+                    String body=((MockClientHttpRequest)request).getBodyAsString();
+                    assertThat(body).contains("refresh_token=synthetic-refresh-token").doesNotContain("code=",SECRET);
+                }).andRespond(withSuccess(SUCCESS,MediaType.APPLICATION_JSON));
+        assertThat(service.refreshToken(REFRESH).accessToken()).isEqualTo(ACCESS);
+        assertSafeLogs(output);server.verify();
+    }
+
+    @Test
     void sendsSignedFormAndMapsTokensWithoutLoggingSensitiveValues(CapturedOutput output) {
         server.expect(requestTo("https://api-sg.aliexpress.com/rest/auth/token/create"))
                 .andExpect(method(HttpMethod.POST))

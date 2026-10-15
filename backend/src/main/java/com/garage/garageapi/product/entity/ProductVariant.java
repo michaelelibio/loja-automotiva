@@ -64,6 +64,9 @@ public class ProductVariant {
     @Column(name = "raw_variant_key", length = 500)
     private String rawVariantKey;
 
+    @Column(name = "supplier_stock_quantity")
+    private Integer supplierStockQuantity;
+
     @Column(name = "weight_grams", precision = 19, scale = 4)
     private BigDecimal weightGrams;
 
@@ -157,6 +160,11 @@ public class ProductVariant {
     void onUpdate() { updatedAt = Instant.now(); }
 
     public Long getId() { return id; }
+    public Integer getSupplierStockQuantity() { return supplierStockQuantity; }
+    public void setSupplierStockQuantity(int quantity) {
+        if (quantity < 0) throw new IllegalArgumentException("Estoque do fornecedor invalido");
+        supplierStockQuantity = quantity;
+    }
     public Product getProduct() { return product; }
     public String getSupplier() { return supplier; }
     public String getSupplierVariantId() { return supplierVariantId; }

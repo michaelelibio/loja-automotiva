@@ -1,5 +1,7 @@
 # AliExpress OAuth local
 
+Atualização: a persistência criptografada, renovação sob demanda e autorização administrativa com state foram acrescentadas. Para habilitar importação, siga [AliExpress — importação](ALIEXPRESS-IMPORT.md). O procedimento manual sem state abaixo permanece apenas como diagnóstico compatível da troca, sem salvar tokens.
+
 ## Contrato consultado
 
 Consultado em 12/10/2026 no portal oficial: [Authorize your APP, docId=1590](https://openservice.aliexpress.com/doc/doc.htm#/?docId=1590). O conteúdo foi obtido também pelo [endpoint público da documentação](https://openservice.aliexpress.com/handler/share/doc/getDocDetail.json?docId=1590). O guia atual descreve autorização da conta AE e exemplifica `account_platform=buyerApp`, aplicável ao fluxo de autorização da aplicação Drop Shipping. Ele exige HTTPS POST para a troca do código.
@@ -22,7 +24,7 @@ Erros GOP podem trazer `code`, `message`, `type` e `request_id`. Qualquer `code`
 - Troca bem-sucedida: HTTP 200, `Autorizacao AliExpress concluida com sucesso.`.
 - Falha de configuração ou de troca: HTTP 502 com mensagem genérica para autorizar novamente.
 - Logs: presença/tamanho dos parâmetros, sucesso/falha, presença dos tokens e expirações. Valores brutos, identificadores, assinatura e tokens não são registrados.
-- Tokens retornam apenas ao serviço chamador e são descartados pelo controller; não são salvos, exibidos ou utilizados em outras APIs.
+- Tokens não são exibidos ao navegador. Callbacks sem state mantêm o descarte; callbacks com state administrativo válido salvam somente ciphertext e expirações para uso na consulta de produtos.
 
 ## Teste manual — somente OAuth
 
@@ -43,7 +45,7 @@ $authorizeUrl
 6. Copie a URL para o navegador, entre na conta AE apropriada e autorize o app. O AliExpress redireciona para o túnel com um código; o backend troca-o por tokens automaticamente. Não cole códigos ou tokens no chat, nem recarregue/reutilize o callback com o mesmo código.
 7. Confira HTTP 200 e a mensagem de sucesso. No backend, procure `AliExpress token exchange succeeded` e as informações de expiração. Em caso de 502, confira credenciais, callback registrado, permissões/status do app e conectividade; faça nova autorização para obter outro código.
 
-O teste real não foi executado automaticamente. Não há importação, pedido, pagamento, fulfillment, tracking, refresh automático ou persistência nesta etapa. O parâmetro `state` é aceito e omitido dos logs, mas não é validado: ainda não existe um fluxo de início de autorização com state gerado e vinculado à sessão. Este callback destina-se à validação manual local; proteção completa de state e gerenciamento durável dos tokens ficam pendentes.
+O teste real não foi executado automaticamente. O novo fluxo administrativo valida state de uso único e permite persistência/refresh para importação, conforme o documento vinculado. O exemplo manual acima não inclui state e não habilita essa persistência. Pedidos, pagamentos e tracking AliExpress não foram implementados.
 
 ## Testes automatizados
 

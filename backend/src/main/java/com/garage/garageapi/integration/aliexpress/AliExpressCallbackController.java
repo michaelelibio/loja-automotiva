@@ -12,9 +12,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class AliExpressCallbackController {
     private static final Logger logger = LoggerFactory.getLogger(AliExpressCallbackController.class);
     private final AliExpressAuthService authService;
+    private final AliExpressOAuthStateService states;
+    private final AliExpressTokenService tokens;
 
-    public AliExpressCallbackController(AliExpressAuthService authService) {
+    public AliExpressCallbackController(AliExpressAuthService authService, AliExpressOAuthStateService states,
+                                       AliExpressTokenService tokens) {
         this.authService = authService;
+        this.states = states;
+        this.tokens = tokens;
     }
 
     @GetMapping(value = "/api/integrations/aliexpress/callback", produces = MediaType.TEXT_PLAIN_VALUE)
@@ -34,10 +39,15 @@ public class AliExpressCallbackController {
             return ResponseEntity.badRequest().body("Callback AliExpress incompleto: codigo de autorizacao ausente.");
         }
         try {
-            authService.exchangeCode(code);
+            if (state != null) states.consume(state);
+            AliExpressTokenData data = authService.exchangeCode(code);
+            // Legacy callbacks keep their response but cannot replace persisted authorization.
+            if (state != null) tokens.store(data);
             return ResponseEntity.ok("Autorizacao AliExpress concluida com sucesso.");
         } catch (AliExpressAuthException exception) {
             return ResponseEntity.status(502).body(exception.getMessage());
+        } catch (AliExpressIntegrationException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessage());
         }
     }
 

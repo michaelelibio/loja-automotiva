@@ -50,14 +50,22 @@ public class AliExpressAuthService {
     }
 
     public AliExpressTokenData exchangeCode(String code) {
+        return tokenRequest(TOKEN_PATH, "code", code);
+    }
+
+    public AliExpressTokenData refreshToken(String refreshToken) {
+        return tokenRequest("/auth/token/refresh", "refresh_token", refreshToken);
+    }
+
+    private AliExpressTokenData tokenRequest(String path, String parameterName, String credential) {
         try {
-            requireConfiguration(code);
+            requireConfiguration(credential);
             Map<String, String> parameters = new TreeMap<>();
             parameters.put("app_key", appKey);
-            parameters.put("code", code);
+            parameters.put(parameterName, credential);
             parameters.put("sign_method", "sha256");
             parameters.put("timestamp", Long.toString(clock.millis()));
-            String signature = sign(parameters);
+            String signature = sign(parameters, path);
             parameters.put("sign", signature);
             StringBuilder form = new StringBuilder();
             parameters.forEach((key, value) -> {
@@ -67,7 +75,7 @@ public class AliExpressAuthService {
             });
             byte[] formBytes = form.toString().getBytes(StandardCharsets.UTF_8);
             // Secret is only the HMAC key, never a transmitted form field.
-            JsonNode response = client.post().uri(TOKEN_PATH)
+            JsonNode response = client.post().uri(path)
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     // Streaming bypasses converter DEBUG logs that print form values.
                     .accept(MediaType.APPLICATION_JSON).body(output -> output.write(formBytes))
@@ -90,8 +98,8 @@ public class AliExpressAuthService {
         }
     }
 
-    private String sign(Map<String, String> parameters) throws Exception {
-        StringBuilder input = new StringBuilder(TOKEN_PATH);
+    private String sign(Map<String, String> parameters, String path) throws Exception {
+        StringBuilder input = new StringBuilder(path);
         parameters.forEach((key, value) -> input.append(key).append(value));
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(appSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

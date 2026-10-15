@@ -1,0 +1,20 @@
+{
+  "ae_item_base_info_dto": {
+    "product_id":"1005008752784588", "subject":"Automotive accessory example",
+    "detail":"<p>Test <strong>description</strong></p><script>unsafe()</script>",
+    "currency_code":"USD", "product_status_type":"onSelling"
+  },
+  "ae_multimedia_info_dto":{"image_urls":"https://ae01.alicdn.com/1.jpg;https://ae01.alicdn.com/2.jpg;https://ae01.alicdn.com/3.jpg;https://ae01.alicdn.com/4.jpg;https://ae01.alicdn.com/5.jpg;https://ae01.alicdn.com/6.jpg"},
+  "ae_item_sku_info_dtos":{"ae_item_sku_info_d_t_o":[
+    {"sku_id":"201","sku_code":"SOURCE-BLACK","sku_attr":"14:771#Black","sku_price":"10.00","offer_sale_price":"8.90","currency_code":"USD","sku_available_stock":"10",
+      "ae_sku_property_dtos":{"ae_sku_property_d_t_o":[{"sku_property_id":"14","property_value_id":"771","sku_property_name":"Color","sku_property_value":"Black","property_value_definition_name":"Black","sku_image":"https://ae01.alicdn.com/black.jpg"}]}},
+    {"sku_id":"202","sku_attr":"14:772#Red","sku_price":"12.50","currency_code":"USD","sku_available_stock":20,
+      "ae_sku_property_dtos":[{"sku_property_id":"14","property_value_id":"999","sku_property_name":"Color","sku_property_value":"Red"}]},
+    {"sku_id":"203","sku_attr":"14:773#Blue","sku_price":"11.10","currency_code":"USD","sku_available_stock":0},
+    {"sku_id":"204","sku_attr":"14:774#White","sku_price":"13.00","currency_code":"USD","sku_available_stock":12}
+  ]},
+  "package_info_dto":{"gross_weight":"0.050","package_length":"18","package_width":"8","package_height":"6","base_unit":"2"},
+  "logistics_info_dto":{"ship_to_country":"US","delivery_time":"7"},
+  "ae_item_properties":{"ae_item_property":[{"attr_name_id":"2","attr_name":"Brand","attr_value":"Example"}]},
+  "ae_store_info":{"store_id":"12345","store_name":"Synthetic store","store_country_code":"CN"}
+}

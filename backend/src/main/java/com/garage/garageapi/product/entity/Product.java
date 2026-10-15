@@ -20,6 +20,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "products")
@@ -67,6 +70,13 @@ public class Product {
 
     @Column(name = "supplier_cost_updated_at")
     private Instant supplierCostUpdatedAt;
+
+    @Column(name = "supplier_cost_currency", length = 3)
+    private String supplierCostCurrency;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "supplier_metadata", columnDefinition = "jsonb")
+    private Map<String, Object> supplierMetadata;
 
     @Column(nullable = false, length = 100)
     private String category;
@@ -217,6 +227,12 @@ public class Product {
     }
 
     public Long getId() { return id; }
+    public void configureSupplierMetadata(String currency, Map<String, Object> metadata) {
+        supplierCostCurrency = currency;
+        supplierMetadata = Map.copyOf(metadata);
+    }
+    public String getSupplierCostCurrency() { return supplierCostCurrency; }
+    public Map<String, Object> getSupplierMetadata() { return supplierMetadata; }
     public String getName() { return name; }
     public String getSlug() { return slug; }
     public String getDescription() { return description; }

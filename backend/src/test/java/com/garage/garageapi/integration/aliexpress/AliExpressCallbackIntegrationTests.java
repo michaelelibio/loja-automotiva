@@ -27,10 +27,12 @@ class AliExpressCallbackIntegrationTests {
 
     @Autowired MockMvc mockMvc;
     @MockitoBean AliExpressAuthService authService;
+    @MockitoBean AliExpressOAuthStateService states;
+    @MockitoBean AliExpressTokenService tokens;
 
     @BeforeEach
     void resetAuthService() {
-        reset(authService);
+        reset(authService,states,tokens);
     }
 
     @Test
@@ -76,6 +78,8 @@ class AliExpressCallbackIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(content().string("Autorizacao AliExpress concluida com sucesso."));
         verify(authService).exchangeCode("test-code");
+        verify(states).consume("test-state");
+        verify(tokens).store(any(AliExpressTokenData.class));
     }
 
     @Test
@@ -92,5 +96,21 @@ class AliExpressCallbackIntegrationTests {
         mockMvc.perform(get(CALLBACK).param("code", " "))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(authService);
+    }
+
+    @Test
+    void invalidStateCannotExchangeOrReplaceAuthorization() throws Exception {
+        doThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.AUTHORIZATION_REQUIRED))
+                .when(states).consume("bad-state");
+        mockMvc.perform(get(CALLBACK).param("code","test-code").param("state","bad-state"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(authService,tokens);
+    }
+
+    @Test
+    void legacyCallbackDoesNotPersistTokens() throws Exception {
+        when(authService.exchangeCode("test-code")).thenReturn(new AliExpressTokenData("synthetic-access",null,3600L,null,null,null,null,null));
+        mockMvc.perform(get(CALLBACK).param("code","test-code")).andExpect(status().isOk());
+        verifyNoInteractions(states,tokens);
     }
 }
