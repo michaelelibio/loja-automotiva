@@ -26,7 +26,10 @@ public class AliExpressAdminController {
             @NotBlank @Pattern(regexp="[A-Z]{3}") String targetCurrency,
             @NotBlank @Pattern(regexp="[a-z]{2}(?:_[A-Z]{2})?") String targetLanguage,
             @NotBlank @Pattern(regexp="[a-f0-9]{64}") String fingerprint,
-            @NotNull @DecimalMin("0.01") @Digits(integer=10,fraction=2) BigDecimal salePriceBrl,
+            @NotBlank @Size(max=150) String name,
+            @NotBlank @Pattern(regexp="Lavagem|Proteção|Detalhamento|Acessórios") String category,
+            @NotEmpty @Size(max=1000) Map<@NotBlank @Size(max=150) String,
+                @NotNull @DecimalMin("0.01") @Digits(integer=10,fraction=2) BigDecimal> variantSalePricesBrl,
             @Size(max=1000) Map<@NotBlank @Size(max=150) String,@NotNull @Min(0) Integer> variantStocks) {}
     public record StockRequest(@NotNull @Min(0) Integer quantity) {}
     @PostMapping("/authorize")

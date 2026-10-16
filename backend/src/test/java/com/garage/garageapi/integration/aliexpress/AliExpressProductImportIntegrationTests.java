@@ -12,6 +12,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -30,12 +31,12 @@ class AliExpressProductImportIntegrationTests {
     @Autowired MockMvc mvc;
     @Autowired ProductRepository products;
     @Autowired ProductVariantRepository variants;
-    @Autowired ProductMediaRepository media;
+    @MockitoSpyBean ProductMediaRepository media;
     @Autowired AliExpressProductService service;
     @MockitoBean AliExpressProductClient client;
     @MockitoBean AliExpressTokenService tokens;
     @BeforeEach void clean() throws Exception {
-        media.deleteAll();variants.deleteAll();products.deleteAll();reset(client,tokens);
+        reset(media);media.deleteAll();variants.deleteAll();products.deleteAll();reset(client,tokens);
         when(tokens.accessToken()).thenReturn("synthetic-provider-token");
         when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenAnswer(invocation->AliExpressProductNormalizerTests.source());
     }
@@ -87,7 +88,7 @@ class AliExpressProductImportIntegrationTests {
         assertThat(products.count()).isEqualTo(1);
         var product=products.findAll().get(0);
         assertThat(product.getSupplier()).isEqualTo("ALIEXPRESS");assertThat(product.getSupplierProductId()).isEqualTo(ID);
-        assertThat(product.getActive()).isFalse();assertThat(product.getCategory()).isEqualTo("Nacionais");
+        assertThat(product.getActive()).isFalse();assertThat(product.getCategory()).isEqualTo("Acessórios");
         assertThat(product.getPrice()).isEqualByComparingTo("99.90");assertThat(product.getCostPrice()).isNull();
         assertThat(product.getSupplierExchangeRate()).isNull();assertThat(product.getSupplierCostCurrency()).isEqualTo("USD");
         assertThat(product.getSupplierCostUsd()).isEqualByComparingTo("8.90");
@@ -110,6 +111,87 @@ class AliExpressProductImportIntegrationTests {
         assertThatThrownBy(()->service.importProduct(request)).isInstanceOfSatisfying(AliExpressIntegrationException.class,
                 e->assertThat(e.getReason()).isEqualTo(AliExpressIntegrationException.Reason.DUPLICATE));
         assertThat(products.count()).isEqualTo(1);assertThat(products.findAll().get(0).getPrice()).isEqualByComparingTo("149.90");
+    }
+    @Test void selectedVariantsKeepCommercialPriceAndSupplierDataAndIgnoreActiveFromBrowser() throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        var body=(tools.jackson.databind.node.ObjectNode)AliExpressProductNormalizerTests.JSON.valueToTree(request(preview.fingerprint(),Map.of()));
+        body.put("name","Nome revisado");body.put("category","Lavagem");body.put("active",true);
+        body.set("variantSalePricesBrl",AliExpressProductNormalizerTests.JSON.readTree("{\"202\":79.90}"));
+        body.put("costPrice",0.01);body.put("stock",999999);
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body.toString()))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.active").value(false)).andExpect(jsonPath("$.variantCount").value(1));
+        var product=products.findAll().get(0);
+        assertThat(product.getName()).isEqualTo("Nome revisado");assertThat(product.getCategory()).isEqualTo("Lavagem");
+        assertThat(product.getPrice()).isEqualByComparingTo("79.90");assertThat(product.getActive()).isFalse();
+        var saved=variants.findAllByProductIdOrderByIdAsc(product.getId());
+        assertThat(saved).hasSize(1);assertThat(saved.get(0).getSupplierVariantId()).isEqualTo("202");
+        assertThat(saved.get(0).getSupplierStockQuantity()).isEqualTo(20);
+        assertThat(saved.get(0).getSupplierCost()).isEqualByComparingTo("12.50");
+        assertThat(product.getSupplierMetadata()).containsKey("variantSalePricesBrl");
+    }
+    @ParameterizedTest @ValueSource(strings={"{}","null","{\"201\":null}","{\"201\":0}","{\"201\":-1}","{\"201\":1.234}","{\"201\":10000000000}","{\"201\":10,\"202\":20}","{\"unknown\":10}"})
+    void rejectsMissingInvalidOrDifferentVariantPrices(String prices) throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        var body=(tools.jackson.databind.node.ObjectNode)AliExpressProductNormalizerTests.JSON.valueToTree(request(preview.fingerprint(),Map.of()));
+        body.set("variantSalePricesBrl",AliExpressProductNormalizerTests.JSON.readTree(prices));
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body.toString())).andExpect(status().isBadRequest());
+        assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
+    }
+    @ParameterizedTest @ValueSource(strings={"name","category","fingerprint","variantSalePricesBrl"})
+    void requiresCommercialFieldsOnServer(String field) throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        var body=(tools.jackson.databind.node.ObjectNode)AliExpressProductNormalizerTests.JSON.valueToTree(request(preview.fingerprint(),Map.of()));
+        body.remove(field);
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body.toString())).andExpect(status().isBadRequest());
+        assertThat(products.count()).isZero();
+    }
+    @Test void rejectsInvalidCategoryOnServer() throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        var body=(tools.jackson.databind.node.ObjectNode)AliExpressProductNormalizerTests.JSON.valueToTree(request(preview.fingerprint(),Map.of()));body.put("category","Inventada");
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body.toString())).andExpect(status().isBadRequest());
+        assertThat(products.count()).isZero();
+    }
+    @Test void duplicateImportReturnsSafeCodeAndDoesNotCallSupplierAgain() throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        var body=importBody(preview.fingerprint(),Map.of());
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
+        clearInvocations(client);
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.fields.code").value("DUPLICATE"));
+        verifyNoInteractions(client);assertThat(products.count()).isEqualTo(1);
+    }
+    @Test void supplierFailureDuringImportDoesNotPersistAnything() throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        when(client.get(anyString(),anyString(),anyString(),anyString(),anyString())).thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.TIMEOUT));
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(importBody(preview.fingerprint(),Map.of()))).andExpect(status().isGatewayTimeout());
+        assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
+    }
+    @Test void persistenceFailureRollsBackAlreadySavedProductAndVariants() throws Exception {
+        var preview=service.preview(ID,"US","USD","en");
+        doThrow(new org.springframework.dao.DataAccessResourceFailureException("synthetic-internal-diagnostic"))
+                .when(media).save(any(ProductMedia.class));
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(importBody(preview.fingerprint(),Map.of())))
+                .andExpect(status().isBadGateway()).andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-internal-diagnostic"))));
+        assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
+    }
+    @Test void importedDraftIsListedInAdminButInvisibleToPublicUntilAdminActivatesIt() throws Exception {
+        var preview=service.preview(ID,"US","USD","en");service.importProduct(request(preview.fingerprint(),Map.of()));
+        var product=products.findAll().get(0);
+        mvc.perform(get("/api/admin/products").with(admin())).andExpect(status().isOk()).andExpect(jsonPath("$.content[0].id").value(product.getId()))
+                .andExpect(jsonPath("$.content[0].active").value(false));
+        for (String path:new String[]{"/api/products","/api/products?search=Produto","/api/products?category=Acessórios"}) {
+            mvc.perform(get(path)).andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(0));
+        }
+        mvc.perform(get("/api/products/"+product.getId())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/products/slug/"+product.getSlug())).andExpect(status().isNotFound());
+        String activePath="/api/admin/products/"+product.getId()+"/active";
+        mvc.perform(patch(activePath).contentType(MediaType.APPLICATION_JSON).content("{\"active\":true}")).andExpect(status().isUnauthorized());
+        mvc.perform(patch(activePath).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))).contentType(MediaType.APPLICATION_JSON).content("{\"active\":true}")).andExpect(status().isForbidden());
+        assertThat(products.findById(product.getId()).orElseThrow().getActive()).isFalse();
+        mvc.perform(patch(activePath).with(admin()).contentType(MediaType.APPLICATION_JSON).content("{\"active\":true}")).andExpect(status().isOk());
+        mvc.perform(get("/api/products/"+product.getId())).andExpect(status().isOk()).andExpect(jsonPath("$.price").value(99.90));
+        mvc.perform(get("/api/products/slug/"+product.getSlug())).andExpect(status().isOk());
+        mvc.perform(get("/api/products")).andExpect(jsonPath("$.content.length()").value(1));
     }
     @Test void invalidStockRollsBackProductAlreadyInserted() {
         var preview=service.preview(ID,"US","USD","en");
@@ -170,7 +252,8 @@ class AliExpressProductImportIntegrationTests {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
     private static AliExpressAdminController.ImportRequest request(String fingerprint,Map<String,Integer> stocks) {
-        return new AliExpressAdminController.ImportRequest(ID,"US","USD","en",fingerprint,new BigDecimal("99.90"),stocks);
+        return new AliExpressAdminController.ImportRequest(ID,"US","USD","en",fingerprint,"Produto comercial","Acessórios",
+                Map.of("201",new BigDecimal("99.90"),"202",new BigDecimal("99.90"),"203",new BigDecimal("99.90"),"204",new BigDecimal("99.90")),stocks);
     }
     private static String importBody(String fingerprint,Map<String,Integer> stocks) throws Exception {
         return AliExpressProductNormalizerTests.JSON.writeValueAsString(request(fingerprint,stocks));

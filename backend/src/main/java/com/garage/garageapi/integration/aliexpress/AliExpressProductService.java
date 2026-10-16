@@ -33,25 +33,42 @@ public class AliExpressProductService {
     }
     @Transactional
     public Map<String,Object> importProduct(AliExpressAdminController.ImportRequest request) {
-        if (request.salePriceBrl() == null || request.salePriceBrl().signum() <= 0 || request.salePriceBrl().scale() > 2
-                || request.salePriceBrl().precision() - request.salePriceBrl().scale() > 10) throw new AliExpressIntegrationException(INVALID_INPUT);
+        if (request.name() == null || request.name().isBlank() || request.name().length() > 150
+                || !Set.of("Lavagem","Proteção","Detalhamento","Acessórios").contains(Optional.ofNullable(request.category()).orElse(""))
+                || request.fingerprint() == null || !request.fingerprint().matches("[a-f0-9]{64}")) throw new AliExpressIntegrationException(INVALID_INPUT);
+        Map<String,BigDecimal> salePrices = request.variantSalePricesBrl();
+        if (salePrices == null || salePrices.isEmpty() || salePrices.size() > 1000) throw new AliExpressIntegrationException(INVALID_INPUT);
+        BigDecimal salePrice = salePrices.values().iterator().next();
+        for (var entry : salePrices.entrySet()) {
+            BigDecimal price = entry.getValue();
+            if (entry.getKey() == null || entry.getKey().isBlank() || entry.getKey().length() > 150
+                    || price == null || price.signum() <= 0 || price.scale() > 2
+                    || price.precision() - price.scale() > 10 || salePrice == null || price.compareTo(salePrice) != 0)
+                throw new AliExpressIntegrationException(INVALID_INPUT);
+        }
+        // A product has one selling price today. Never accept different variant prices
+        // while checkout uses Product.price. Each selected variant must explicitly have a price.
+        String requestedId = AliExpressProductInput.productId(request.input());
+        if (products.existsBySupplierIgnoreCaseAndSupplierProductId("ALIEXPRESS",requestedId)) throw new AliExpressIntegrationException(DUPLICATE);
         AliExpressProductPreview source = preview(request.input(),request.shipToCountry(),request.targetCurrency(),request.targetLanguage());
         if (!source.fingerprint().equals(request.fingerprint())) throw new AliExpressIntegrationException(STALE_PREVIEW);
         if (products.existsBySupplierIgnoreCaseAndSupplierProductId("ALIEXPRESS", source.productId())) throw new AliExpressIntegrationException(DUPLICATE);
         Map<String,Integer> overrides = request.variantStocks() == null ? Map.of() : request.variantStocks();
         Set<String> ids = new HashSet<>(); source.variants().forEach(v -> ids.add(v.skuId()));
-        if (!ids.containsAll(overrides.keySet())) throw new AliExpressIntegrationException(INVALID_INPUT);
+        if (!ids.containsAll(salePrices.keySet()) || !salePrices.keySet().containsAll(overrides.keySet()) || overrides.size() > 1000)
+            throw new AliExpressIntegrationException(INVALID_INPUT);
+        var selected = source.variants().stream().filter(v -> salePrices.containsKey(v.skuId())).toList();
         String sku = "AE-" + source.productId();
         String slug = "aliexpress-" + source.productId();
         if (products.existsBySlug(slug) || products.existsBySkuIgnoreCase(sku)) throw new AliExpressIntegrationException(DUPLICATE);
-        BigDecimal cost = source.variants().stream().map(AliExpressProductPreview.Variant::price).min(BigDecimal::compareTo).orElseThrow();
+        BigDecimal cost = selected.stream().map(AliExpressProductPreview.Variant::price).min(BigDecimal::compareTo).orElseThrow();
         String shortDescription = truncate(source.description(),1000);
         String mainImage = source.images().stream().filter(url -> url.length() <= 500).findFirst().orElse(null);
-        Product product = new Product(truncate(source.name(),150),slug,shortDescription,truncate(source.description(),5000),
-                request.salePriceBrl(),null,"Nacionais",0,mainImage,false);
-        product.updateAdmin(product.getName(),slug,shortDescription,product.getLongDescription(),request.salePriceBrl(),null,
+        Product product = new Product(request.name().trim(),slug,shortDescription,truncate(source.description(),5000),
+                salePrice,null,request.category(),0,mainImage,false);
+        product.updateAdmin(product.getName(),slug,shortDescription,product.getLongDescription(),salePrice,null,
                 "BRL".equals(source.currency()) ? cost.setScale(2,RoundingMode.HALF_UP) : null,
-                "Nacionais",mainImage,false,ProductType.SINGLE,sku);
+                request.category(),mainImage,false,ProductType.SINGLE,sku);
         product.linkSupplier("ALIEXPRESS",source.productId(),"USD".equals(source.currency()) ? cost : null,null,Instant.now());
         product.configureFulfillment(FulfillmentType.DROPSHIPPING);
         Map<String,Object> metadata = new TreeMap<>();
@@ -60,22 +77,25 @@ public class AliExpressProductService {
         metadata.put("logistics",source.logistics()); metadata.put("store",source.store());
         metadata.put("shipToCountry",source.shipToCountry()); metadata.put("images",source.images());
         metadata.put("minimumSupplierCost",cost.toPlainString()); metadata.put("domesticShippingConfirmed",false);
+        Map<String,String> reviewedPrices = new TreeMap<>();
+        salePrices.forEach((id,price) -> reviewedPrices.put(id,price.toPlainString()));
+        metadata.put("variantSalePricesBrl",reviewedPrices);
         Map<String,Integer> stockSnapshot = new TreeMap<>();
         Map<String,List<String>> variantImages = new TreeMap<>();
-        source.variants().forEach(v -> { stockSnapshot.put(v.skuId(),v.availableStock()); variantImages.put(v.skuId(),v.images()); });
+        selected.forEach(v -> { stockSnapshot.put(v.skuId(),v.availableStock()); variantImages.put(v.skuId(),v.images()); });
         metadata.put("stockSnapshot",stockSnapshot); metadata.put("variantImages",variantImages);
         product.configureSupplierMetadata(source.currency(),metadata);
         try {
             products.saveAndFlush(product);
             LinkedHashSet<String> allImages = new LinkedHashSet<>(source.images());
-            for (var variant : source.variants()) {
+            for (var variant : selected) {
                 Integer reviewedStock = overrides.getOrDefault(variant.skuId(),variant.availableStock());
                 if (reviewedStock == null) throw new AliExpressIntegrationException(INVALID_INPUT);
                 int stock = reviewedStock;
                 if (stock < 0 || stock > variant.availableStock()) throw new AliExpressIntegrationException(INVALID_INPUT);
                 if (variants.findBySupplierIgnoreCaseAndSupplierVariantId("ALIEXPRESS",variant.skuId()).isPresent()) throw new AliExpressIntegrationException(DUPLICATE);
                 ProductVariant saved = new ProductVariant(product,"ALIEXPRESS",variant.skuId(),source.productId(),variant.skuCode(),
-                        variant.skuId(),variant.attributes(),variant.rawSkuAttr(),variant.price(),variant.currency(),
+                        variantName(variant),variant.attributes(),variant.rawSkuAttr(),variant.price(),variant.currency(),
                         variant.images().stream().filter(url -> url.length() <= 500).findFirst().orElse(null),null,null,null,null);
                 saved.setSupplierStockQuantity(stock);
                 variants.save(saved); allImages.addAll(variant.images());
@@ -87,7 +107,7 @@ public class AliExpressProductService {
             }
             variants.flush(); media.flush();
         } catch (DataIntegrityViolationException ignored) { throw new AliExpressIntegrationException(DUPLICATE); }
-        return Map.of("productId",product.getId(),"supplierProductId",source.productId(),"active",false,"variantCount",source.variants().size());
+        return Map.of("productId",product.getId(),"supplierProductId",source.productId(),"active",false,"variantCount",selected.size());
     }
     @Transactional
     public Map<String,Object> reviewStock(Long productId, Long variantId, int quantity) {
@@ -110,4 +130,10 @@ public class AliExpressProductService {
                 "supplierStockQuantity",v.getSupplierStockQuantity())).toList();
     }
     private static String truncate(String value,int max) { return value == null ? null : value.substring(0,Math.min(value.length(),max)); }
+    private static String variantName(AliExpressProductPreview.Variant variant) {
+        String label = variant.attributes().entrySet().stream()
+                .filter(e -> !e.getKey().endsWith(":name") && !e.getKey().endsWith(":valueId"))
+                .map(Map.Entry::getValue).collect(java.util.stream.Collectors.joining(" / "));
+        return truncate(label.isBlank() ? Optional.ofNullable(variant.skuCode()).orElse(variant.skuId()) : label,500);
+    }
 }

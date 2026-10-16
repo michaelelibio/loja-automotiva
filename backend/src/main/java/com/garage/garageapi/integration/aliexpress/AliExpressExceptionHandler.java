@@ -26,7 +26,8 @@ public class AliExpressExceptionHandler {
             default -> HttpStatus.BAD_GATEWAY;
         };
         LOG.warn("AliExpress operation rejected; reason={}",exception.getReason());
-        return ResponseEntity.status(status).body(new ApiError(Instant.now(),status.value(),status.getReasonPhrase(),exception.getMessage(),request.getRequestURI(),Map.of()));
+        Map<String,String> fields = status == HttpStatus.CONFLICT ? Map.of("code",exception.getReason().name()) : Map.of();
+        return ResponseEntity.status(status).body(new ApiError(Instant.now(),status.value(),status.getReasonPhrase(),exception.getMessage(),request.getRequestURI(),fields));
     }
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ApiError> persistence(DataAccessException exception,HttpServletRequest request) {

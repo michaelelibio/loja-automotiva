@@ -80,16 +80,29 @@ Após revisar a prévia, envie `POST /api/admin/integrations/aliexpress/import`:
   "targetCurrency": "USD",
   "targetLanguage": "en",
   "fingerprint": "COPIE_O_FINGERPRINT_DA_PREVIA",
-  "salePriceBrl": 99.90,
+  "name": "Nome comercial revisado",
+  "category": "Acessórios",
+  "variantSalePricesBrl": {"201": 99.90, "202": 99.90},
   "variantStocks": {}
 }
 ```
 
-`salePriceBrl` é um preço comercial deliberadamente definido pelo administrador, positivo e com até duas casas decimais. Ele não é uma conversão automática. Custos e preços do fornecedor nunca são aceitos do navegador: o backend consulta a API novamente e exige que o fingerprint dos dados seja igual ao da prévia. Mudanças exigem nova revisão. Campos de custo falsificados no JSON não são usados.
+`name` é obrigatório (até 150 caracteres) e `category` deve ser uma das categorias do catálogo: Lavagem, Proteção, Detalhamento ou Acessórios. `variantSalePricesBrl` contém somente os IDs das variantes selecionadas, cada um com um preço comercial obrigatório, positivo, até dez dígitos inteiros e duas casas decimais. O catálogo/checkout existente possui um único preço por produto: todos os preços selecionados devem ser iguais, independentemente da representação decimal (`99.9` e `99.90` são equivalentes). Preços diferentes são rejeitados pelo servidor; variantes ausentes no mapa não são importadas. Não há preenchimento automático com o custo.
 
-`variantStocks` permite quantidades revisadas por `skuId`; são aceitas somente reduções ou valores iguais ao observado na API. IDs desconhecidos, quantidades negativas ou superiores ao snapshot são rejeitados. Campo omitido usa a quantidade observada.
+Custos e preços do fornecedor nunca são aceitos do navegador: o backend consulta a API novamente e exige que o fingerprint dos dados seja igual ao da prévia. Mudanças exigem nova revisão. Campos de custo, estoque global e status falsificados no JSON não são usados. Os preços comerciais revisados também ficam registrados em `supplierMetadata.variantSalePricesBrl`; o preço efetivo comum é persistido em `Product.price` e aplicado a todas as variantes pelo catálogo existente. Não houve mudança no checkout nem necessidade de migração.
 
-Em uma transação, são criados produto inativo, variantes com IDs externos e estoque do fornecedor, imagens e metadados. A resposta HTTP 201 contém `productId` interno, `supplierProductId`, `active=false` e `variantCount`. O SKU interno é `AE-ID`, e o slug `aliexpress-ID`. A categoria inicial é `Nacionais`, editável pela administração existente.
+`variantStocks` permite quantidades revisadas por `skuId`; são aceitas somente reduções ou valores iguais ao observado na API, apenas para variantes selecionadas. IDs desconhecidos, quantidades negativas ou superiores ao snapshot são rejeitados. Campo omitido usa a quantidade observada. A interface atual mantém o estoque confirmado pelo fornecedor.
+
+Em uma transação, são criados produto inativo, variantes selecionadas com IDs externos, SKUs e estoque do fornecedor, imagens e metadados. A resposta HTTP 201 contém `productId` interno, `supplierProductId`, `active=false` e `variantCount`. O SKU interno é `AE-ID`, e o slug `aliexpress-ID`. Nome e categoria são os valores revisados pelo administrador. O agrupamento da prévia não substitui essa escolha.
+
+### Regra permanente de publicação
+
+- Toda importação AliExpress impõe `active=false` no servidor. O contrato não aceita controle de publicação pelo navegador.
+- Rascunhos aparecem na listagem administrativa padrão, que inclui ativos e inativos.
+- Listagem/busca pública e os produtos relacionados usam o catálogo público filtrado por `active=true`; detalhes por ID e slug retornam 404 para inativos.
+- Somente ADMIN autenticado pode ativar o produto pela funcionalidade administrativa existente. A importação nunca chama essa ativação.
+- O frontend atualiza a listagem administrativa após importar e oferece um link para editar o rascunho.
+- Conflitos HTTP 409 incluem apenas um código fixo em `fields.code`: `DUPLICATE`, `STALE_PREVIEW` ou `AUTHORIZATION_REQUIRED`. Nenhum texto interno do fornecedor é exibido.
 
 Custos originais ficam nas variantes com a moeda efetiva retornada e nos metadados do produto. `supplierCostUsd` só é preenchido para USD; `costPrice` BRL só quando a API efetivamente retorna BRL. Nenhuma taxa USD/BRL fictícia é aplicada. O campo de preço comercial usa o valor BRL revisado pelo administrador.
 
