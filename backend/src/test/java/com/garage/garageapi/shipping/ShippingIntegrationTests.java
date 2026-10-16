@@ -238,6 +238,24 @@ class ShippingIntegrationTests {
                 .content("{\"zipCode\":\"" + zipCode + "\",\"items\":" + items + "}"));
     }
 
+    @Test
+    void aliExpressNeverFallsBackToLocalShippingEvenInMixedCarts() throws Exception {
+        Product ali = cjProduct("AliExpress", "ali-freight");
+        ali.linkSupplier("ALIEXPRESS", "1005010661577657", BigDecimal.TEN, BigDecimal.ONE, Instant.now());
+        productRepository.saveAndFlush(ali);
+        Product local = product("Local", "ali-local", "20", true, 10);
+        for (String zip : List.of("89229030", "01001000")) {
+            for (int quantity : List.of(1, 2)) {
+                String line = "{\"productId\":" + ali.getId() + ",\"quantity\":" + quantity + "}";
+                for (String lines : List.of("[" + line + "]", "[" + line + ",{\"productId\":" + local.getId() + ",\"quantity\":1}]")) {
+                    quote(zip, lines).andExpect(status().isConflict())
+                            .andExpect(jsonPath("$.message").value(com.garage.garageapi.integration.aliexpress.AliExpressFreightService.UNAVAILABLE));
+                }
+            }
+        }
+        verifyNoInteractions(availabilityProvider, commerceService);
+    }
+
     private Product product(String name, String slug, String price, boolean active, int stock) {
         return productRepository.save(new Product(name, slug, null, null, new BigDecimal(price),
                 null, "Categoria", stock, null, active));

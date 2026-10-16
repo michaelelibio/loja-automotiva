@@ -24,6 +24,17 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(com.garage.garageapi.order.recipient.RecipientValidationException.class)
+    public ResponseEntity<ApiError> handleRecipient(com.garage.garageapi.order.recipient.RecipientValidationException exception,
+                                                   HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST,exception.getMessage(),request.getRequestURI(),exception.getFields());
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadable(org.springframework.http.converter.HttpMessageNotReadableException exception,
+                                                    HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST,"Não foi possível ler os dados enviados. Confira o formato dos campos.",request.getRequestURI(),Map.of());
+    }
 
     @ExceptionHandler({InvalidCredentialsException.class, InvalidGoogleTokenException.class})
     public ResponseEntity<ApiError> handleUnauthorized(RuntimeException exception,

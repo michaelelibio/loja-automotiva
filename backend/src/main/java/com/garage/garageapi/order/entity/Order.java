@@ -104,6 +104,21 @@ public class Order {
     @Column(nullable = false, length = 2)
     private String state;
 
+    // Nullable recipient snapshots. Never exposed as personal values in order DTOs.
+    @Column(name = "recipient_cpf", length = 11)
+    private String recipientCpf;
+    @Column(name = "recipient_birth_date")
+    private java.time.LocalDate recipientBirthDate;
+    @Column(name = "recipient_phone", length = 15)
+    private String recipientPhone;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore public String getRecipientCpf() { return recipientCpf; }
+    @com.fasterxml.jackson.annotation.JsonIgnore public java.time.LocalDate getRecipientBirthDate() { return recipientBirthDate; }
+    @com.fasterxml.jackson.annotation.JsonIgnore public String getRecipientPhone() { return recipientPhone; }
+    public void snapshotRecipient(com.garage.garageapi.order.recipient.AliExpressRecipientData.Normalized data) {
+        recipientCpf=data.cpf(); recipientBirthDate=data.birthDate(); recipientPhone=data.phone();
+    }
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<OrderItem> items = new ArrayList<>();

@@ -40,6 +40,7 @@ public class PaymentAttemptService {
         if (!Instant.now().isBefore(order.getExpiresAt())) {
             throw new ResourceConflictException("Prazo para pagamento do pedido expirou");
         }
+        com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(order);
         Payment payment = paymentRepository
                 .findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(orderId, PaymentStatus.PENDING)
                 .orElseGet(() -> paymentRepository.saveAndFlush(
@@ -63,6 +64,7 @@ public class PaymentAttemptService {
                                             CheckoutProGateway.PreferenceRequest request) {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
+        com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(payment.getOrder());
         if (payment.getProviderPreferenceId() != null) return payment;
         CheckoutProGateway.PreferenceResult result = checkoutProGateway.createPreference(request);
         payment.applyCheckoutPreference(result.preferenceId(), result.externalReference(),

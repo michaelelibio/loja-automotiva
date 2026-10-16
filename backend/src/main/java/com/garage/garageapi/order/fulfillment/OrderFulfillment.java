@@ -34,6 +34,53 @@ public class OrderFulfillment {
     @Column(name = "supplier_shipment_order_id", length = 200)
     private String supplierShipmentOrderId;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "supplier_order_ids", columnDefinition = "jsonb")
+    private java.util.List<String> supplierOrderIds;
+    @Column(name = "supplier_status", length = 40)
+    private String supplierStatus;
+
+    public java.util.List<String> getSupplierOrderIds() { return supplierOrderIds == null ? java.util.List.of() : java.util.List.copyOf(supplierOrderIds); }
+    public String getSupplierStatus() { return supplierStatus; }
+
+    public void prepareAliExpress() {
+        if (status == FulfillmentStatus.NOT_REQUIRED && "NONE".equals(provider) && attemptCount == 0 && supplierOrderId == null) {
+            provider = "ALIEXPRESS"; status = FulfillmentStatus.PENDING;
+        }
+    }
+
+    public String beginAliExpress(Instant now) {
+        if (!"ALIEXPRESS".equals(provider)) return null;
+        String token = claim(now);
+        if (token == null) return null;
+        // Commit uncertainty BEFORE the network call. Crashes and concurrent requests must never resend.
+        markCreationAttempt(token,now);
+        status = FulfillmentStatus.VERIFICATION_REQUIRED;
+        supplierStatus = "UNKNOWN";
+        lastError = "Verificação necessária. Não reenviar antes da reconciliação.";
+        return token;
+    }
+
+    public void finishAliExpress(String token, java.util.List<String> ids, boolean rejected, Instant now) {
+        if (!"ALIEXPRESS".equals(provider) || status != FulfillmentStatus.VERIFICATION_REQUIRED
+                || token == null || !token.equals(processingToken)) return;
+        if (ids != null && !ids.isEmpty()) {
+            supplierOrderIds = java.util.List.copyOf(ids);
+            supplierOrderId = ids.get(0);
+            status = FulfillmentStatus.CREATED;
+            supplierStatus = "AWAITING_MANUAL_PAYMENT";
+            lastError = null;
+            createdExternallyAt = now;
+            if (order.getStatus() == com.garage.garageapi.order.entity.OrderStatus.PAID) order.startProcessing(now);
+        } else if (rejected) {
+            status = FulfillmentStatus.FAILED;
+            supplierStatus = "REJECTED";
+            lastError = "O AliExpress recusou a criação. Confira os dados e o frete antes de tentar novamente.";
+        }
+        processingToken = null;
+        updatedAt = now;
+    }
+
     @Column(name = "external_reference", nullable = false, unique = true, length = 50)
     private String externalReference;
 

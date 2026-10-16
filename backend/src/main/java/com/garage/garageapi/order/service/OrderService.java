@@ -110,6 +110,10 @@ public class OrderService {
         }
         subtotal = money(subtotal);
 
+        boolean aliExpressRequired=products.stream().anyMatch(product -> product.getFulfillmentType()==com.garage.garageapi.product.entity.FulfillmentType.DROPSHIPPING
+                && "ALIEXPRESS".equalsIgnoreCase(product.getSupplier()));
+        var recipient=aliExpressRequired ? com.garage.garageapi.order.recipient.AliExpressRecipientData.validate(request.recipient(),address) : null;
+
         List<ShippingProvider.Item> shippingItems = snapshots.stream()
                 .map(snapshot -> shippingService.item(snapshot.product(), snapshot.variant(),
                         snapshot.quantity()))
@@ -118,6 +122,7 @@ public class OrderService {
                 shippingItems, request.shippingCode());
 
         Order order = new Order(user, address, subtotal, shipping, orderExpiration);
+        if(recipient!=null) order.snapshotRecipient(recipient);
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.variant(), snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
         orderRepository.saveAndFlush(order);

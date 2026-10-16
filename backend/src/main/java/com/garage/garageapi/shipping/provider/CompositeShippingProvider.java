@@ -13,14 +13,22 @@ import java.util.List;
 public class CompositeShippingProvider implements ShippingProvider {
     private final FixedShippingProvider localProvider;
     private final CjShippingProvider cjProvider;
+    private final com.garage.garageapi.integration.aliexpress.AliExpressFreightService aliExpressFreight;
 
-    public CompositeShippingProvider(FixedShippingProvider localProvider, CjShippingProvider cjProvider) {
+    public CompositeShippingProvider(FixedShippingProvider localProvider, CjShippingProvider cjProvider,
+            com.garage.garageapi.integration.aliexpress.AliExpressFreightService aliExpressFreight) {
         this.localProvider = localProvider;
         this.cjProvider = cjProvider;
+        this.aliExpressFreight = aliExpressFreight;
     }
 
     @Override
     public List<Option> quote(Request request) {
+        // Do this before contacting any provider, including in mixed carts.
+        if (request.items().stream().anyMatch(item -> "ALIEXPRESS".equalsIgnoreCase(item.supplier())
+                && item.fulfillmentType() == FulfillmentType.DROPSHIPPING)) {
+            return aliExpressFreight.quote(request);
+        }
         List<Item> local = request.items().stream()
                 .filter(item -> item.fulfillmentType() == FulfillmentType.LOCAL_STOCK
                         || (item.fulfillmentType() == FulfillmentType.DROPSHIPPING

@@ -5,5 +5,6 @@ public enum FulfillmentStatus {
     PENDING,
     PROCESSING,
     CREATED,
-    FAILED
+    FAILED,
+    VERIFICATION_REQUIRED
 }

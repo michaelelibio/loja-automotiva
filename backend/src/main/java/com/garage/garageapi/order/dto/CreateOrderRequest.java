@@ -11,5 +11,11 @@ public record CreateOrderRequest(
         @NotNull(message = "endereço é obrigatório") Long addressId,
         @NotEmpty(message = "pedido deve possuir ao menos um item")
         List<@Valid CreateOrderItemRequest> items,
-        @Size(max = 50, message = "código de frete inválido") String shippingCode
-) { }
+        @Size(max = 50, message = "código de frete inválido") String shippingCode,
+        AliExpressRecipientRequest recipient
+) {
+    public CreateOrderRequest(Long addressId,List<CreateOrderItemRequest> items,String shippingCode) {
+        this(addressId,items,shippingCode,null);
+    }
+    @Override public String toString() { return "CreateOrderRequest[recipient=REDACTED]"; }
+}

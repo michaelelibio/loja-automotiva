@@ -26,7 +26,8 @@ public record ProductResponse(
         Boolean availableForSale,
         Boolean requiresVariantSelection,
         List<ProductVariantResponse> variants,
-        List<ProductMediaResponse> media
+        List<ProductMediaResponse> media,
+        boolean requiresAliExpressRecipientData
 ) {
     public static ProductResponse from(Product product) {
         List<ProductVariantResponse> activeVariants = product.getVariants().stream()
@@ -42,7 +43,8 @@ public record ProductResponse(
                         .sorted(Comparator.comparing(ProductMedia::getPosition)
                                 .thenComparing(ProductMedia::getId,
                                         Comparator.nullsLast(Comparator.naturalOrder())))
-                        .map(ProductMediaResponse::from).toList()
+                        .map(ProductMediaResponse::from).toList(),
+                product.getFulfillmentType()==FulfillmentType.DROPSHIPPING && "ALIEXPRESS".equalsIgnoreCase(product.getSupplier())
         );
     }
 }

@@ -19,7 +19,7 @@ public class OrderFulfillmentInitializer {
         Set<String> providers = order.getItems().stream()
                 .filter(item -> item.getFulfillmentType() == FulfillmentType.DROPSHIPPING)
                 .map(item -> item.getSupplier() == null ? "" : item.getSupplier().trim().toUpperCase(Locale.ROOT))
-                .filter(provider -> "CJ".equals(provider) || "DSERS".equals(provider))
+                .filter(provider -> "CJ".equals(provider) || "DSERS".equals(provider) || "ALIEXPRESS".equals(provider))
                 .collect(java.util.stream.Collectors.toSet());
         String provider = providers.isEmpty() ? "NONE"
                 : providers.size() == 1 ? providers.iterator().next() : "MULTIPLE";

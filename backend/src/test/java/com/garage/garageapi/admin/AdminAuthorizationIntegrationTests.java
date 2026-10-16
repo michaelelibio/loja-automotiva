@@ -54,6 +54,23 @@ class AdminAuthorizationIntegrationTests {
     }
 
     @Test
+    void aliExpressDiagnosticRequiresAdminAndNeverClaimsUntestedPermission() throws Exception {
+        String path = "/api/admin/integrations/aliexpress/authorization-diagnostic";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt()
+                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt()
+                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.refreshAttempted").value(false))
+                .andExpect(jsonPath("$.freightPermission").value("NOT_VERIFIED"))
+                .andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist());
+    }
+
+    @Test
     void publicRegistrationCannotChooseAdminAndUserJwtStillWorks() throws Exception {
         register("normal@example.com", "ADMIN");
         String token = login("normal@example.com");
