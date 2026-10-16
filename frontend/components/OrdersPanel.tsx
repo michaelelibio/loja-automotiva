@@ -6,7 +6,7 @@ import { getOrders } from '@/lib/api/orders';
 import type { Order, OrderStatus } from '@/lib/types/order';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-export const statusLabels: Record<OrderStatus, string> = { PENDING_PAYMENT: 'Aguardando pagamento', PAID: 'Pago', PROCESSING: 'Em preparação', SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELED: 'Cancelado', EXPIRED: 'Expirado' };
+export const statusLabels: Record<OrderStatus, string> = { PENDING_PAYMENT: 'Aguardando pagamento', PAID: 'Pago', PROCESSING: 'Preparando pedido', SHIPPED: 'Enviado', DELIVERED: 'Entregue', CANCELED: 'Cancelado', EXPIRED: 'Expirado' };
 export const formatOrderDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) { return <span className={`order-status ${status.toLowerCase()}`}>{statusLabels[status]}</span>; }

@@ -20,6 +20,7 @@ export type Product = {
   media?: ProductMedia[];
   featured?: boolean;
   requiresVariantSelection: boolean;
+  requiresAliExpressRecipientData?: boolean;
   variants: ProductVariant[];
 };
 
@@ -55,6 +56,7 @@ export type BackendProductResponse = {
   fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING';
   availableForSale: boolean;
   requiresVariantSelection?: boolean;
+  requiresAliExpressRecipientData?: boolean;
   variants?: Array<{ id: number; name: string | null; sku: string | null;
     attributes: Record<string, string> | null; imageUrl: string | null }>;
   media?: Array<{ id: number; type: 'IMAGE' | 'VIDEO'; url: string;
@@ -218,6 +220,7 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     media,
     featured,
     requiresVariantSelection,
+    requiresAliExpressRecipientData: payload.requiresAliExpressRecipientData === true,
     variants,
   };
 }

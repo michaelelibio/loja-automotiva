@@ -16,7 +16,7 @@ const zip = (value: string) => value.replace(/\D/g, '').replace(/^(\d{5})(\d{3})
 const statusContent: Record<OrderStatus, { title: string; description: string }> = {
   PENDING_PAYMENT: { title: 'Aguardando pagamento', description: 'Seu pedido foi criado e está aguardando a confirmação do pagamento.' },
   PAID: { title: 'Pagamento aprovado', description: 'O pagamento do seu pedido foi aprovado.' },
-  PROCESSING: { title: 'Em preparação', description: 'Seu pedido está sendo preparado.' },
+  PROCESSING: { title: 'Preparando pedido', description: 'Seu pedido está sendo preparado.' },
   SHIPPED: { title: 'Enviado', description: 'Seu pedido foi enviado.' },
   DELIVERED: { title: 'Entregue', description: 'Seu pedido foi entregue.' },
   CANCELED: { title: 'Cancelado', description: 'Este pedido foi cancelado.' },

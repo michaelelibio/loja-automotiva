@@ -1,5 +1,5 @@
 import tokenStorage from '@/lib/auth/tokenStorage';
-import type { AdminOrder, AdminOrderFulfillment, AdminOrderPage, AdminOrderStatus } from '@/lib/types/admin-order';
+import type { AdminAliExpressOrder, AdminOrder, AdminOrderFulfillment, AdminOrderPage, AdminOrderStatus } from '@/lib/types/admin-order';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const endpoint = `${API_BASE}/api/admin/orders`;
@@ -47,3 +47,26 @@ export function retryAdminOrderFulfillment(id: number): Promise<AdminOrderFulfil
     method: 'POST',
   });
 }
+
+async function aliExpressOrderRequest(id: number, send: boolean): Promise<AdminAliExpressOrder> {
+  const token = tokenStorage.getToken();
+  if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
+  let response: Response;
+  try {
+    response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress${send ? '/send' : ''}`, {
+      method: send ? 'POST' : 'GET', cache: 'no-store', headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch { throw new AdminOrderApiError('Não foi possível confirmar o resultado. Atualize o pedido antes de continuar.', 0); }
+  if (!response.ok) throw new AdminOrderApiError(response.status === 409
+    ? 'Envio bloqueado. Atualize o pedido e confira os pré-requisitos ou a necessidade de reconciliação.'
+    : 'Não foi possível consultar o envio ao AliExpress. Atualize o pedido.', response.status);
+  try {
+    const data: AdminAliExpressOrder = await response.json();
+    if (data.orderId !== id || typeof data.canSend !== 'boolean' || typeof data.paymentConfirmed !== 'boolean'
+      || !['NOT_REQUIRED', 'PENDING', 'PROCESSING', 'CREATED', 'FAILED', 'VERIFICATION_REQUIRED'].includes(data.status)) throw new Error();
+    return data;
+  } catch { throw new AdminOrderApiError('Resposta não confirmada. Atualize o pedido antes de continuar.', 0); }
+}
+
+export function getAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false); }
+export function sendAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, true); }

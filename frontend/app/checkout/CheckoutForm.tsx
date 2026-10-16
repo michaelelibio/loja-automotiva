@@ -12,6 +12,8 @@ import { createOrder } from '@/lib/api/orders';
 import { quoteShipping, ShippingApiError } from '@/lib/api/shipping';
 import type { Address } from '@/lib/types/address';
 import type { ShippingOption, ShippingQuoteRequest } from '@/lib/types/shipping';
+import { AliExpressRecipientFields } from '@/components/AliExpressRecipientFields';
+import { emptyRecipient, validateRecipient, type AliExpressRecipientInput, type RecipientErrors } from '@/lib/checkout/recipient';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const zip = (value: string) => value.replace(/\D/g, '').replace(/^(\d{5})(\d{3})$/, '$1-$2');
@@ -32,6 +34,8 @@ export function CheckoutForm() {
   const [quoteAttempt, setQuoteAttempt] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [recipient, setRecipient] = useState<AliExpressRecipientInput>(emptyRecipient);
+  const [recipientErrors, setRecipientErrors] = useState<RecipientErrors>({});
 
   useEffect(() => {
     if (!authLoading && !sessionError && !isAuthenticated) router.replace('/login');
@@ -62,6 +66,7 @@ export function CheckoutForm() {
   const requestItems = useMemo(() => cartProducts.map((item) => ({ productId: Number(item.productId),
     ...(item.variantId ? { variantId: Number(item.variantId) } : {}), quantity: item.quantity })), [cartProducts]);
   const selectedAddress = addresses.find((address) => address.id === selectedAddressId) ?? null;
+  const requiresRecipient = cartProducts.some(({ product }) => product.requiresAliExpressRecipientData === true);
   const selectedShipping = shippingOptions.find((option) => option.code === selectedShippingCode) ?? null;
   const visualTotal = subtotal + (selectedShipping?.price ?? 0);
   const quoteKey = selectedAddress && requestItems.length > 0 ? JSON.stringify({ addressId: selectedAddress.id, zipCode: selectedAddress.zipCode, items: requestItems }) : '';
@@ -83,7 +88,9 @@ export function CheckoutForm() {
         if (controller.signal.aborted) return;
         if (reason instanceof ShippingApiError && reason.status === 401) { logout(); router.replace('/login'); return; }
         if (reason instanceof ShippingApiError && reason.status === 409) {
-          setShippingError('Uma opção selecionada está indisponível para entrega no momento.');
+          setShippingError(requiresRecipient
+            ? 'O frete dos produtos AliExpress ainda não pode ser confirmado. A compra está temporariamente indisponível para esses itens.'
+            : 'Uma opção selecionada está indisponível para entrega no momento.');
         } else if (reason instanceof ShippingApiError && reason.status >= 500) {
           setShippingError('O serviço de entrega está temporariamente indisponível. Tente novamente.');
         } else {
@@ -93,16 +100,23 @@ export function CheckoutForm() {
     }
     void loadQuote();
     return () => controller.abort();
-  }, [quoteKey, quoteAttempt, logout, router]);
+  }, [quoteKey, quoteAttempt, logout, router, requiresRecipient]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSubmitError(null);
     if (!selectedAddressId) return setSubmitError('Selecione um endereço de entrega.');
     if (requestItems.length === 0) return setSubmitError('Seu carrinho está vazio.');
+    if (requiresRecipient) {
+      const errors = validateRecipient(recipient, selectedAddress);
+      setRecipientErrors(errors);
+      if (Object.keys(errors).length) return setSubmitError('Confira os dados do destinatário destacados abaixo.');
+    }
     if (!selectedShipping) return setSubmitError('Selecione uma opção de entrega válida.');
     setSubmitting(true);
     try {
-      const order = await createOrder({ addressId: selectedAddressId, shippingCode: selectedShipping.code, items: requestItems });
+      const order = await createOrder({ addressId: selectedAddressId, shippingCode: selectedShipping.code, items: requestItems,
+        ...(requiresRecipient ? { recipient } : {}) });
+      setRecipient(emptyRecipient); setRecipientErrors({});
       try { sessionStorage.setItem('garage-last-order', JSON.stringify(order)); } catch { /* detalhe também consulta a API */ }
       clearCart();
       router.push(`/conta/pedidos/${order.id}`);
@@ -111,6 +125,7 @@ export function CheckoutForm() {
   }
 
   function selectAddress(id: number) {
+    setRecipient(emptyRecipient); setRecipientErrors({});
     setSelectedAddressId(id); setShippingOptions([]); setSelectedShippingCode(null); setShippingError(null);
   }
 
@@ -126,7 +141,9 @@ export function CheckoutForm() {
       {!addressesLoading && !addressesError && addresses.length === 0 && <div className="checkout-empty"><p>Você precisa cadastrar um endereço para continuar.</p><Link href="/conta#addresses">Cadastrar endereço</Link></div>}
       <div className="checkout-addresses">{addresses.map((address) => <label className={selectedAddressId === address.id ? 'selected' : ''} key={address.id}><input type="radio" name="address" checked={selectedAddressId === address.id} onChange={() => selectAddress(address.id)} /><div><div className="checkout-address-title"><strong>{address.label || 'Endereço'}</strong>{address.isPrimary && <span>Principal</span>}</div><p>{address.recipientName}</p><p>{address.street}, {address.number}{address.complement ? ` · ${address.complement}` : ''}</p><p>{address.neighborhood} · {address.city} - {address.state}</p><p>CEP {zip(address.zipCode)}</p></div></label>)}</div>
     </section>
+    {requiresRecipient && <AliExpressRecipientFields value={recipient} onChange={(value) => { setRecipient(value); setRecipientErrors({}); }} errors={recipientErrors} disabled={submitting} />}
     <section className="checkout-fieldset"><h2>Entrega</h2>
+      {requiresRecipient && <p className="shipping-empty">A compra exige frete AliExpress confirmado para os itens e o endereço selecionados. O prazo de entrega é estimado.</p>}
       {!selectedAddress && !addressesLoading && <p className="shipping-empty">Selecione um endereço para calcular o frete.</p>}
       {selectedAddress && requestItems.length === 0 && <p className="shipping-empty">Adicione produtos ao carrinho para calcular o frete.</p>}
       {shippingLoading && <div className="shipping-loading" role="status"><span aria-hidden="true" />Calculando frete...</div>}

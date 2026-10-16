@@ -1,6 +1,14 @@
 export type AdminOrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED' | 'EXPIRED';
 export type AdminPaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELED' | 'FAILED';
-export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' | 'CREATED' | 'FAILED';
+export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' | 'CREATED' | 'FAILED' | 'VERIFICATION_REQUIRED';
+
+export type AdminAliExpressOrder = {
+  orderId: number; applicable: boolean; paymentConfirmed: boolean; canSend: boolean;
+  status: AdminFulfillmentStatus; blockReason: string | null;
+  supplierStatus: 'AWAITING_MANUAL_PAYMENT' | 'REJECTED' | 'UNKNOWN' | null;
+  supplierOrderIds: string[]; lastError: string | null;
+  submittedAt: string | null; createdExternallyAt: string | null;
+};
 
 export type AdminOrderFulfillment = {
   orderId: number; status: AdminFulfillmentStatus; provider: string;
@@ -19,6 +27,7 @@ export type AdminOrderPage = {
 };
 
 export type AdminOrder = AdminOrderSummary & {
+  recipientData?: { required: boolean; complete: boolean; pendingFields: string[] };
   expiresAt: string | null;
   shippingCode: string;
   shippingName: string;
