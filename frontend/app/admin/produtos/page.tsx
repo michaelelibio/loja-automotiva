@@ -68,7 +68,7 @@ export default function AdminProductsPage() {
 
   return <>
     <header className="admin-page-heading admin-products-heading"><div><p className="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p>{result ? `${result.totalElements} produto${result.totalElements === 1 ? '' : 's'} encontrado${result.totalElements === 1 ? '' : 's'}` : 'Gerencie o catálogo da inGarage.'}</p></div><div className="admin-products-heading-actions"><Link className="secondary" href="/admin/produtos/importar">Importar da CJ</Link><Link href="/admin/produtos/novo">Novo produto</Link></div></header>
-    <AliExpressProductPreview />
+    <AliExpressProductPreview onImported={() => { setLoading(true); setError(null); setRequestKey((value) => value + 1); }} />
     {feedback && <p className="admin-action-feedback" role="status">{feedback}</p>}
     <section className="admin-products-panel">
       <form className="admin-products-toolbar" onSubmit={applyFilters}>
