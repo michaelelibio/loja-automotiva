@@ -1,5 +1,7 @@
 # Consulta real de diagnóstico de frete AliExpress
 
+Atualização do diagnóstico de protocolo: os erros TOP conhecidos agora preservam seu número em `safeCode`, por exemplo `TOP_22_INVALID_METHOD`, `TOP_25_INVALID_SIGNATURE` e `TOP_29_INVALID_APP_KEY`. Códigos de negócio não são interpretados como TOP por equivalência numérica. Consulte [ALIEXPRESS-FREIGHT-PROTOCOL.md](ALIEXPRESS-FREIGHT-PROTOCOL.md) para evidências, comparação com produtos e limitações da conclusão sobre o erro real.
+
 ## Endpoint
 
 `POST /api/admin/integrations/aliexpress/freight-diagnostic`

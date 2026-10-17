@@ -4,14 +4,14 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { AliExpressFreightError, testAliExpressFreight } from '@/lib/api/admin/aliexpress';
-import { freightAmount, freightEstimate, freightStatusMessages, type FreightDiagnosticResult } from '@/lib/admin/aliexpress-freight';
+import { freightAmount, freightEstimate, freightDiagnosticMessage, type FreightDiagnosticResult } from '@/lib/admin/aliexpress-freight';
 
 export function AliExpressFreightResult({ result }: { result: FreightDiagnosticResult }) {
   const success = result.status === 'SUCCESS';
   return <div className="admin-freight-result">
     <div className={`admin-freight-status ${success ? 'success' : 'error'}`} role={success ? 'status' : 'alert'}>
       <h3>{success ? 'Consulta concluída com sucesso' : 'Não foi possível confirmar a cotação'}</h3>
-      <p>{freightStatusMessages[result.status]}</p><p>Código: <code>{result.safeCode}</code></p>
+      <p>{freightDiagnosticMessage(result)}</p><p>Código: <code>{result.safeCode}</code></p>
     </div>
     {result.methods.length > 0 && <div className="admin-aliexpress-table-wrap"><table className="admin-aliexpress-table">
       <caption className="sr-only">Modalidades retornadas no diagnóstico de frete</caption>

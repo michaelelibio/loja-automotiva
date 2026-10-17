@@ -43,4 +43,15 @@ class AliExpressFreightDiagnosticIntegrationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("LOCAL_AUTHORIZATION_UNAVAILABLE"));
         verifyNoInteractions(client);verify(tokens,never()).accessToken();
     }
+    @Test void exactProtocolCodeReachesAdminWithoutRefreshingCredentials() throws Exception {
+        when(tokens.existingAccessToken()).thenReturn("synthetic-token");
+        when(client.query("synthetic-token")).thenReturn(AliExpressFreightDiagnosticResult.failure(
+                AliExpressFreightDiagnosticResult.Status.PROTOCOL_ERROR,"TOP_25_INVALID_SIGNATURE"));
+        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PROTOCOL_ERROR"))
+                .andExpect(jsonPath("$.safeCode").value("TOP_25_INVALID_SIGNATURE"))
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
+        verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();
+        verify(client).query("synthetic-token");verifyNoMoreInteractions(tokens,client);
+    }
 }

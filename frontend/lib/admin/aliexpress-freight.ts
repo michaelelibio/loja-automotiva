@@ -17,7 +17,24 @@ export type FreightDiagnosticStatus = keyof typeof freightStatusMessages;
 export type FreightDiagnosticMethod = { serviceName: string; amount: number; currency: string; estimatedDeliveryTime: string | null };
 export type FreightDiagnosticResult = { status: FreightDiagnosticStatus; safeCode: string; methods: FreightDiagnosticMethod[] };
 
+const protocolMessages = {
+  TOP_21_MISSING_METHOD: 'O AliExpress retornou o código 21: método ausente na requisição. Revise o formato e o transporte da consulta.',
+  TOP_22_INVALID_METHOD: 'O AliExpress retornou o código 22: método não reconhecido neste endpoint. Confirme o transporte e a disponibilidade desta API para a aplicação.',
+  TOP_24_MISSING_SIGNATURE: 'O AliExpress retornou o código 24: assinatura ausente na requisição. Revise o formato e o transporte da consulta.',
+  TOP_25_INVALID_SIGNATURE: 'O AliExpress retornou o código 25: assinatura rejeitada. Confira o contrato de assinatura, o transporte e os parâmetros enviados; nenhuma credencial foi alterada.',
+  TOP_28_MISSING_APP_KEY: 'O AliExpress retornou o código 28: identificação da aplicação ausente na requisição. Revise o formato e o transporte da consulta.',
+  TOP_29_INVALID_APP_KEY: 'O AliExpress retornou o código 29: identificação da aplicação rejeitada neste endpoint. Isso não comprova que a credencial seja inválida em outro ambiente.',
+} as const;
+
+export function freightDiagnosticMessage(result: FreightDiagnosticResult): string {
+  if (result.status === 'PROTOCOL_ERROR' && Object.hasOwn(protocolMessages, result.safeCode)) {
+    return protocolMessages[result.safeCode as keyof typeof protocolMessages];
+  }
+  return freightStatusMessages[result.status];
+}
+
 const safeCodes = new Set([
+  ...Object.keys(protocolMessages),
   'APPLICATION_NOT_CONFIGURED', 'LOCAL_TOKEN_UNAVAILABLE', 'HTTP_RATE_LIMIT', 'HTTP_FAILURE',
   'RESPONSE_TOO_LARGE', 'INVALID_JSON_RESPONSE', 'COMMUNICATION_FAILURE', 'INVALID_RESPONSE_SHAPE',
   'INVALID_METHOD_LIST', 'NO_DELIVERY_METHODS', 'INVALID_METHOD_DATA', 'CONFLICTING_MONETARY_FIELDS',

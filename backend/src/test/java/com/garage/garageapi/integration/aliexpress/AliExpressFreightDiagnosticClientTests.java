@@ -82,6 +82,33 @@ class AliExpressFreightDiagnosticClientTests {
         server.expect(anything()).andRespond(withSuccess(response("[]"),MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token").status()).isEqualTo(PRODUCT_UNAVAILABLE);server.verify();
     }
+    @ParameterizedTest
+    @CsvSource({"21,TOP_21_MISSING_METHOD","22,TOP_22_INVALID_METHOD","24,TOP_24_MISSING_SIGNATURE",
+            "25,TOP_25_INVALID_SIGNATURE","28,TOP_28_MISSING_APP_KEY","29,TOP_29_INVALID_APP_KEY"})
+    void preservesExactPlatformProtocolCodeWithoutRawProviderDetails(String code,String expected,CapturedOutput output) {
+        server.expect(anything()).andRespond(withSuccess("{\"error_response\":{\"code\":"+code
+                +",\"msg\":\"synthetic-token synthetic-secret\",\"sub_msg\":\"private-signature\",\"request_id\":\"private-trace\"}}",MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token");
+        assertThat(result.status()).isEqualTo(PROTOCOL_ERROR);
+        assertThat(result.safeCode()).isEqualTo(expected);
+        assertThat(result.toString()+output.getAll()).doesNotContain("synthetic-token","synthetic-secret","private-signature","private-trace");
+        server.verify();
+    }
+    @Test void stringPlatformCodeHasSameMeaningAndCannotBeOverriddenByContradictorySubcode() {
+        server.expect(anything()).andRespond(withSuccess("{\"error_response\":{\"code\":\"25\",\"sub_code\":\"isv.permission-denied\"}}",MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token");
+        assertThat(result.status()).isEqualTo(PROTOCOL_ERROR);
+        assertThat(result.safeCode()).isEqualTo("TOP_25_INVALID_SIGNATURE");server.verify();
+    }
+    @ParameterizedTest @CsvSource({"7","11","22","25","26","27","29"})
+    void businessErrorNumbersAreNotMisclassifiedAsTopPlatformCodes(String code) {
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_logistics_buyer_freight_calculate_response\":{\"result\":{\"success\":false,\"error_code\":"+code+"}}}",MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token").status()).isEqualTo(PROVIDER_REJECTED);server.verify();
+    }
+    @Test void perMethodErrorCodeIsNotAnInvalidSignatureError() {
+        server.expect(anything()).andRespond(withSuccess(response("[{\"error_code\":25}]"),MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token").safeCode()).isEqualTo("UNCLASSIFIED_PROVIDER_REJECTION");server.verify();
+    }
     @Test void timeoutIsCommunicationFailureWithNoRetry(CapturedOutput output) {
         server.expect(anything()).andRespond(withException(new java.net.SocketTimeoutException("synthetic-secret")));
         var result=client.query("synthetic-token");

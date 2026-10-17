@@ -78,16 +78,16 @@ public class AliExpressFreightDiagnosticClient {
     private AliExpressFreightDiagnosticResult parse(JsonNode body,String token) {
         if (body==null || !body.isObject()) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
         JsonNode error=body.path("error_response");
-        if (error.isObject()) return rejection(error);
+        if (error.isObject()) return rejection(error,true);
         JsonNode result=body.path("aliexpress_logistics_buyer_freight_calculate_response").path("result");
         if (!result.isObject() || !result.path("success").isBoolean()) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
-        if (!result.path("success").asBoolean()) return rejection(result);
+        if (!result.path("success").asBoolean()) return rejection(result,false);
         JsonNode entries=result.path("aeop_freight_calculate_result_for_buyer_d_t_o_list").path("aeop_freight_calculate_result_for_buyer_dto");
         if (!entries.isArray()) return failure(INVALID_RESPONSE,"INVALID_METHOD_LIST");
         if (entries.isEmpty()) return failure(PRODUCT_UNAVAILABLE,"NO_DELIVERY_METHODS");
         List<Method> methods=new ArrayList<>();
         for (JsonNode entry:entries) {
-            if (!"0".equals(entry.path("error_code").asText())) return rejection(entry);
+            if (!"0".equals(entry.path("error_code").asText())) return rejection(entry,false);
             JsonNode money=entry.path("freight");
             String amount=money.path("amount").asText();
             String currency=money.path("currency_code").asText();String service=entry.path("service_name").asText();
@@ -111,16 +111,29 @@ public class AliExpressFreightDiagnosticClient {
 
     private boolean sensitive(String value,String token) { return value.contains(token) || value.contains(secret) || value.contains(appKey); }
 
-    private AliExpressFreightDiagnosticResult rejection(JsonNode error) {
+    private AliExpressFreightDiagnosticResult rejection(JsonNode error,boolean platformError) {
         String code=error.path("code").asText();
         if (code.isEmpty()) code=error.path("error_code").asText();
         String sub=error.path("sub_code").asText();
-        if (code.equals("27") || code.equals("26") || Set.of("invalid-sessionkey","invalid-session","isv.invalid-session").contains(sub))
+        // TOP platform codes have meaning only inside error_response. Business
+        // error_code uses a different namespace and must not be guessed as TOP.
+        if (platformError) {
+            String protocolCode=switch(code) {
+                case "21" -> "TOP_21_MISSING_METHOD";
+                case "22" -> "TOP_22_INVALID_METHOD";
+                case "24" -> "TOP_24_MISSING_SIGNATURE";
+                case "25" -> "TOP_25_INVALID_SIGNATURE";
+                case "28" -> "TOP_28_MISSING_APP_KEY";
+                case "29" -> "TOP_29_INVALID_APP_KEY";
+                default -> null;
+            };
+            if (protocolCode!=null) return failure(PROTOCOL_ERROR,protocolCode);
+        }
+        if ((platformError && (code.equals("27") || code.equals("26"))) || Set.of("invalid-sessionkey","invalid-session","isv.invalid-session").contains(sub))
             return failure(TOKEN_REJECTED,"PROVIDER_TOKEN_REJECTED");
-        if (code.equals("11") || Set.of("isv.permission-denied","isv.permission-api-package-empty","isv.permission-api-package-not-allowed","isv.permission-api-package-limit","isv.permission-ip-whitelist-limit").contains(sub))
+        if ((platformError && code.equals("11")) || Set.of("isv.permission-denied","isv.permission-api-package-empty","isv.permission-api-package-not-allowed","isv.permission-api-package-limit","isv.permission-ip-whitelist-limit").contains(sub))
             return failure(PERMISSION_DENIED,"PROVIDER_PERMISSION_DENIED");
-        if (code.equals("25") || code.equals("22") || code.equals("29")) return failure(PROTOCOL_ERROR,"PROVIDER_PROTOCOL_REJECTED");
-        if (code.equals("7")) return failure(RATE_LIMITED,"PROVIDER_RATE_LIMIT");
+        if (platformError && code.equals("7")) return failure(RATE_LIMITED,"PROVIDER_RATE_LIMIT");
         if (Set.of("isv.invalid-parameter","isv.missing-parameter").contains(sub)) return failure(PARAMETER_ERROR,"PROVIDER_PARAMETER_REJECTED");
         // Do not guess permissions/product availability from free-form messages or unknown codes.
         return failure(PROVIDER_REJECTED,"UNCLASSIFIED_PROVIDER_REJECTION");

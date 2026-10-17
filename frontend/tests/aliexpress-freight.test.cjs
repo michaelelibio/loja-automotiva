@@ -81,6 +81,23 @@ test('results show returned currencies, amounts and estimated periods; unknown e
   assert.match(failure, /Não foi possível confirmar/); assert.match(failure, /permissões da aplicação/); assert.ok(!failure.includes('<table'));
 });
 
+test('specific TOP codes survive the API boundary and show their distinct safe explanations', async () => {
+  const { AliExpressFreightResult } = load('components/admin/AliExpressFreightDiagnostic.tsx', routeMocks);
+  for (const [code, reason] of [['TOP_21_MISSING_METHOD', 'método ausente'], ['TOP_22_INVALID_METHOD', 'método não reconhecido'],
+    ['TOP_24_MISSING_SIGNATURE', 'assinatura ausente'], ['TOP_25_INVALID_SIGNATURE', 'assinatura rejeitada'],
+    ['TOP_28_MISSING_APP_KEY', 'aplicação ausente'], ['TOP_29_INVALID_APP_KEY', 'aplicação rejeitada']]) {
+    global.fetch = async () => Response.json({ status: 'PROTOCOL_ERROR', safeCode: code, methods: [],
+      message: 'private-token', sub_msg: 'private-signature', request_id: 'private-trace' });
+    const result = await api().testAliExpressFreight();
+    assert.equal(result.safeCode, code);
+    const html = renderToStaticMarkup(React.createElement(AliExpressFreightResult, { result }));
+    assert.ok(html.includes(code)); assert.ok(html.includes(reason));
+    assert.doesNotMatch(html, /private-token|private-signature|private-trace/);
+  }
+  const legacy = helper.parseFreightDiagnostic({ status: 'PROTOCOL_ERROR', safeCode: 'PROVIDER_PROTOCOL_REJECTED', methods: [] }, 'admin-token');
+  assert.equal(helper.freightDiagnosticMessage(legacy), helper.freightStatusMessages.PROTOCOL_ERROR);
+});
+
 function find(tree, predicate) {
   if (!tree || typeof tree !== 'object') return null; if (predicate(tree)) return tree;
   for (const child of React.Children.toArray(tree.props?.children)) { const found = find(child, predicate); if (found) return found; }
