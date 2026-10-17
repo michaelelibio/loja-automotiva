@@ -1,7 +1,40 @@
 import tokenStorage from '@/lib/auth/tokenStorage';
 import type { AliExpressImportRequest, AliExpressImportResult, AliExpressPreview } from '@/lib/types/admin-aliexpress';
+import { parseFreightDiagnostic, type FreightDiagnosticResult } from '@/lib/admin/aliexpress-freight';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
+export class AliExpressFreightError extends Error {
+  constructor(public readonly status: number) {
+    super(status === 401 ? 'Sua sessão expirou. Entre novamente para testar a cotação.'
+      : status === 403 ? 'Acesso negado. Esta consulta exige uma conta de administrador.'
+      : status === 404 ? 'O diagnóstico de frete ainda não está disponível neste servidor.'
+      : status === 429 ? 'Muitas consultas. Aguarde antes de testar novamente.'
+      : status >= 500 ? 'O serviço de diagnóstico está indisponível ou retornou uma resposta inválida. Tente novamente mais tarde.'
+      : status === 0 ? 'Não foi possível conectar ao serviço de diagnóstico. Confira sua conexão e tente novamente.'
+      : 'Não foi possível executar o diagnóstico de frete. Tente novamente mais tarde.');
+    this.name = 'AliExpressFreightError';
+  }
+}
+
+export async function testAliExpressFreight(): Promise<FreightDiagnosticResult> {
+  const token = tokenStorage.getToken();
+  if (!token) throw new AliExpressFreightError(401);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35000);
+  try {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/api/admin/integrations/aliexpress/freight-diagnostic`, {
+        method: 'POST', cache: 'no-store', signal: controller.signal,
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+    } catch { throw new AliExpressFreightError(0); }
+    if (!response.ok) throw new AliExpressFreightError(response.status);
+    try { return parseFreightDiagnostic(await response.json(), token); }
+    catch { throw new AliExpressFreightError(502); }
+  } finally { clearTimeout(timeout); }
+}
 
 export class AliExpressPreviewError extends Error {
   constructor(public readonly status: number) {

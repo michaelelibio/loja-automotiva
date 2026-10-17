@@ -1,5 +1,7 @@
 # Diagnóstico de autorização AliExpress (somente leitura)
 
+Atualização: foi preparado um POST ADMIN separado para testar uma consulta pontual de frete com o token existente, sem refresh. Consulte [ALIEXPRESS-FREIGHT-DIAGNOSTIC.md](ALIEXPRESS-FREIGHT-DIAGNOSTIC.md). O GET descrito aqui permanece somente local e não passa a afirmar permissão de frete; nenhuma consulta com a autorização Railway foi executada durante a implementação.
+
 ## Resultado desta inspeção
 
 Não foi possível confirmar um Access Token da instalação publicada: este processo não tem as variáveis AliExpress/banco carregadas e não foi encontrado backend local na porta 8080. Existe `.env.local.ps1`, mas a análise estática detectou erros de sintaxe; o arquivo não foi executado nem modificado e nenhum conteúdo sensível foi exibido. Isso não comprova ausência de autorização no servidor publicado.

@@ -35,6 +35,15 @@ public class AliExpressTokenService {
         }
         return cipher.decrypt(row.accessCiphertext(), authorizationId + ":access");
     }
+    /** Diagnostic use only: no refresh, writes or pessimistic lock. Never return to an HTTP caller. */
+    @Transactional(readOnly = true)
+    public String existingAccessToken() {
+        AliExpressAuthorization row = repository.findById(authorizationId).orElseThrow(this::reauthorize);
+        if (row.accessExpiresAt() == null || !row.accessExpiresAt().isAfter(Instant.now().plusSeconds(30))) throw reauthorize();
+        String token = cipher.decrypt(row.accessCiphertext(), authorizationId + ":access");
+        if (token == null || token.isBlank()) throw reauthorize();
+        return token;
+    }
     private void update(AliExpressAuthorization row, AliExpressTokenData data, boolean refreshing) {
         Instant now = Instant.now();
         if (data == null || data.accessToken() == null || data.accessToken().length() > 2048

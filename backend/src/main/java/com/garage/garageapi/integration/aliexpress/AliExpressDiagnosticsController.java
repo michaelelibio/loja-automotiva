@@ -10,10 +10,17 @@ import org.springframework.http.ResponseEntity;
 @PreAuthorize("hasRole('ADMIN')")
 public class AliExpressDiagnosticsController {
     private final AliExpressAuthorizationDiagnostics diagnostics;
-    public AliExpressDiagnosticsController(AliExpressAuthorizationDiagnostics diagnostics) { this.diagnostics = diagnostics; }
+    private final AliExpressFreightDiagnosticService freight;
+    public AliExpressDiagnosticsController(AliExpressAuthorizationDiagnostics diagnostics, AliExpressFreightDiagnosticService freight) {
+        this.diagnostics = diagnostics; this.freight=freight;
+    }
 
     @GetMapping("/authorization-diagnostic")
     public ResponseEntity<AliExpressAuthorizationDiagnostics.Report> inspect() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(diagnostics.inspect());
+    }
+    @PostMapping("/freight-diagnostic")
+    public ResponseEntity<AliExpressFreightDiagnosticResult> freight() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(freight.run());
     }
 }
