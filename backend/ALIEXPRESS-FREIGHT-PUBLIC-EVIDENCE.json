@@ -1,0 +1,234 @@
+﻿{
+    "retrievedOn":  "2026-10-17",
+    "sourceType":  "Public official documentation only; not application permissions",
+    "sdkSource":  "https://ae-open-platform-public.oss-ap-southeast-1.aliyuncs.com/online/oss_1792213210225_0_tmrF.zip",
+    "sdkZipSha256":  "3C12F9243BCF68D2FAB0847BEF24B940F849960CD0DF867DCFE6AA438D9253CD",
+    "sdkFacts":  {
+                     "executor":  "com.global.iop.api.TopExecutor",
+                     "path":  "/sync",
+                     "tokenParameter":  "session",
+                     "signMethod":  "sha256",
+                     "algorithm":  "HmacSHA256",
+                     "timestamp":  "epoch milliseconds",
+                     "signatureApiPrefix":  "",
+                     "executed":  false
+                 },
+    "apis":  [
+                 {
+                     "method":  "aliexpress.logistics.buyer.freight.calculate",
+                     "docId":  525,
+                     "title":  "Freight calculation interface provided for buyers",
+                     "authorizationRequired":  true,
+                     "javaExampleProtocolTop":  true,
+                     "parameters":  [
+                                        {
+                                            "name":  "param_aeop_freight_calculate_for_buyer_d_t_o",
+                                            "type":  "Object",
+                                            "required":  true,
+                                            "children":  [
+                                                             {
+                                                                 "name":  "sku_id",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "skuId must be passed when calculating the choice product"
+                                                             },
+                                                             {
+                                                                 "name":  "city_code",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "city code"
+                                                             },
+                                                             {
+                                                                 "name":  "country_code",
+                                                                 "type":  "String",
+                                                                 "required":  true,
+                                                                 "description":  "country code"
+                                                             },
+                                                             {
+                                                                 "name":  "product_id",
+                                                                 "type":  "Number",
+                                                                 "required":  true,
+                                                                 "description":  "Product ID"
+                                                             },
+                                                             {
+                                                                 "name":  "product_num",
+                                                                 "type":  "Number",
+                                                                 "required":  true,
+                                                                 "description":  "Product count"
+                                                             },
+                                                             {
+                                                                 "name":  "province_code",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "Province code"
+                                                             },
+                                                             {
+                                                                 "name":  "send_goods_country_code",
+                                                                 "type":  "String",
+                                                                 "required":  true,
+                                                                 "description":  "Shipping country"
+                                                             },
+                                                             {
+                                                                 "name":  "price",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "commodity price"
+                                                             },
+                                                             {
+                                                                 "name":  "price_currency",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "commodity price currency"
+                                                             }
+                                                         ]
+                                        }
+                                    ],
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.logistics.buyer.freight.calculate\u0026methodType=GET%2FPOST"
+                 },
+                 {
+                     "method":  "aliexpress.logistics.buyer.freight.get",
+                     "docId":  1442,
+                     "title":  "Freight calculation (new)",
+                     "authorizationRequired":  true,
+                     "javaExampleProtocolTop":  true,
+                     "parameters":  [
+                                        {
+                                            "name":  "aeopFreightCalculateForBuyerDTO",
+                                            "type":  "Object",
+                                            "required":  true,
+                                            "children":  [
+                                                             {
+                                                                 "name":  "price_currency",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "Commodity Price Currency"
+                                                             },
+                                                             {
+                                                                 "name":  "product_id",
+                                                                 "type":  "Number",
+                                                                 "required":  true,
+                                                                 "description":  "Product Id"
+                                                             },
+                                                             {
+                                                                 "name":  "country_code",
+                                                                 "type":  "String",
+                                                                 "required":  true,
+                                                                 "description":  "Country Code"
+                                                             },
+                                                             {
+                                                                 "name":  "province_code",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "Province Code"
+                                                             },
+                                                             {
+                                                                 "name":  "city_code",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "City Code"
+                                                             },
+                                                             {
+                                                                 "name":  "send_goods_country_code",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "Send Goods Country Code"
+                                                             },
+                                                             {
+                                                                 "name":  "price",
+                                                                 "type":  "String",
+                                                                 "required":  false,
+                                                                 "description":  "Commodity Price"
+                                                             },
+                                                             {
+                                                                 "name":  "product_num",
+                                                                 "type":  "Number",
+                                                                 "required":  true,
+                                                                 "description":  "Product Num"
+                                                             },
+                                                             {
+                                                                 "name":  "sku_id",
+                                                                 "type":  "Number",
+                                                                 "required":  true,
+                                                                 "description":  "Sku Id"
+                                                             }
+                                                         ]
+                                        }
+                                    ],
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.logistics.buyer.freight.get\u0026methodType=GET%2FPOST"
+                 },
+                 {
+                     "method":  "aliexpress.ds.product.get",
+                     "docId":  12391,
+                     "title":  "product info query for ds",
+                     "authorizationRequired":  true,
+                     "javaExampleProtocolTop":  true,
+                     "parameters":  [
+                                        {
+                                            "name":  "ship_to_country",
+                                            "type":  "String",
+                                            "required":  true,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "product_id",
+                                            "type":  "Number",
+                                            "required":  true,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "target_currency",
+                                            "type":  "String",
+                                            "required":  false,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "target_language",
+                                            "type":  "String",
+                                            "required":  false,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "remove_personal_benefit",
+                                            "type":  "Boolean",
+                                            "required":  false,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "biz_model",
+                                            "type":  "String",
+                                            "required":  false,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "province_code",
+                                            "type":  "String",
+                                            "required":  false,
+                                            "children":  [
+
+                                                         ]
+                                        },
+                                        {
+                                            "name":  "city_code",
+                                            "type":  "String",
+                                            "required":  false,
+                                            "children":  [
+
+                                                         ]
+                                        }
+                                    ],
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.product.get\u0026methodType=GET%2FPOST"
+                 }
+             ]
+}

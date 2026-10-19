@@ -19,8 +19,12 @@ public class AliExpressDiagnosticsController {
     public ResponseEntity<AliExpressAuthorizationDiagnostics.Report> inspect() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(diagnostics.inspect());
     }
+    @PostMapping("/freight-diagnostic/product")
+    public ResponseEntity<AliExpressFreightDiagnosticService.Preparation> freightProduct(@RequestBody AliExpressFreightDiagnosticRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(freight.prepare(request.productId()));
+    }
     @PostMapping("/freight-diagnostic")
-    public ResponseEntity<AliExpressFreightDiagnosticResult> freight() {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(freight.run());
+    public ResponseEntity<AliExpressFreightDiagnosticResult> freight(@RequestBody(required=false) AliExpressFreightDiagnosticRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(freight.run(request));
     }
 }

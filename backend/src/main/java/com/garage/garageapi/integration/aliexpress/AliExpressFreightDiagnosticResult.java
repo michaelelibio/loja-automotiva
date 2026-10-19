@@ -16,7 +16,7 @@ public record AliExpressFreightDiagnosticResult(Status status, String safeCode, 
     }
     static AliExpressFreightDiagnosticResult result(Status status, String code, List<Method> methods) {
         return new AliExpressFreightDiagnosticResult(status,code,methods,List.of(
-                "CN_ORIGIN_UNCONFIRMED", "SKU_ID_NOT_DOCUMENTED_NOT_SENT", "NO_POSTAL_CODE_QUOTE",
+                "APP_API_PERMISSION_NOT_PRECONFIRMED", "NO_POSTAL_CODE_QUOTE",
                 "ESTIMATED_DELIVERY_NOT_GUARANTEED", "DIAGNOSTIC_ONLY_CHECKOUT_BLOCKED"));
     }
     static AliExpressFreightDiagnosticResult failure(Status status, String code) { return result(status,code,List.of()); }

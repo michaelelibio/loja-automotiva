@@ -8,7 +8,9 @@ export class AliExpressFreightError extends Error {
   constructor(public readonly status: number) {
     super(status === 401 ? 'Sua sessão expirou. Entre novamente para testar a cotação.'
       : status === 403 ? 'Acesso negado. Esta consulta exige uma conta de administrador.'
-      : status === 404 ? 'O diagnóstico de frete ainda não está disponível neste servidor.'
+      : status === 404 ? 'Produto ou diagnóstico não encontrado neste servidor.'
+      : status === 409 ? 'A autorização AliExpress não está disponível. Confira a integração.'
+      : status === 400 ? 'Confira o ID do produto e os parâmetros do teste.'
       : status === 429 ? 'Muitas consultas. Aguarde antes de testar novamente.'
       : status >= 500 ? 'O serviço de diagnóstico está indisponível ou retornou uma resposta inválida. Tente novamente mais tarde.'
       : status === 0 ? 'Não foi possível conectar ao serviço de diagnóstico. Confira sua conexão e tente novamente.'
@@ -17,17 +19,45 @@ export class AliExpressFreightError extends Error {
   }
 }
 
-export async function testAliExpressFreight(): Promise<FreightDiagnosticResult> {
+export type FreightTestInput = { productId: string; skuId: string; quantity: number };
+export type FreightProduct = { productId: string; variants: { skuId: string; origin: string | null; originSource: string; availableStock: number }[] };
+
+export async function prepareAliExpressFreight(productId: string): Promise<FreightProduct> {
+  const token = tokenStorage.getToken();
+  if (!token) throw new AliExpressFreightError(401);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/admin/integrations/aliexpress/freight-diagnostic/product`, {
+      method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(35000),
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId }),
+    });
+  } catch { throw new AliExpressFreightError(0); }
+  if (!response.ok) throw new AliExpressFreightError(response.status);
+  try {
+    const data = await response.json();
+    if (data.productId !== productId || !Array.isArray(data.variants) || data.variants.length > 1000) throw new Error();
+    const variants = data.variants.map((v: FreightProduct['variants'][number]) => {
+      if (!v || typeof v.skuId !== 'string' || !/^[0-9]{1,30}$/.test(v.skuId) || (v.origin !== null && (typeof v.origin !== 'string' || !/^[A-Z]{2}$/.test(v.origin)))
+          || !['SKU_SHIPS_FROM', 'UNCONFIRMED'].includes(v.originSource) || !Number.isSafeInteger(v.availableStock) || v.availableStock < 0) throw new Error();
+      return { skuId: v.skuId, origin: v.origin, originSource: v.originSource, availableStock: v.availableStock };
+    });
+    return { productId, variants };
+  } catch { throw new AliExpressFreightError(502); }
+}
+
+export async function testAliExpressFreight(input?: FreightTestInput): Promise<FreightDiagnosticResult> {
   const token = tokenStorage.getToken();
   if (!token) throw new AliExpressFreightError(401);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35000);
+  const timeout = setTimeout(() => controller.abort(), 65000);
   try {
     let response: Response;
     try {
       response = await fetch(`${API_BASE}/api/admin/integrations/aliexpress/freight-diagnostic`, {
         method: 'POST', cache: 'no-store', signal: controller.signal,
-        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: input ? JSON.stringify(input) : undefined,
       });
     } catch { throw new AliExpressFreightError(0); }
     if (!response.ok) throw new AliExpressFreightError(response.status);

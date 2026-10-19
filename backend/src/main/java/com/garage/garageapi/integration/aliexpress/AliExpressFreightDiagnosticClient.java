@@ -14,12 +14,12 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
-import java.time.format.DateTimeFormatter;
+
 import java.util.*;
 import static com.garage.garageapi.integration.aliexpress.AliExpressFreightDiagnosticResult.*;
 import static com.garage.garageapi.integration.aliexpress.AliExpressFreightDiagnosticResult.Status.*;
 
-/** Fixed, read-only diagnostic of the public TOP contract. Never used by checkout. */
+/** Read-only diagnostic using the current official SDK Protocol.TOP. Never used by checkout. */
 @Component
 public class AliExpressFreightDiagnosticClient {
     private static final JsonMapper JSON = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
@@ -37,28 +37,35 @@ public class AliExpressFreightDiagnosticClient {
         this.client=client;this.appKey=appKey;this.secret=secret;this.clock=clock;
     }
 
-    public AliExpressFreightDiagnosticResult query(String token) {
+    public record Input(String productId, String skuId, int quantity, String origin) {}
+
+    public AliExpressFreightDiagnosticResult query(String token, Input input) {
+        if (input == null || input.productId() == null || !input.productId().matches("[0-9]{1,18}")
+                || input.skuId() == null || !input.skuId().matches("[0-9]{1,30}")
+                || input.quantity() < 1 || input.quantity() > 100
+                || !Arrays.asList(Locale.getISOCountries()).contains(input.origin()))
+            return failure(PARAMETER_ERROR,"INVALID_TEST_INPUT");
         if (appKey.isBlank() || secret.isBlank() || appKey.contains("COLE_AQUI") || secret.contains("COLE_AQUI"))
             return failure(NOT_CONFIGURED,"APPLICATION_NOT_CONFIGURED");
         if (token == null || token.isBlank()) return failure(LOCAL_AUTHORIZATION_UNAVAILABLE,"LOCAL_TOKEN_UNAVAILABLE");
         try {
-            // sku_id is absent from this documented DTO; do not invent an extension.
-            String dto = "{\"product_id\":1005010661577657,\"product_num\":1,\"country_code\":\"BR\","
-                    + "\"send_goods_country_code\":\"CN\",\"price\":\"25.39\",\"price_currency\":\"BRL\"}";
+            String dto = JSON.writeValueAsString(Map.of("product_id",new java.math.BigInteger(input.productId()),
+                    "product_num",input.quantity(),"country_code","BR", "sku_id",input.skuId(),
+                    "send_goods_country_code",input.origin()));
             Map<String,String> params = new TreeMap<>();
             params.put("method","aliexpress.logistics.buyer.freight.calculate");params.put("app_key",appKey);
-            params.put("session",token);params.put("sign_method","hmac");params.put("format","json");params.put("v","2.0");
-            params.put("timestamp",DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.ofHours(8)).format(clock.instant()));
+            params.put("session",token);params.put("sign_method","sha256");params.put("format","json");params.put("v","2.0");
+            params.put("timestamp",Long.toString(clock.millis()));
             params.put("param_aeop_freight_calculate_for_buyer_d_t_o",dto);
-            StringBuilder input = new StringBuilder();params.forEach((key,value)->input.append(key).append(value));
-            Mac mac=Mac.getInstance("HmacMD5");mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacMD5"));
-            params.put("sign",HexFormat.of().withUpperCase().formatHex(mac.doFinal(input.toString().getBytes(StandardCharsets.UTF_8))));
+            StringBuilder canonical = new StringBuilder();params.forEach((key,value)->canonical.append(key).append(value));
+            Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
+            params.put("sign",HexFormat.of().withUpperCase().formatHex(mac.doFinal(canonical.toString().getBytes(StandardCharsets.UTF_8))));
             StringJoiner form=new StringJoiner("&");
             params.forEach((key,value)->form.add(URLEncoder.encode(key,StandardCharsets.UTF_8)+"="+URLEncoder.encode(value,StandardCharsets.UTF_8)));
             byte[] body=form.toString().getBytes(StandardCharsets.UTF_8);
             // Streaming avoids form converter logging. Exchange avoids raw response converter logging.
             // No redirects, retries, fallback protocols, OAuth refresh or additional product calls.
-            return client.post().uri("/router/rest").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            return client.post().uri("/sync").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .accept(MediaType.APPLICATION_JSON).body(output->output.write(body)).exchange((request,response)-> {
                         int status=response.getStatusCode().value();
                         if (status==429) return failure(RATE_LIMITED,"HTTP_RATE_LIMIT");
@@ -80,9 +87,10 @@ public class AliExpressFreightDiagnosticClient {
         JsonNode error=body.path("error_response");
         if (error.isObject()) return rejection(error,true);
         JsonNode result=body.path("aliexpress_logistics_buyer_freight_calculate_response").path("result");
-        if (!result.isObject() || !result.path("success").isBoolean()) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
-        if (!result.path("success").asBoolean()) return rejection(result,false);
-        JsonNode entries=result.path("aeop_freight_calculate_result_for_buyer_d_t_o_list").path("aeop_freight_calculate_result_for_buyer_dto");
+        if (!result.isObject() || !(result.path("success").isBoolean() || Set.of("true","false").contains(result.path("success").asText()))) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
+        if (!"true".equals(result.path("success").asText())) return rejection(result,false);
+        JsonNode entries=result.path("aeop_freight_calculate_result_for_buyer_d_t_o_list");
+        if (entries.isObject()) entries=entries.path("aeop_freight_calculate_result_for_buyer_dto");
         if (!entries.isArray()) return failure(INVALID_RESPONSE,"INVALID_METHOD_LIST");
         if (entries.isEmpty()) return failure(PRODUCT_UNAVAILABLE,"NO_DELIVERY_METHODS");
         List<Method> methods=new ArrayList<>();
@@ -142,6 +150,6 @@ public class AliExpressFreightDiagnosticClient {
     private static RestClient defaultClient() {
         var factory=new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER).build());factory.setReadTimeout(Duration.ofSeconds(20));
-        return RestClient.builder().baseUrl("https://eco.taobao.com").requestFactory(factory).build();
+        return RestClient.builder().baseUrl("https://api-sg.aliexpress.com").requestFactory(factory).build();
     }
 }

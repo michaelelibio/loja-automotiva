@@ -1,5 +1,7 @@
 # Consulta real de diagnóstico de frete AliExpress
 
+Nota de 17/10/2026: este documento descreve o diagnóstico implementado com a referência legada. A investigação posterior [ALIEXPRESS-TOP29-INVESTIGATION.md](ALIEXPRESS-TOP29-INVESTIGATION.md) confirmou no portal atual suporte a SKU e ao TOP atual, além da alternativa oficial `freight.get`. A afirmação histórica abaixo de que SKU não consta no contrato vale somente para a referência legada então consultada. O cliente ainda não foi migrado nesta etapa de investigação.
+
 Atualização do diagnóstico de protocolo: os erros TOP conhecidos agora preservam seu número em `safeCode`, por exemplo `TOP_22_INVALID_METHOD`, `TOP_25_INVALID_SIGNATURE` e `TOP_29_INVALID_APP_KEY`. Códigos de negócio não são interpretados como TOP por equivalência numérica. Consulte [ALIEXPRESS-FREIGHT-PROTOCOL.md](ALIEXPRESS-FREIGHT-PROTOCOL.md) para evidências, comparação com produtos e limitações da conclusão sobre o erro real.
 
 ## Endpoint

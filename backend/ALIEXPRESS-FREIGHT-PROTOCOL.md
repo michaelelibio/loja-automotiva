@@ -1,5 +1,7 @@
 # Investigação de PROVIDER_PROTOCOL_REJECTED
 
+Atualização de 17/10/2026: o resultado real agora identificado como TOP 29 motivou nova investigação. Foi possível obter o catálogo e o SDK oficiais atuais, que publicam `freight.calculate` e a alternativa `freight.get` com `Protocol.TOP` atual, além de documentarem SKU. As limitações históricas de acesso e a comparação com a referência legada abaixo foram superadas por novas evidências: consulte [ALIEXPRESS-TOP29-INVESTIGATION.md](ALIEXPRESS-TOP29-INVESTIGATION.md). O código de execução não foi alterado nessa investigação.
+
 ## Causa comprovada e limite da conclusão
 
 O cliente descartava a distinção entre os códigos TOP **22 (Invalid Method), 25 (Invalid Signature) e 29 (Invalid App Key)**. Todos viravam `PROTOCOL_ERROR / PROVIDER_PROTOCOL_REJECTED`. Essa é uma falha comprovada do diagnóstico: o resultado informado do Railway não permite recuperar qual dos três foi recebido. Além disso, a mesma classificação era aplicada a `error_code` de negócio, embora a referência não documente equivalência com os códigos TOP.

@@ -103,8 +103,8 @@ function find(tree, predicate) {
   for (const child of React.Children.toArray(tree.props?.children)) { const found = find(child, predicate); if (found) return found; }
   return null;
 }
-function harness() {
-  const states = [], refs = []; let cursor = 0, refCursor = 0, calls = 0, resolve, reject, loggedOut = 0; const routes = [];
+function harness(prepared = true) {
+  const states = prepared ? [false, null, null, "123", { productId: "123", variants: [{ skuId: "456", origin: "BR", originSource: "SKU_SHIPS_FROM", availableStock: 10 }] }, "456", 1] : [], refs = []; let cursor = 0, refCursor = 0, calls = 0, resolve, reject, loggedOut = 0; const routes = [];
   const actualApi = api();
   const { AliExpressFreightDiagnostic } = load('components/admin/AliExpressFreightDiagnostic.tsx', {
     react: { ...React, useState(initial) { const index = cursor++; if (!(index in states)) states[index] = initial; return [states[index], (next) => { states[index] = next; }]; },
@@ -113,33 +113,60 @@ function harness() {
     '@/context/AuthContext': { useAuth: () => ({ logout: () => loggedOut++ }) },
     '@/lib/api/admin/aliexpress': { AliExpressFreightError: actualApi.AliExpressFreightError, testAliExpressFreight() { calls++; return new Promise((res, rej) => { resolve = res; reject = rej; }); } },
   });
-  return { render() { cursor = 0; refCursor = 0; return AliExpressFreightDiagnostic(); }, calls: () => calls,
+  return { render() { cursor = 0; refCursor = 0; return AliExpressFreightDiagnostic({}); }, calls: () => calls,
     resolve: (result) => resolve(result), reject: (status) => reject(new actualApi.AliExpressFreightError(status)), routes, loggedOut: () => loggedOut };
 }
 
 test('button is manual, loading blocks duplicate clicks, success renders and diagnostic limits remain visible', async () => {
   const h = harness(); let tree = h.render(); assert.equal(h.calls(), 0);
   const initialHtml = renderToStaticMarkup(tree);
-  for (const text of ['SKU ou CEP', 'China (CN)', 'não cria pedidos', 'não executa pagamentos', 'independente do produto']) assert.ok(initialHtml.includes(text), text);
-  const button = find(tree, (node) => node.type === 'button'); button.props.onClick(); button.props.onClick();
+  for (const text of ['Ships From', 'sem CEP', 'não cria pedidos', 'não executa pagamentos', 'permissão de frete']) assert.ok(initialHtml.includes(text), text);
+  const button = find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title'); button.props.onClick(); button.props.onClick();
   assert.equal(h.calls(), 1); tree = h.render();
-  assert.equal(find(tree, (node) => node.type === 'button').props.disabled, true);
+  assert.equal(find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title').props.disabled, true);
   assert.ok(find(tree, (node) => node.props?.role === 'status'));
   h.resolve(fixture); await new Promise((res) => setImmediate(res)); tree = h.render();
-  assert.equal(find(tree, (node) => node.type === 'button').props.disabled, false);
+  assert.equal(find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title').props.disabled, false);
   assert.ok(find(tree, (node) => node.type?.name === 'AliExpressFreightResult'));
-  find(tree, (node) => node.type === 'button').props.onClick();
+  find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title').props.onClick();
   assert.equal(find(h.render(), (node) => node.type?.name === 'AliExpressFreightResult'), null);
   h.resolve(fixture); await new Promise((res) => setImmediate(res));
 });
 
 test('HTTP errors release loading, allow manual retry and expire the session only on 401', async () => {
   for (const status of [401, 403, 500, 0]) {
-    const h = harness(); find(h.render(), (node) => node.type === 'button').props.onClick();
+    const h = harness(); find(h.render(), (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title').props.onClick();
     h.reject(status); await new Promise((res) => setImmediate(res)); const tree = h.render();
     assert.ok(find(tree, (node) => node.props?.role === 'alert'));
-    assert.equal(find(tree, (node) => node.type === 'button').props.disabled, false);
+    assert.equal(find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title').props.disabled, false);
     assert.equal(h.calls(), 1); assert.equal(h.loggedOut(), status === 401 ? 1 : 0);
     assert.deepEqual(h.routes, status === 401 ? ['/login'] : []);
   }
+});
+
+
+test('unprepared diagnostic cannot quote and exposes product ID and SKU lookup', () => {
+  const h = harness(false); const tree = h.render();
+  assert.equal(find(tree, n => n.type === 'button' && n.props['aria-describedby']).props.disabled, true);
+  assert.match(renderToStaticMarkup(tree), /ID AliExpress/);
+  assert.match(renderToStaticMarkup(tree), /Consultar SKUs e origem/);
+  assert.equal(h.calls(), 0);
+});
+
+test('test sends exact string SKU, product and quantity without origin or prices from browser', async () => {
+  let sent;
+  global.fetch = async (_url, init) => { sent = JSON.parse(init.body); return Response.json(fixture); };
+  await api().testAliExpressFreight({ productId: '1005010661577657', skuId: '12000053109276547', quantity: 2 });
+  assert.deepEqual(sent, { productId: '1005010661577657', skuId: '12000053109276547', quantity: 2 });
+});
+
+test('product preparation calls only backend and strips extra fields', async () => {
+  global.fetch = async (url, init) => {
+    assert.ok(url.endsWith('/freight-diagnostic/product'));
+    assert.deepEqual(JSON.parse(init.body), { productId: '123' });
+    return Response.json({ productId: '123', secret: 'private', variants: [{ skuId: '12000053109276547', origin: null, originSource: 'UNCONFIRMED', availableStock: 1, message: 'private' }] });
+  };
+  const prepared = await api().prepareAliExpressFreight('123');
+  assert.equal(prepared.variants[0].origin, null);
+  assert.doesNotMatch(JSON.stringify(prepared), /private|secret|message/);
 });

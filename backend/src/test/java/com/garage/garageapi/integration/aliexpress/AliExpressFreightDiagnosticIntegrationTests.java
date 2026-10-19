@@ -18,8 +18,14 @@ class AliExpressFreightDiagnosticIntegrationTests {
     @Autowired MockMvc mvc;
     @MockitoBean AliExpressTokenService tokens;
     @MockitoBean AliExpressFreightDiagnosticClient client;
+    @MockitoBean AliExpressProductClient products;
+    @MockitoBean AliExpressProductNormalizer normalizer;
+    static final String BODY="{\"productId\":\"123\",\"skuId\":\"456\",\"quantity\":1}";
+    static final AliExpressFreightDiagnosticClient.Input INPUT=new AliExpressFreightDiagnosticClient.Input("123","456",1,"BR");
     static final String PATH="/api/admin/integrations/aliexpress/freight-diagnostic";
-    @BeforeEach void resetMocks() { reset(tokens,client); }
+    @BeforeEach void resetMocks() { reset(tokens,client,products,normalizer);
+        var variant=new AliExpressProductPreview.Variant("456",null,null,java.util.Map.of("x:name","Ships From","x","Brazil"),java.util.List.of(),java.math.BigDecimal.ONE,java.math.BigDecimal.ONE,"BRL",10);
+        when(normalizer.normalize(any(),eq("123"),eq("BR"))).thenReturn(new AliExpressProductPreview("123","Test","","ALIEXPRESS","BRL",java.util.List.of(),java.util.List.of(variant),java.util.Map.of(),java.util.Map.of(),java.util.Map.of(),java.util.Map.of(),"BR","",false,java.util.List.of(),"")); }
     @Test void onlyAdminCanTriggerPostAndGetCannotPerformQuery() throws Exception {
         mvc.perform(post(PATH)).andExpect(status().isUnauthorized());
         mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))).andExpect(status().isForbidden());
@@ -28,30 +34,52 @@ class AliExpressFreightDiagnosticIntegrationTests {
     }
     @Test void adminUsesExistingTokenExactlyOnceWithoutRefresh() throws Exception {
         when(tokens.existingAccessToken()).thenReturn("synthetic-token");
-        when(client.query("synthetic-token")).thenReturn(AliExpressFreightDiagnosticResult.failure(
+        when(client.query("synthetic-token",INPUT)).thenReturn(AliExpressFreightDiagnosticResult.failure(
                 AliExpressFreightDiagnosticResult.Status.PARAMETER_ERROR,"PROVIDER_PARAMETER_REJECTED"));
-        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mvc.perform(post(PATH).contentType("application/json").content(BODY).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
                 .andExpect(jsonPath("$.status").value("PARAMETER_ERROR"))
                 .andExpect(jsonPath("$.methods.length()").value(0)).andExpect(jsonPath("$.accessToken").doesNotExist());
-        verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();verify(client).query("synthetic-token");
+        verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();verify(client).query("synthetic-token",INPUT);
         verifyNoMoreInteractions(tokens,client);
     }
     @Test void expiredOrUnreadableLocalTokenNeverCallsProvider() throws Exception {
         when(tokens.existingAccessToken()).thenThrow(new IllegalStateException("synthetic-secret"));
-        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mvc.perform(post(PATH).contentType("application/json").content(BODY).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("LOCAL_AUTHORIZATION_UNAVAILABLE"));
         verifyNoInteractions(client);verify(tokens,never()).accessToken();
     }
+    @Test void missingInputNeverCallsProviderOrToken() throws Exception {
+        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.safeCode").value("INVALID_TEST_INPUT"));
+        verifyNoInteractions(tokens,client,products);
+    }
+    @Test void productPreparationAlsoRequiresAdminAndCannotRunViaGet() throws Exception {
+        mvc.perform(post(PATH+"/product").contentType("application/json").content("{\"productId\":\"1005010661577657\"}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(PATH+"/product").contentType("application/json").content("{\"productId\":\"1005010661577657\"}")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))).andExpect(status().isForbidden());
+        mvc.perform(get(PATH+"/product").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isMethodNotAllowed());
+        verifyNoInteractions(tokens,client,products);
+    }
+    @Test void preparationWithUnavailableTokenReturnsSafeNoStoreError() throws Exception {
+        when(tokens.existingAccessToken()).thenThrow(new IllegalStateException("synthetic-secret"));
+        mvc.perform(post(PATH+"/product").contentType("application/json").content("{\"productId\":\"1005010661577657\"}")
+                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isConflict()).andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-secret"))));
+        verifyNoInteractions(client,products);verify(tokens,never()).accessToken();
+    }
     @Test void exactProtocolCodeReachesAdminWithoutRefreshingCredentials() throws Exception {
         when(tokens.existingAccessToken()).thenReturn("synthetic-token");
-        when(client.query("synthetic-token")).thenReturn(AliExpressFreightDiagnosticResult.failure(
+        when(client.query("synthetic-token",INPUT)).thenReturn(AliExpressFreightDiagnosticResult.failure(
                 AliExpressFreightDiagnosticResult.Status.PROTOCOL_ERROR,"TOP_25_INVALID_SIGNATURE"));
-        mvc.perform(post(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+        mvc.perform(post(PATH).contentType("application/json").content(BODY).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PROTOCOL_ERROR"))
                 .andExpect(jsonPath("$.safeCode").value("TOP_25_INVALID_SIGNATURE"))
                 .andExpect(jsonPath("$.accessToken").doesNotExist());
         verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();
-        verify(client).query("synthetic-token");verifyNoMoreInteractions(tokens,client);
+        verify(client).query("synthetic-token",INPUT);verifyNoMoreInteractions(tokens,client);
     }
 }

@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.Map;
 
 @Order(0)
-@RestControllerAdvice(assignableTypes={AliExpressAdminController.class,AliExpressCallbackController.class})
+@RestControllerAdvice(assignableTypes={AliExpressAdminController.class,AliExpressCallbackController.class,AliExpressDiagnosticsController.class})
 public class AliExpressExceptionHandler {
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AliExpressExceptionHandler.class);
     @ExceptionHandler(AliExpressIntegrationException.class)
@@ -27,7 +27,7 @@ public class AliExpressExceptionHandler {
         };
         LOG.warn("AliExpress operation rejected; reason={}",exception.getReason());
         Map<String,String> fields = status == HttpStatus.CONFLICT ? Map.of("code",exception.getReason().name()) : Map.of();
-        return ResponseEntity.status(status).body(new ApiError(Instant.now(),status.value(),status.getReasonPhrase(),exception.getMessage(),request.getRequestURI(),fields));
+        return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ApiError(Instant.now(),status.value(),status.getReasonPhrase(),exception.getMessage(),request.getRequestURI(),fields));
     }
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ApiError> persistence(DataAccessException exception,HttpServletRequest request) {

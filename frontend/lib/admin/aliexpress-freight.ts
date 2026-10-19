@@ -27,6 +27,11 @@ const protocolMessages = {
 } as const;
 
 export function freightDiagnosticMessage(result: FreightDiagnosticResult): string {
+  if (result.safeCode === 'SHIPPING_ORIGIN_UNCONFIRMED') return 'Origem de envio ausente ou ambígua nos atributos Ships From do SKU. A cotação foi bloqueada; país da loja e destino não comprovam a origem.';
+  if (result.safeCode === 'PRODUCT_LOOKUP_FAILED') return 'A consulta prévia do produto falhou. O status se refere a essa etapa; a API de frete não foi chamada.';
+  if (result.safeCode === 'INVALID_TEST_INPUT') return 'Informe um produto, SKU e quantidade válidos.';
+  if (result.safeCode === 'SKU_NOT_IN_PRODUCT') return 'O SKU não consta no produto consultado. Consulte os SKUs novamente.';
+  if (result.safeCode === 'INSUFFICIENT_SUPPLIER_STOCK') return 'A quantidade excede o estoque retornado para o SKU.';
   if (result.status === 'PROTOCOL_ERROR' && Object.hasOwn(protocolMessages, result.safeCode)) {
     return protocolMessages[result.safeCode as keyof typeof protocolMessages];
   }
@@ -40,7 +45,8 @@ const safeCodes = new Set([
   'INVALID_METHOD_LIST', 'NO_DELIVERY_METHODS', 'INVALID_METHOD_DATA', 'CONFLICTING_MONETARY_FIELDS',
   'DUPLICATE_SERVICE', 'CALL_SUCCEEDED', 'PROVIDER_TOKEN_REJECTED', 'PROVIDER_PERMISSION_DENIED',
   'PROVIDER_PROTOCOL_REJECTED', 'PROVIDER_RATE_LIMIT', 'PROVIDER_PARAMETER_REJECTED',
-  'UNCLASSIFIED_PROVIDER_REJECTION',
+  'UNCLASSIFIED_PROVIDER_REJECTION', 'INVALID_TEST_INPUT', 'PRODUCT_LOOKUP_FAILED', 'SKU_NOT_IN_PRODUCT',
+  'SHIPPING_ORIGIN_UNCONFIRMED', 'INSUFFICIENT_SUPPLIER_STOCK',
 ]);
 const estimatePattern = /^(\d{1,4})(?:\s*[-~]\s*(\d{1,4}))?\s*(?:days?|d|dias?)?$/;
 
