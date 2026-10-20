@@ -35,8 +35,10 @@ class AliExpressProductImportIntegrationTests {
     @Autowired AliExpressProductService service;
     @MockitoBean AliExpressProductClient client;
     @MockitoBean AliExpressTokenService tokens;
+    @MockitoBean AliExpressFreightDiagnosticClient freightDiagnostic;
+    @MockitoBean AliExpressFreightService checkoutFreight;
     @BeforeEach void clean() throws Exception {
-        reset(media);media.deleteAll();variants.deleteAll();products.deleteAll();reset(client,tokens);
+        reset(media);media.deleteAll();variants.deleteAll();products.deleteAll();reset(client,tokens,freightDiagnostic,checkoutFreight);
         when(tokens.accessToken()).thenReturn("synthetic-provider-token");
         when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenAnswer(invocation->AliExpressProductNormalizerTests.source());
     }
@@ -101,6 +103,34 @@ class AliExpressProductImportIntegrationTests {
         assertThat(first.getRawVariantKey()).isEqualTo("14:771#Black");assertThat(first.getWeightGrams()).isNull();
         assertThat(media.count()).isEqualTo(7);
         verify(client,times(2)).get(ID,"US","USD","en","synthetic-provider-token");
+    }
+    @ParameterizedTest @ValueSource(strings={"PERMISSION_DENIED","COMMUNICATION_ERROR","NOT_CONFIGURED"})
+    void importDoesNotDependOnFreightAndPreservesFulfillmentMetadata(String failure) throws Exception {
+        when(freightDiagnostic.query(anyString(),any())).thenReturn(AliExpressFreightDiagnosticResult.failure(
+                AliExpressFreightDiagnosticResult.Status.valueOf(failure),"SYNTHETIC_UNAVAILABLE"));
+        when(checkoutFreight.quote(any())).thenThrow(new com.garage.garageapi.shared.exception.ResourceConflictException(
+                AliExpressFreightService.UNAVAILABLE));
+        var preview=service.preview(ID,"US","USD","en");
+        mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON)
+                .content(importBody(preview.fingerprint(),Map.of())))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.variantCount").value(4))
+                .andExpect(jsonPath("$.active").value(false));
+        var product=products.findAll().get(0);
+        assertThat(product.getSupplierMetadata().get("logistics")).isEqualTo(preview.logistics());
+        assertThat(product.getSupplierMetadata().get("store")).isEqualTo(preview.store());
+        assertThat(product.getSupplierMetadata().get("attributes")).isEqualTo(preview.attributes());
+        assertThat(product.getSupplierMetadata().get("packageInfo")).isEqualTo(preview.packageInfo());
+        assertThat(product.getSupplierMetadata().get("shipToCountry")).isEqualTo("US");
+        assertThat(product.getSupplierMetadata().get("domesticShippingConfirmed")).isEqualTo(false);
+        assertThat(product.getFulfillmentType()).isEqualTo(FulfillmentType.DROPSHIPPING);
+        var saved=variants.findBySupplierIgnoreCaseAndSupplierVariantId("ALIEXPRESS","201").orElseThrow();
+        assertThat(saved.getSupplierProductId()).isEqualTo(ID);
+        assertThat(saved.getRawVariantKey()).isEqualTo("14:771#Black");
+        assertThat(saved.getAttributes()).isEqualTo(preview.variants().get(0).attributes());
+        assertThat(saved.getSupplierCost()).isEqualByComparingTo("8.90");
+        assertThat(saved.getSupplierStockQuantity()).isEqualTo(10);
+        assertThat(media.count()).isEqualTo(7);
+        verifyNoInteractions(freightDiagnostic,checkoutFreight);
     }
     @Test void duplicateImportDoesNotOverwriteManualPrice() {
         var preview=service.preview(ID,"US","USD","en");

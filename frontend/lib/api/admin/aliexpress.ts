@@ -20,7 +20,7 @@ export class AliExpressFreightError extends Error {
 }
 
 export type FreightTestInput = { productId: string; skuId: string; quantity: number };
-export type FreightProduct = { productId: string; variants: { skuId: string; origin: string | null; originSource: string; availableStock: number }[] };
+export type FreightProduct = { productId: string; variants: { skuId: string; availableStock: number }[] };
 
 export async function prepareAliExpressFreight(productId: string): Promise<FreightProduct> {
   const token = tokenStorage.getToken();
@@ -38,9 +38,8 @@ export async function prepareAliExpressFreight(productId: string): Promise<Freig
     const data = await response.json();
     if (data.productId !== productId || !Array.isArray(data.variants) || data.variants.length > 1000) throw new Error();
     const variants = data.variants.map((v: FreightProduct['variants'][number]) => {
-      if (!v || typeof v.skuId !== 'string' || !/^[0-9]{1,30}$/.test(v.skuId) || (v.origin !== null && (typeof v.origin !== 'string' || !/^[A-Z]{2}$/.test(v.origin)))
-          || !['SKU_SHIPS_FROM', 'UNCONFIRMED'].includes(v.originSource) || !Number.isSafeInteger(v.availableStock) || v.availableStock < 0) throw new Error();
-      return { skuId: v.skuId, origin: v.origin, originSource: v.originSource, availableStock: v.availableStock };
+      if (!v || typeof v.skuId !== 'string' || !/^[0-9]{1,30}$/.test(v.skuId) || !Number.isSafeInteger(v.availableStock) || v.availableStock < 0) throw new Error();
+      return { skuId: v.skuId, availableStock: v.availableStock };
     });
     return { productId, variants };
   } catch { throw new AliExpressFreightError(502); }

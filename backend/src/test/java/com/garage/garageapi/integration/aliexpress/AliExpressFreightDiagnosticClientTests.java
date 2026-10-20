@@ -33,12 +33,11 @@ class AliExpressFreightDiagnosticClientTests {
     }
     static AliExpressFreightDiagnosticClient.Input input() { return new AliExpressFreightDiagnosticClient.Input("1005010661577657","12000053109276547",1,"BR"); }
     static String response(String entries) {
-        return "{\"aliexpress_logistics_buyer_freight_calculate_response\":{\"result\":{\"success\":true,"
-                + "\"aeop_freight_calculate_result_for_buyer_d_t_o_list\":{\"aeop_freight_calculate_result_for_buyer_dto\":"+entries+"}}}}";
+        return "{\"aliexpress_ds_freight_query_response\":{\"result\":{\"success\":true,\"code\":200,\"delivery_options\":"+entries+"}}}";
     }
-    static String method(String name,String amount,String currency,String cent) {
-        return "{\"error_code\":0,\"service_name\":\""+name+"\",\"estimated_delivery_time\":\"5-8day\","
-                + "\"freight\":{\"amount\":"+amount+",\"currency_code\":\""+currency+"\""+(cent==null?"":",\"cent\":"+cent)+"}}";
+    static String method(String code,String cents,String currency) {
+        return "{\"code\":\""+code+"\",\"min_delivery_days\":5,\"max_delivery_days\":8,\"company\":\"AliExpress Standard\",\"ship_from_country\":\"BR\","
+            +"\"free_shipping\":false,\"shipping_fee_cent\":"+cents+",\"shipping_fee_currency\":\""+currency+"\"}";
     }
     @Test void officialCurrentTopTransportAndRealSkuAreUsedOnce(CapturedOutput output) {
         server.expect(requestTo("https://api-sg.aliexpress.com/sync")).andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.method(HttpMethod.POST))
@@ -49,25 +48,31 @@ class AliExpressFreightDiagnosticClientTests {
                     }
                     String sign=params.remove("sign");
                     assertThat(params).containsEntry("sign_method","sha256").containsEntry("timestamp","1792065600000")
-                            .containsEntry("method","aliexpress.logistics.buyer.freight.calculate").containsEntry("session","synthetic-token");
+                            .containsEntry("method","aliexpress.ds.freight.query").containsEntry("session","synthetic-token");
                     assertThat(params).doesNotContainKeys("app_secret","access_token","sku_id");
-                    var dto=tools.jackson.databind.json.JsonMapper.builder().build().readTree(params.get("param_aeop_freight_calculate_for_buyer_d_t_o"));
-                    assertThat(dto.path("product_id").asText()).isEqualTo("1005010661577657");
-                    assertThat(dto.path("sku_id").asText()).isEqualTo("12000053109276547");
-                    assertThat(dto.path("send_goods_country_code").asText()).isEqualTo("BR");
+                    var dto=tools.jackson.databind.json.JsonMapper.builder().build().readTree(params.get("queryDeliveryReq"));
+                    assertThat(dto.path("productId").asText()).isEqualTo("1005010661577657");
+                    assertThat(dto.path("selectedSkuId").asText()).isEqualTo("12000053109276547");
+                    assertThat(dto.path("shipToCountry").asText()).isEqualTo("BR");
                     assertThat(dto.has("price")).isFalse();
+                    assertThat(dto.size()).isEqualTo(7);
+                    assertThat(dto.path("productId").isString()).isTrue();
+                    assertThat(dto.path("selectedSkuId").isString()).isTrue();
+                    assertThat(dto.path("currency").asText()).isEqualTo("BRL");
+                    assertThat(dto.path("language").asText()).isEqualTo("pt_BR");
+                    assertThat(dto.path("locale").asText()).isEqualTo("pt_BR");
                     try {
                         var input=new StringBuilder();params.forEach((key,value)->input.append(key).append(value));
                         var mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec("synthetic-secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
                         assertThat(sign).isEqualTo(HexFormat.of().withUpperCase().formatHex(mac.doFinal(input.toString().getBytes(StandardCharsets.UTF_8))));
                     } catch(Exception exception) { throw new AssertionError(exception); }
-                }).andRespond(withSuccess(response("["+method("CAINIAO_STANDARD","12.30","BRL","1230")+","+method("EXPRESS","\"25.39\"","USD",null)+"]"),MediaType.APPLICATION_JSON));
+                }).andRespond(withSuccess(response("["+method("CAINIAO_STANDARD","\"1230\"","BRL")+","+method("EXPRESS","\"2539\"","USD")+"]"),MediaType.APPLICATION_JSON));
         var result=client.query("synthetic-token", input());
         assertThat(result.status()).isEqualTo(SUCCESS);assertThat(result.methods()).hasSize(2);
         assertThat(result.methods().get(0).amount()).isEqualByComparingTo("12.30");
         assertThat(result.methods().get(1).amount()).isEqualByComparingTo("25.39");
         assertThat(result.methods().get(1).currency()).isEqualTo("USD");
-        assertThat(result.methods().get(0).estimatedDeliveryTime()).isEqualTo("5-8day");
+        assertThat(result.methods().get(0).estimatedDeliveryTime()).isEqualTo("5-8days");
         assertThat(result.limitations()).contains("APP_API_PERMISSION_NOT_PRECONFIRMED","DIAGNOSTIC_ONLY_CHECKOUT_BLOCKED");
         assertThat(output.getAll()).doesNotContain("synthetic-token","synthetic-secret","aeop_freight_calculate_result_for_buyer");
         server.verify();
@@ -82,13 +87,15 @@ class AliExpressFreightDiagnosticClientTests {
         assertThat(result.status()).isEqualTo(expected);assertThat(result.methods()).isEmpty();
         assertThat(result.toString()+output.getAll()).doesNotContain("synthetic-secret","synthetic-token","52998224725");server.verify();
     }
-    @Test void supportsCurrentDirectArrayAndStrictStringSuccess() {
-        String body=response("["+method("STANDARD","12.30","BRL",null)+"]");
-        body=body.replace("\"success\":true","\"success\":\"true\"").replace("{\"aeop_freight_calculate_result_for_buyer_dto\":[","[").replace("]}}}}","]}}}");
-        server.expect(anything()).andRespond(withSuccess(body,MediaType.APPLICATION_JSON));
+    @Test void supportsDocumentedSimplifiedResponseAndStrictStringBooleans() {
+        String body=response("["+method("STANDARD","\"1230\"","BRL")+"]")
+                .replace("\"success\":true","\"success\":\"true\"")
+                .replace("\"free_shipping\":false","\"free_shipping\":\"false\"");
+        var parsed=tools.jackson.databind.json.JsonMapper.builder().build().readTree(body).path("aliexpress_ds_freight_query_response");
+        server.expect(anything()).andRespond(withSuccess(parsed.toString(),MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token",input()).status()).isEqualTo(SUCCESS);server.verify();
     }
-    @Test void invalidOriginCannotTriggerNetwork() {
+    @Test void nonBrazilianDestinationCannotTriggerNetwork() {
         assertThat(client.query("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,null)).safeCode()).isEqualTo("INVALID_TEST_INPUT");server.verify();
     }
     @Test void unavailableProductDoesNotMeanFreeShipping() {
@@ -115,12 +122,8 @@ class AliExpressFreightDiagnosticClientTests {
     }
     @ParameterizedTest @CsvSource({"7","11","22","25","26","27","29"})
     void businessErrorNumbersAreNotMisclassifiedAsTopPlatformCodes(String code) {
-        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_logistics_buyer_freight_calculate_response\":{\"result\":{\"success\":false,\"error_code\":"+code+"}}}",MediaType.APPLICATION_JSON));
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_ds_freight_query_response\":{\"result\":{\"success\":false,\"error_code\":"+code+"}}}",MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token", input()).status()).isEqualTo(PROVIDER_REJECTED);server.verify();
-    }
-    @Test void perMethodErrorCodeIsNotAnInvalidSignatureError() {
-        server.expect(anything()).andRespond(withSuccess(response("[{\"error_code\":25}]"),MediaType.APPLICATION_JSON));
-        assertThat(client.query("synthetic-token", input()).safeCode()).isEqualTo("UNCLASSIFIED_PROVIDER_REJECTION");server.verify();
     }
     @Test void timeoutIsCommunicationFailureWithNoRetry(CapturedOutput output) {
         server.expect(anything()).andRespond(withException(new java.net.SocketTimeoutException("synthetic-secret")));
@@ -136,16 +139,53 @@ class AliExpressFreightDiagnosticClientTests {
         server.expect(anything()).andRespond(withSuccess("<html>synthetic-token</html>",MediaType.TEXT_HTML));
         assertThat(client.query("synthetic-token", input()).status()).isEqualTo(INVALID_RESPONSE);server.verify();
     }
-    @Test void monetaryConflictsAreNeverSilentlyResolved() {
-        server.expect(anything()).andRespond(withSuccess(response("["+method("CAINIAO_STANDARD","1.0","USD","1000")+"]"),MediaType.APPLICATION_JSON));
-        assertThat(client.query("synthetic-token", input()).safeCode()).isEqualTo("CONFLICTING_MONETARY_FIELDS");server.verify();
+    @Test void decimalCentsFromOfficialExampleAreNeverGuessed() {
+        server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","\"1.99\"","USD")+"]"),MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token",input()).safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");server.verify();
     }
     @Test void missingAmountNeverDefaultsToZero() {
-        server.expect(anything()).andRespond(withSuccess(response("["+method("CAINIAO_STANDARD","null","BRL",null)+"]"),MediaType.APPLICATION_JSON));
-        assertThat(client.query("synthetic-token", input()).status()).isEqualTo(INVALID_RESPONSE);server.verify();
+        server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","null","BRL")+"]"),MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token",input()).status()).isEqualTo(INVALID_RESPONSE);server.verify();
+    }
+    @Test void conflictingFreeShippingIsNotAccepted() {
+        String body=response("["+method("STANDARD","\"1230\"","BRL")+"]").replace("\"free_shipping\":false","\"free_shipping\":true");
+        server.expect(anything()).andRespond(withSuccess(body,MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token",input()).safeCode()).isEqualTo("CONFLICTING_MONETARY_FIELDS");server.verify();
+    }
+    @ParameterizedTest @CsvSource({"DELIVERY_NOT_AVAILABLE_TO_YOUR_ADDRESS,PRODUCT_UNAVAILABLE,PROVIDER_DELIVERY_UNAVAILABLE","DELIVERY_INFO_EMPTY,PARAMETER_ERROR,PROVIDER_PRODUCT_ID_REJECTED"})
+    void classifiesDocumentedBusinessErrors(String code,AliExpressFreightDiagnosticResult.Status status,String safe) {
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_ds_freight_query_response\":{\"result\":{\"success\":false,\"code\":\""+code+"\"}}}",MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token",input());assertThat(result.status()).isEqualTo(status);assertThat(result.safeCode()).isEqualTo(safe);server.verify();
+    }
+    @Test void exactCentsAndProviderOriginArePreserved() {
+        server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","\"9999999999999999\"","BRL")+"]"),MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token",input());assertThat(result.methods().get(0).amount()).isEqualByComparingTo("99999999999999.99");
+        assertThat(result.methods().get(0).originCountry()).isEqualTo("BR");assertThat(result.methods().get(0).company()).isEqualTo("AliExpress Standard");server.verify();
+    }
+    @Test void contradictoryFormattedAmountDoesNotCauseHundredfoldUnderstatement() {
+        String entry=method("STANDARD","\"199\"","USD").replace("\"code\":", "\"shipping_fee_format\":\"US $199.00\",\"code\":");
+        server.expect(anything()).andRespond(withSuccess(response("["+entry+"]"),MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token",input()).safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");server.verify();
+    }
+    @Test void explicitFreeShippingRemainsZeroWithoutInventingPaidRates() {
+        String entry=method("STANDARD","\"0\"","BRL").replace("\"free_shipping\":false","\"free_shipping\":\"true\"");
+        server.expect(anything()).andRespond(withSuccess(response("["+entry+"]"),MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token",input());assertThat(result.status()).isEqualTo(SUCCESS);
+        assertThat(result.methods().get(0).amount()).isEqualByComparingTo("0.00");server.verify();
+    }
+    @Test void duplicateServiceCodesAreRejected() {
+        String entry=method("STANDARD","\"1230\"","BRL");
+        server.expect(anything()).andRespond(withSuccess(response("["+entry+","+entry+"]"),MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token",input()).safeCode()).isEqualTo("DUPLICATE_SERVICE");server.verify();
+    }
+    @ParameterizedTest @CsvSource({"\"TRUE\"","1","null"})
+    void successBooleanCannotBeCoerced(String success) {
+        String body=response("[]").replace("\"success\":true","\"success\":"+success);
+        server.expect(anything()).andRespond(withSuccess(body,MediaType.APPLICATION_JSON));
+        assertThat(client.query("synthetic-token",input()).status()).isEqualTo(INVALID_RESPONSE);server.verify();
     }
     @Test void successfulFalseWithUnknownErrorRemainsInconclusive() {
-        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_logistics_buyer_freight_calculate_response\":{\"result\":{\"success\":false,\"error_desc\":\"permission synthetic-token\"}}}",MediaType.APPLICATION_JSON));
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_ds_freight_query_response\":{\"result\":{\"success\":false,\"error_desc\":\"permission synthetic-token\"}}}",MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token", input()).status()).isEqualTo(PROVIDER_REJECTED);server.verify();
     }
 }

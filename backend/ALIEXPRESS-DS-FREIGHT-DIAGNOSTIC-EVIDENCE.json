@@ -1,0 +1,242 @@
+{
+  "retrievedOn": "2026-10-20",
+  "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.freight.query&methodType=GET%2FPOST",
+  "docId": 1579,
+  "authorizationRequired": true,
+  "snapshotSha256": "e0aa3ec5e07390b4781fb550b1393cdeeeee1b29a95f6aa9955149d066dec09c",
+  "sdk": {
+    "source": "https://ae-open-platform-public.oss-ap-southeast-1.aliyuncs.com/online/oss_1792472413910_0_kjhG.zip",
+    "zipSha256": "293a815a5fceb1747eee650234c2b5fbf8d75ada450cf66f3547280bfca4edb1",
+    "executed": false,
+    "protocol": "TOP",
+    "route": "/sync",
+    "tokenParameter": "session",
+    "signMethod": "sha256",
+    "algorithm": "HmacSHA256",
+    "timestamp": "epoch milliseconds",
+    "signatureApiPrefix": ""
+  },
+  "request": [
+    {
+      "path": "queryDeliveryReq",
+      "type": "Object",
+      "required": true,
+      "description": "delivery query request"
+    },
+    {
+      "path": "queryDeliveryReq.quantity",
+      "type": "Number",
+      "required": true,
+      "description": "quantity for your request"
+    },
+    {
+      "path": "queryDeliveryReq.shipToCountry",
+      "type": "String",
+      "required": true,
+      "description": "country that ships to"
+    },
+    {
+      "path": "queryDeliveryReq.productId",
+      "type": "String",
+      "required": true,
+      "description": "product_id"
+    },
+    {
+      "path": "queryDeliveryReq.provinceCode",
+      "type": "String",
+      "required": false,
+      "description": "The province code, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+    },
+    {
+      "path": "queryDeliveryReq.cityCode",
+      "type": "String",
+      "required": false,
+      "description": "The city code. Optional."
+    },
+    {
+      "path": "queryDeliveryReq.language",
+      "type": "String",
+      "required": true,
+      "description": "language"
+    },
+    {
+      "path": "queryDeliveryReq.locale",
+      "type": "String",
+      "required": true,
+      "description": "locale"
+    },
+    {
+      "path": "queryDeliveryReq.selectedSkuId",
+      "type": "String",
+      "required": true,
+      "description": "selected sku"
+    },
+    {
+      "path": "queryDeliveryReq.currency",
+      "type": "String",
+      "required": true,
+      "description": "currency for calculate the freight fee"
+    },
+    {
+      "path": "queryDeliveryReq.province",
+      "type": "String",
+      "required": false,
+      "description": "The province name, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+    }
+  ],
+  "response": [
+    {
+      "path": "result",
+      "type": "Object",
+      "required": true,
+      "description": "result"
+    },
+    {
+      "path": "result.msg",
+      "type": "String",
+      "required": true,
+      "description": "error msg"
+    },
+    {
+      "path": "result.delivery_options",
+      "type": "Object[]",
+      "required": true,
+      "description": "list of deliveryOptions"
+    },
+    {
+      "path": "result.delivery_options.shipping_fee_format",
+      "type": "String",
+      "required": true,
+      "description": "format String shipping fee to make it understandable"
+    },
+    {
+      "path": "result.delivery_options.delivery_date_desc",
+      "type": "String",
+      "required": true,
+      "description": "format delivery date estimation"
+    },
+    {
+      "path": "result.delivery_options.code",
+      "type": "String",
+      "required": true,
+      "description": "delivery service code, which is used for place order"
+    },
+    {
+      "path": "result.delivery_options.free_shipping",
+      "type": "Boolean",
+      "required": true,
+      "description": "true means free, false means not free"
+    },
+    {
+      "path": "result.delivery_options.max_delivery_days",
+      "type": "Number",
+      "required": true,
+      "description": "estimated delivery days, max days"
+    },
+    {
+      "path": "result.delivery_options.estimated_delivery_time",
+      "type": "String",
+      "required": true,
+      "description": "delivery estimation"
+    },
+    {
+      "path": "result.delivery_options.min_delivery_days",
+      "type": "Number",
+      "required": true,
+      "description": "estimated delivery days, main days"
+    },
+    {
+      "path": "result.delivery_options.shipping_fee_currency",
+      "type": "String",
+      "required": true,
+      "description": "shipping fee currency"
+    },
+    {
+      "path": "result.delivery_options.ship_from_country",
+      "type": "String",
+      "required": true,
+      "description": "where your sku will ship from"
+    },
+    {
+      "path": "result.delivery_options.company",
+      "type": "String",
+      "required": true,
+      "description": "shipping service company name which you can use to display"
+    },
+    {
+      "path": "result.delivery_options.shipping_fee_cent",
+      "type": "String",
+      "required": true,
+      "description": "shipping fee amount in cent"
+    },
+    {
+      "path": "result.delivery_options.tracking",
+      "type": "Boolean",
+      "required": false,
+      "description": "is this shipping option can be tracking"
+    },
+    {
+      "path": "result.delivery_options.mayHavePFS",
+      "type": "Boolean",
+      "required": false,
+      "description": "if it can be platFormFreeShipping"
+    },
+    {
+      "path": "result.delivery_options.available_stock",
+      "type": "String",
+      "required": false,
+      "description": "available stock for sku"
+    },
+    {
+      "path": "result.delivery_options.guaranteed_delivery_days",
+      "type": "String",
+      "required": false,
+      "description": "it is a guaranteed days"
+    },
+    {
+      "path": "result.delivery_options.ddpIncludeVATTax",
+      "type": "String",
+      "required": false,
+      "description": "if price include ddp vat tax"
+    },
+    {
+      "path": "result.delivery_options.free_shipping_threshold",
+      "type": "String",
+      "required": false,
+      "description": "free shipping threshold"
+    },
+    {
+      "path": "result.code",
+      "type": "Number",
+      "required": true,
+      "description": "status of this request: 200 means success"
+    },
+    {
+      "path": "result.success",
+      "type": "Boolean",
+      "required": true,
+      "description": "true means it is success"
+    }
+  ],
+  "businessErrors": [
+    {
+      "code": "DELIVERY_NOT_AVAILABLE_TO_YOUR_ADDRESS",
+      "description": "Logistics cannot be delivered to the specified address"
+    },
+    {
+      "code": "DELIVERY_INFO_EMPTY",
+      "description": "The product ID is wrong, please check the product ID"
+    }
+  ],
+  "monetaryConflict": {
+    "description": "shipping fee amount in cent",
+    "officialExample": {
+      "shipping_fee_cent": "1.99",
+      "shipping_fee_format": "US $1.99",
+      "shipping_fee_currency": "USD"
+    },
+    "handling": "Reject decimal cents or contradictory simple formatted amount; never infer conversion."
+  },
+  "applicationPermission": "NOT_PROVEN_UNTIL_AUTHENTICATED_RESULT",
+  "authenticatedQueryPerformed": false
+}

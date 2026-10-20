@@ -14,7 +14,7 @@ export const freightStatusMessages = {
 } as const;
 
 export type FreightDiagnosticStatus = keyof typeof freightStatusMessages;
-export type FreightDiagnosticMethod = { serviceName: string; amount: number; currency: string; estimatedDeliveryTime: string | null };
+export type FreightDiagnosticMethod = { serviceName: string; amount: number | string; currency: string; estimatedDeliveryTime: string | null; company?: string | null; originCountry?: string | null };
 export type FreightDiagnosticResult = { status: FreightDiagnosticStatus; safeCode: string; methods: FreightDiagnosticMethod[] };
 
 const protocolMessages = {
@@ -27,6 +27,9 @@ const protocolMessages = {
 } as const;
 
 export function freightDiagnosticMessage(result: FreightDiagnosticResult): string {
+  if (result.safeCode === 'AMBIGUOUS_MONETARY_UNIT') return 'A API retornou uma unidade monetária ambígua. O contrato descreve centavos, mas há inconsistência no exemplo oficial. Nenhum valor foi presumido ou convertido.';
+  if (result.safeCode === 'PROVIDER_DELIVERY_UNAVAILABLE') return 'A API informou que não há entrega para o destino suportado nesta consulta.';
+  if (result.safeCode === 'PROVIDER_PRODUCT_ID_REJECTED') return 'A API retornou DELIVERY_INFO_EMPTY, documentado como produto inválido. Confira produto e SKU.';
   if (result.safeCode === 'SHIPPING_ORIGIN_UNCONFIRMED') return 'Origem de envio ausente ou ambígua nos atributos Ships From do SKU. A cotação foi bloqueada; país da loja e destino não comprovam a origem.';
   if (result.safeCode === 'PRODUCT_LOOKUP_FAILED') return 'A consulta prévia do produto falhou. O status se refere a essa etapa; a API de frete não foi chamada.';
   if (result.safeCode === 'INVALID_TEST_INPUT') return 'Informe um produto, SKU e quantidade válidos.';
@@ -46,7 +49,8 @@ const safeCodes = new Set([
   'DUPLICATE_SERVICE', 'CALL_SUCCEEDED', 'PROVIDER_TOKEN_REJECTED', 'PROVIDER_PERMISSION_DENIED',
   'PROVIDER_PROTOCOL_REJECTED', 'PROVIDER_RATE_LIMIT', 'PROVIDER_PARAMETER_REJECTED',
   'UNCLASSIFIED_PROVIDER_REJECTION', 'INVALID_TEST_INPUT', 'PRODUCT_LOOKUP_FAILED', 'SKU_NOT_IN_PRODUCT',
-  'SHIPPING_ORIGIN_UNCONFIRMED', 'INSUFFICIENT_SUPPLIER_STOCK',
+  'SHIPPING_ORIGIN_UNCONFIRMED', 'INSUFFICIENT_SUPPLIER_STOCK', 'AMBIGUOUS_MONETARY_UNIT',
+  'PROVIDER_DELIVERY_UNAVAILABLE', 'PROVIDER_PRODUCT_ID_REJECTED', 'CONTRADICTORY_SUCCESS_CODE',
 ]);
 const estimatePattern = /^(\d{1,4})(?:\s*[-~]\s*(\d{1,4}))?\s*(?:days?|d|dias?)?$/;
 
@@ -60,9 +64,13 @@ export function parseFreightDiagnostic(value: unknown, token: string): FreightDi
       || !Object.hasOwn(freightStatusMessages, value.status) || !Array.isArray(value.methods) || value.methods.length > 500) throw new Error('Invalid diagnostic');
   const methods = value.methods.map((entry): FreightDiagnosticMethod => {
     if (!object(entry) || typeof entry.serviceName !== 'string' || entry.serviceName.trim() !== entry.serviceName || !/^[A-Za-z0-9_.-]{1,120}$/.test(entry.serviceName)
-        || entry.serviceName.includes(token) || typeof entry.amount !== 'number' || !Number.isFinite(entry.amount) || entry.amount < 0
+        || entry.serviceName.includes(token) || !((typeof entry.amount === 'number' && Number.isFinite(entry.amount) && entry.amount >= 0)
+          || (typeof entry.amount === 'string' && /^[0-9]{1,14}\.[0-9]{2}$/.test(entry.amount)))
         || typeof entry.currency !== 'string' || entry.currency.length !== 3 || !/^[A-Z]{3}$/.test(entry.currency)) throw new Error('Invalid method');
-    return { serviceName: entry.serviceName, amount: entry.amount, currency: entry.currency,
+    const details: { company?: string | null; originCountry?: string | null } = {};
+    if ('company' in entry) details.company = typeof entry.company === 'string' && /^[A-Za-z][A-Za-z0-9 ._()/ -]{0,119}$/.test(entry.company) && !/[0-9]{8,}/.test(entry.company) && !entry.company.includes(token) ? entry.company : null;
+    if ('originCountry' in entry) details.originCountry = typeof entry.originCountry === 'string' && /^[A-Z]{2}$/.test(entry.originCountry) ? entry.originCountry : null;
+    return { ...details, serviceName: entry.serviceName, amount: entry.amount, currency: entry.currency,
       estimatedDeliveryTime: typeof entry.estimatedDeliveryTime === 'string' && estimatePattern.test(entry.estimatedDeliveryTime)
         ? entry.estimatedDeliveryTime : null };
   });
@@ -83,5 +91,9 @@ export function freightEstimate(value: string | null): string {
 }
 
 export function freightAmount(method: FreightDiagnosticMethod): string {
+  if (typeof method.amount === 'string') {
+    const [whole, fraction] = method.amount.split('.');
+    return method.currency + ' ' + new Intl.NumberFormat('pt-BR').format(BigInt(whole)) + ',' + fraction;
+  }
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: method.currency, maximumFractionDigits: 8 }).format(method.amount);
 }

@@ -22,17 +22,12 @@ class AliExpressFreightDiagnosticServiceTests {
                 List.of(),List.of(variant),Map.of(),Map.of(),Map.of("ship_to_country","BR"),
                 Map.of("store_country_code","CN"),"BR","",false,List.of(),""));
     }
-    @Test void missingOriginBlocksEvenWithStoreCountryAndDestination() {
+    @Test void noOriginAttributeIsNeededByDsFreightQuery() {
         product(Map.of("14:name","Color","14","Black"),10);
-        assertThat(service.run(REQUEST).safeCode()).isEqualTo("SHIPPING_ORIGIN_UNCONFIRMED");
-        verifyNoInteractions(freight);verify(tokens,never()).accessToken();
-    }
-    @Test void originMustBeExactAndUnambiguous() {
-        assertThat(AliExpressFreightDiagnosticService.origin(Map.of("x:name","Ships From","x","Brazil"))).isEqualTo("BR");
-        assertThat(AliExpressFreightDiagnosticService.origin(Map.of("x:name","Ships From","x","CN"))).isEqualTo("CN");
-        assertThat(AliExpressFreightDiagnosticService.origin(Map.of("x:name","Ships From","x","Mainland warehouse"))).isNull();
-        assertThat(AliExpressFreightDiagnosticService.origin(Map.of("x:name","Ships From","x","China","y:name","Ships From","y","Brazil"))).isNull();
-        assertThat(AliExpressFreightDiagnosticService.origin(Map.of("x:name","Country","x","China"))).isNull();
+        var input=new AliExpressFreightDiagnosticClient.Input(ID,SKU,1,"BR");
+        when(freight.query("synthetic-token",input)).thenReturn(AliExpressFreightDiagnosticResult.failure(AliExpressFreightDiagnosticResult.Status.PRODUCT_UNAVAILABLE,"NO_DELIVERY_METHODS"));
+        assertThat(service.run(REQUEST).safeCode()).isEqualTo("NO_DELIVERY_METHODS");
+        verify(freight).query("synthetic-token",input);verify(tokens,never()).accessToken();
     }
     @Test void revalidatesSourceThenCallsFreightOnceWithPersistedTokenAndExactSku() {
         product(Map.of("x:name","Ships From","x","Brazil"),10);
@@ -66,7 +61,7 @@ class AliExpressFreightDiagnosticServiceTests {
     @Test void prepareReturnsOnlyAllowlistedProductDataWithoutRenewingToken() {
         product(Map.of("x:name","Ships From","x","China"),10);
         var prepared=service.prepare(ID);
-        assertThat(prepared.variants()).containsExactly(new AliExpressFreightDiagnosticService.Option(SKU,"CN","SKU_SHIPS_FROM",10));
+        assertThat(prepared.variants()).containsExactly(new AliExpressFreightDiagnosticService.Option(SKU,10));
         assertThat(prepared.toString()).doesNotContain("synthetic-token","store_country_code");
         verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();verifyNoInteractions(freight);
     }

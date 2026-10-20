@@ -12,6 +12,8 @@ import static com.garage.garageapi.integration.aliexpress.AliExpressIntegrationE
 
 @Service
 public class AliExpressProductService {
+    // Catalog import deliberately depends on product/OAuth APIs only. Freight
+    // belongs to checkout after destination selection, never to this import.
     private final AliExpressProductClient client;
     private final AliExpressTokenService tokens;
     private final AliExpressProductNormalizer normalizer;

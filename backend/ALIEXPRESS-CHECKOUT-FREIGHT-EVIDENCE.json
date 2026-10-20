@@ -1,0 +1,868 @@
+{
+  "retrievedOn": "2026-10-20",
+  "sourceType": "Public official documentation only; no application grant or authenticated rate evidence",
+  "applicationPermission": "NOT_CONFIRMED_BY_ADMIN",
+  "authenticatedRateTestPerformed": false,
+  "apis": [
+    {
+      "method": "aliexpress.ds.freight.query",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.freight.query&methodType=GET%2FPOST",
+      "responseSnapshotSha256": "8a733d6178f305fa3bfe495a7a34aece6c0955d54b2fcdf2338563225234166c",
+      "docId": 1579,
+      "authorizationType": 1,
+      "title": "Delivery/Freight API",
+      "description": "Freight Query API - you can get delivery info from this api/include price, available delivery method",
+      "javaExampleProtocolTop": true,
+      "request": [
+        {
+          "path": "queryDeliveryReq",
+          "type": "Object",
+          "required": true,
+          "description": "delivery query request"
+        },
+        {
+          "path": "queryDeliveryReq.quantity",
+          "type": "Number",
+          "required": true,
+          "description": "quantity for your request"
+        },
+        {
+          "path": "queryDeliveryReq.shipToCountry",
+          "type": "String",
+          "required": true,
+          "description": "country that ships to"
+        },
+        {
+          "path": "queryDeliveryReq.productId",
+          "type": "String",
+          "required": true,
+          "description": "product_id"
+        },
+        {
+          "path": "queryDeliveryReq.provinceCode",
+          "type": "String",
+          "required": false,
+          "description": "The province code, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+        },
+        {
+          "path": "queryDeliveryReq.cityCode",
+          "type": "String",
+          "required": false,
+          "description": "The city code. Optional."
+        },
+        {
+          "path": "queryDeliveryReq.language",
+          "type": "String",
+          "required": true,
+          "description": "language"
+        },
+        {
+          "path": "queryDeliveryReq.locale",
+          "type": "String",
+          "required": true,
+          "description": "locale"
+        },
+        {
+          "path": "queryDeliveryReq.selectedSkuId",
+          "type": "String",
+          "required": true,
+          "description": "selected sku"
+        },
+        {
+          "path": "queryDeliveryReq.currency",
+          "type": "String",
+          "required": true,
+          "description": "currency for calculate the freight fee"
+        },
+        {
+          "path": "queryDeliveryReq.province",
+          "type": "String",
+          "required": false,
+          "description": "The province name, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+        }
+      ],
+      "response": [
+        {
+          "path": "result",
+          "type": "Object",
+          "required": true,
+          "description": "result"
+        },
+        {
+          "path": "result.msg",
+          "type": "String",
+          "required": true,
+          "description": "error msg"
+        },
+        {
+          "path": "result.delivery_options",
+          "type": "Object[]",
+          "required": true,
+          "description": "list of deliveryOptions"
+        },
+        {
+          "path": "result.delivery_options.shipping_fee_format",
+          "type": "String",
+          "required": true,
+          "description": "format String shipping fee to make it understandable"
+        },
+        {
+          "path": "result.delivery_options.delivery_date_desc",
+          "type": "String",
+          "required": true,
+          "description": "format delivery date estimation"
+        },
+        {
+          "path": "result.delivery_options.code",
+          "type": "String",
+          "required": true,
+          "description": "delivery service code, which is used for place order"
+        },
+        {
+          "path": "result.delivery_options.free_shipping",
+          "type": "Boolean",
+          "required": true,
+          "description": "true means free, false means not free"
+        },
+        {
+          "path": "result.delivery_options.max_delivery_days",
+          "type": "Number",
+          "required": true,
+          "description": "estimated delivery days, max days"
+        },
+        {
+          "path": "result.delivery_options.estimated_delivery_time",
+          "type": "String",
+          "required": true,
+          "description": "delivery estimation"
+        },
+        {
+          "path": "result.delivery_options.min_delivery_days",
+          "type": "Number",
+          "required": true,
+          "description": "estimated delivery days, main days"
+        },
+        {
+          "path": "result.delivery_options.shipping_fee_currency",
+          "type": "String",
+          "required": true,
+          "description": "shipping fee currency"
+        },
+        {
+          "path": "result.delivery_options.ship_from_country",
+          "type": "String",
+          "required": true,
+          "description": "where your sku will ship from"
+        },
+        {
+          "path": "result.delivery_options.company",
+          "type": "String",
+          "required": true,
+          "description": "shipping service company name which you can use to display"
+        },
+        {
+          "path": "result.delivery_options.shipping_fee_cent",
+          "type": "String",
+          "required": true,
+          "description": "shipping fee amount in cent"
+        },
+        {
+          "path": "result.delivery_options.tracking",
+          "type": "Boolean",
+          "required": false,
+          "description": "is this shipping option can be tracking"
+        },
+        {
+          "path": "result.delivery_options.mayHavePFS",
+          "type": "Boolean",
+          "required": false,
+          "description": "if it can be platFormFreeShipping"
+        },
+        {
+          "path": "result.delivery_options.available_stock",
+          "type": "String",
+          "required": false,
+          "description": "available stock for sku"
+        },
+        {
+          "path": "result.delivery_options.guaranteed_delivery_days",
+          "type": "String",
+          "required": false,
+          "description": "it is a guaranteed days"
+        },
+        {
+          "path": "result.delivery_options.ddpIncludeVATTax",
+          "type": "String",
+          "required": false,
+          "description": "if price include ddp vat tax"
+        },
+        {
+          "path": "result.delivery_options.free_shipping_threshold",
+          "type": "String",
+          "required": false,
+          "description": "free shipping threshold"
+        },
+        {
+          "path": "result.code",
+          "type": "Number",
+          "required": true,
+          "description": "status of this request: 200 means success"
+        },
+        {
+          "path": "result.success",
+          "type": "Boolean",
+          "required": true,
+          "description": "true means it is success"
+        }
+      ]
+    },
+    {
+      "method": "aliexpress.logistics.buyer.freight.calculate",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.logistics.buyer.freight.calculate&methodType=GET%2FPOST",
+      "responseSnapshotSha256": "f5df696831dcc56a849a0137bb5da2bd5aaf096c11f60786149eeb7dfc4adc78",
+      "docId": 525,
+      "authorizationType": 1,
+      "title": "Freight calculation interface provided for buyers",
+      "description": "Freight calculation interface provided for buyers",
+      "javaExampleProtocolTop": true,
+      "request": [
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o",
+          "type": "Object",
+          "required": true,
+          "description": "Shipping Calculation Request Parameters"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.sku_id",
+          "type": "String",
+          "required": false,
+          "description": "skuId must be passed when calculating the choice product"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.city_code",
+          "type": "String",
+          "required": false,
+          "description": "city code"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.country_code",
+          "type": "String",
+          "required": true,
+          "description": "country code"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.product_id",
+          "type": "Number",
+          "required": true,
+          "description": "Product ID"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.product_num",
+          "type": "Number",
+          "required": true,
+          "description": "Product count"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.province_code",
+          "type": "String",
+          "required": false,
+          "description": "Province code"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.send_goods_country_code",
+          "type": "String",
+          "required": true,
+          "description": "Shipping country"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.price",
+          "type": "String",
+          "required": false,
+          "description": "commodity price"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.price_currency",
+          "type": "String",
+          "required": false,
+          "description": "commodity price currency"
+        }
+      ]
+    },
+    {
+      "method": "aliexpress.logistics.buyer.freight.get",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.logistics.buyer.freight.get&methodType=GET%2FPOST",
+      "responseSnapshotSha256": "e8d50f0f182afc93d7afb564694453389f9bf6f6acdbd3ea808b7fffadb17549",
+      "docId": 1442,
+      "authorizationType": 1,
+      "title": "Freight calculation (new)",
+      "description": "calculate shipping info",
+      "javaExampleProtocolTop": true,
+      "request": [
+        {
+          "path": "aeopFreightCalculateForBuyerDTO",
+          "type": "Object",
+          "required": true,
+          "description": "Param Object"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.price_currency",
+          "type": "String",
+          "required": false,
+          "description": "Commodity Price Currency"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.product_id",
+          "type": "Number",
+          "required": true,
+          "description": "Product Id"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.country_code",
+          "type": "String",
+          "required": true,
+          "description": "Country Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.province_code",
+          "type": "String",
+          "required": false,
+          "description": "Province Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.city_code",
+          "type": "String",
+          "required": false,
+          "description": "City Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.send_goods_country_code",
+          "type": "String",
+          "required": false,
+          "description": "Send Goods Country Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.price",
+          "type": "String",
+          "required": false,
+          "description": "Commodity Price"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.product_num",
+          "type": "Number",
+          "required": true,
+          "description": "Product Num"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.sku_id",
+          "type": "Number",
+          "required": true,
+          "description": "Sku Id"
+        }
+      ]
+    },
+    {
+      "method": "aliexpress.trade.buy.placeorder",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.trade.buy.placeorder&methodType=GET%2FPOST",
+      "responseSnapshotSha256": "ff8a3722c1febad523fac1cbf7ba835be1ca36f2b15ea2b54f24f8e45c38de05",
+      "docId": 479,
+      "authorizationType": 1,
+      "title": "API for place order",
+      "description": "API for place order in DS business",
+      "javaExampleProtocolTop": true,
+      "request": [
+        {
+          "path": "param_place_order_request4_open_api_d_t_o",
+          "type": "Object",
+          "required": true,
+          "description": "specific order parameters"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.out_order_id",
+          "type": "String",
+          "required": false,
+          "description": "outer order id, used for idempotent checkout"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.ds_extend_request",
+          "type": "Object",
+          "required": false,
+          "description": ""
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.ds_extend_request.trade_extra_param",
+          "type": "Object",
+          "required": false,
+          "description": ""
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.ds_extend_request.trade_extra_param.nat_addr",
+          "type": "String",
+          "required": false,
+          "description": "SA natAddr"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.ds_extend_request.trade_extra_param.birthday",
+          "type": "String",
+          "required": false,
+          "description": "Recipient's Birthday. This field is mandatory if the destination country is Brazil (BR). Format: ddMMyyyy (Day-Month-Year, 8 digits, no separators). Example: 01022026 represents February 1st, 2026."
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.ds_extend_request.channel_strategy",
+          "type": "String",
+          "required": false,
+          "description": "\"strategy\""
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address",
+          "type": "Object",
+          "required": true,
+          "description": "logistic address information"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.address",
+          "type": "String",
+          "required": true,
+          "description": "address information"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.address2",
+          "type": "String",
+          "required": false,
+          "description": "address extension information"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.city",
+          "type": "String",
+          "required": true,
+          "description": "city"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.contact_person",
+          "type": "String",
+          "required": false,
+          "description": "contact person"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.country",
+          "type": "String",
+          "required": true,
+          "description": "receiver country"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.cpf",
+          "type": "String",
+          "required": false,
+          "description": "taxpayer identification number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.full_name",
+          "type": "String",
+          "required": false,
+          "description": "receiver full name"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.locale",
+          "type": "String",
+          "required": false,
+          "description": "internationalization locale"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.mobile_no",
+          "type": "String",
+          "required": false,
+          "description": "mobile phone number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no",
+          "type": "String",
+          "required": false,
+          "description": "passport number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no_date",
+          "type": "String",
+          "required": false,
+          "description": "passport expiry date"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.passport_organization",
+          "type": "String",
+          "required": false,
+          "description": "passport issuing agency"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.phone_country",
+          "type": "String",
+          "required": false,
+          "description": "country code of the phone"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.province",
+          "type": "String",
+          "required": true,
+          "description": "province"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.tax_number",
+          "type": "String",
+          "required": false,
+          "description": "tax number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.zip",
+          "type": "String",
+          "required": false,
+          "description": "zip code"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.rut_no",
+          "type": "String",
+          "required": false,
+          "description": "Chile tax number (not used)"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.foreigner_passport_no",
+          "type": "String",
+          "required": false,
+          "description": "foreign tax number (registration card number or passport number is required for Korean foreigners)"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.is_foreigner",
+          "type": "String",
+          "required": false,
+          "description": "whether it is a foreigner"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.vat_no",
+          "type": "String",
+          "required": false,
+          "description": "vat tax number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.tax_company",
+          "type": "String",
+          "required": false,
+          "description": "company name"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.location_tree_address_id",
+          "type": "String",
+          "required": false,
+          "description": "location tree address id"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items",
+          "type": "Object[]",
+          "required": true,
+          "description": "product attributes"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.product_count",
+          "type": "Number",
+          "required": true,
+          "description": "product count"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.product_id",
+          "type": "Number",
+          "required": true,
+          "description": "product id"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.sku_attr",
+          "type": "String",
+          "required": false,
+          "description": "product sku"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.logistics_service_name",
+          "type": "String",
+          "required": false,
+          "description": "logistics service name"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.order_memo",
+          "type": "String",
+          "required": false,
+          "description": "user Comments"
+        }
+      ]
+    },
+    {
+      "method": "aliexpress.ds.order.create",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.order.create&methodType=GET%2FPOST",
+      "responseSnapshotSha256": "36e24eca760278dc1922ba5cc093e34ba4fd21c42241f8f69a003c4599a41f62",
+      "docId": 1615,
+      "authorizationType": 1,
+      "title": "AE DS Order Create and Pay API",
+      "description": "API for place order in DS business",
+      "javaExampleProtocolTop": true,
+      "request": [
+        {
+          "path": "ds_extend_request",
+          "type": "Object",
+          "required": false,
+          "description": "DS ExtendParam"
+        },
+        {
+          "path": "ds_extend_request.promotion",
+          "type": "Object",
+          "required": false,
+          "description": "promotionCode"
+        },
+        {
+          "path": "ds_extend_request.promotion.promotion_channel_info",
+          "type": "String",
+          "required": false,
+          "description": "promotionChannelInfo"
+        },
+        {
+          "path": "ds_extend_request.promotion.promotion_activity_id",
+          "type": "String",
+          "required": false,
+          "description": "promotion id from coupon query API's field \"dsCouponId\""
+        },
+        {
+          "path": "ds_extend_request.payment",
+          "type": "Object",
+          "required": false,
+          "description": "{\"payment\":{\"pay_currency\":\"xxx\"}}"
+        },
+        {
+          "path": "ds_extend_request.payment.pay_currency",
+          "type": "String",
+          "required": false,
+          "description": "USD"
+        },
+        {
+          "path": "ds_extend_request.payment.try_to_pay",
+          "type": "String",
+          "required": false,
+          "description": "Please auth your account as DS Before set it true"
+        },
+        {
+          "path": "ds_extend_request.trade_extra_param",
+          "type": "Object",
+          "required": false,
+          "description": "whether it is wholesale"
+        },
+        {
+          "path": "ds_extend_request.trade_extra_param.business_model",
+          "type": "String",
+          "required": false,
+          "description": "\"wholesale\" for wholesale model, \"retail\" for retail model, default for retail model"
+        },
+        {
+          "path": "ds_extend_request.trade_extra_param.customize_sku_map",
+          "type": "Object",
+          "required": false,
+          "description": "key is sku_id, value is customize_id"
+        },
+        {
+          "path": "ds_extend_request.trade_extra_param.nat_addr",
+          "type": "String",
+          "required": false,
+          "description": "SA natAddr"
+        },
+        {
+          "path": "ds_extend_request.trade_extra_param.birthday",
+          "type": "String",
+          "required": false,
+          "description": "Recipient's Birthday. This field is mandatory if the destination country is Brazil (BR). Format: ddMMyyyy (Day-Month-Year, 8 digits, no separators). Example: 01022026 represents February 1st, 2026."
+        },
+        {
+          "path": "ds_extend_request.channel_strategy",
+          "type": "String",
+          "required": false,
+          "description": "channel_strategy"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o",
+          "type": "Object",
+          "required": true,
+          "description": "specific order parameters"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.out_order_id",
+          "type": "String",
+          "required": false,
+          "description": "outer order id, used for idempotent checkout"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address",
+          "type": "Object",
+          "required": true,
+          "description": "logistic address information"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.address",
+          "type": "String",
+          "required": true,
+          "description": "address information"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.address2",
+          "type": "String",
+          "required": false,
+          "description": "address extension information"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.city",
+          "type": "String",
+          "required": true,
+          "description": "city"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.contact_person",
+          "type": "String",
+          "required": false,
+          "description": "contact person"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.country",
+          "type": "String",
+          "required": true,
+          "description": "receiver country"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.cpf",
+          "type": "String",
+          "required": false,
+          "description": "taxpayer identification number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.full_name",
+          "type": "String",
+          "required": false,
+          "description": "receiver full name"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.locale",
+          "type": "String",
+          "required": false,
+          "description": "internationalization locale"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.mobile_no",
+          "type": "String",
+          "required": false,
+          "description": "mobile phone number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no",
+          "type": "String",
+          "required": false,
+          "description": "passport number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no_date",
+          "type": "String",
+          "required": false,
+          "description": "passport expiry date"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.passport_organization",
+          "type": "String",
+          "required": false,
+          "description": "passport issuing agency"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.phone_country",
+          "type": "String",
+          "required": false,
+          "description": "country code of the phone"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.province",
+          "type": "String",
+          "required": true,
+          "description": "province"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.tax_number",
+          "type": "String",
+          "required": false,
+          "description": "tax number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.zip",
+          "type": "String",
+          "required": false,
+          "description": "zip code"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.rut_no",
+          "type": "String",
+          "required": false,
+          "description": "Chile tax number (not used)"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.foreigner_passport_no",
+          "type": "String",
+          "required": false,
+          "description": "foreign tax number (registration card number or passport number is required for Korean foreigners)"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.is_foreigner",
+          "type": "String",
+          "required": false,
+          "description": "whether it is a foreigner"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.vat_no",
+          "type": "String",
+          "required": false,
+          "description": "vat tax number"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.tax_company",
+          "type": "String",
+          "required": false,
+          "description": "company name"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.logistics_address.location_tree_address_id",
+          "type": "String",
+          "required": false,
+          "description": "location tree address id"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items",
+          "type": "Object[]",
+          "required": true,
+          "description": "product attributes"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.product_count",
+          "type": "Number",
+          "required": true,
+          "description": "product count"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.product_id",
+          "type": "Number",
+          "required": true,
+          "description": "product id"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.sku_attr",
+          "type": "String",
+          "required": false,
+          "description": "product sku"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.logistics_service_name",
+          "type": "String",
+          "required": false,
+          "description": "logistics service name"
+        },
+        {
+          "path": "param_place_order_request4_open_api_d_t_o.product_items.order_memo",
+          "type": "String",
+          "required": false,
+          "description": "user Comments"
+        }
+      ]
+    }
+  ]
+}

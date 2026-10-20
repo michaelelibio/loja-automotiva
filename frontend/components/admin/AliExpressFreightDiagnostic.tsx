@@ -16,9 +16,9 @@ export function AliExpressFreightResult({ result }: { result: FreightDiagnosticR
     </div>
     {result.methods.length > 0 && <div className="admin-aliexpress-table-wrap"><table className="admin-aliexpress-table">
       <caption className="sr-only">Modalidades retornadas no diagnóstico de frete</caption>
-      <thead><tr><th scope="col">Modalidade</th><th scope="col">Valor</th><th scope="col">Moeda</th><th scope="col">Prazo estimado</th></tr></thead>
+      <thead><tr><th scope="col">Modalidade / código</th><th scope="col">Origem retornada</th><th scope="col">Valor</th><th scope="col">Moeda</th><th scope="col">Prazo estimado</th></tr></thead>
       <tbody>{result.methods.map((method) => <tr key={method.serviceName}>
-        <td data-label="Modalidade">{method.serviceName}</td><td data-label="Valor">{freightAmount(method)}</td>
+        <td data-label="Modalidade">{method.company && <span>{method.company}<br /></span>}<code>{method.serviceName}</code></td><td data-label="Origem">{method.originCountry ?? 'Não informada'}</td><td data-label="Valor">{freightAmount(method)}</td>
         <td data-label="Moeda">{method.currency}</td><td data-label="Prazo estimado">{freightEstimate(method.estimatedDeliveryTime)}</td>
       </tr>)}</tbody>
     </table></div>}
@@ -59,10 +59,11 @@ export function AliExpressFreightDiagnostic({ products = [] }: { products?: Admi
 
   return <section className="admin-products-panel admin-aliexpress-panel admin-freight-panel" aria-labelledby="aliexpress-freight-title" aria-busy={loading}>
     <div className="admin-aliexpress-heading">
-      <h2 id="aliexpress-freight-title">Diagnóstico da integração AliExpress</h2>
+      <h2 id="aliexpress-freight-title">Diagnóstico de frete AliExpress</h2>
+      <p>API: <code>aliexpress.ds.freight.query</code>. Destino: Brasil (BR), consulta por país, moeda solicitada BRL.</p>
       <p>Selecione um produto AliExpress da listagem atual ou informe seu ID. Consulte os SKUs reais antes de testar o frete para o Brasil.</p>
       <aside className="admin-aliexpress-warnings" aria-label="Limitações do diagnóstico">
-        <p>Esta cotação é diagnóstica, sem CEP e com prazos estimados. A origem deve constar no atributo Ships From do SKU; sem esse dado reconhecido, o teste fica bloqueado. OAuth e consulta de produtos não comprovam permissão de frete.</p>
+        <p>Esta consulta é diagnóstica, sem CEP ou endereço completo e com prazos estimados. Uma resposta por país não é frete definitivo por endereço. A origem é exibida somente quando retornada pela API. OAuth e consulta de produtos não comprovam permissão de frete.</p>
         <p>O teste não cria pedidos, não executa pagamentos e não libera o frete no checkout.</p>
       </aside>
     </div>
@@ -72,15 +73,15 @@ export function AliExpressFreightDiagnostic({ products = [] }: { products?: Admi
         {products.filter((p) => p.supplier === 'ALIEXPRESS' && p.supplierProductId).map((p) => <option key={p.id} value={p.supplierProductId!}>{p.name} — {p.supplierProductId}</option>)}
       </select></label>
       <label>ID AliExpress<input value={productId} disabled={loading} inputMode="numeric" maxLength={18} onChange={(event) => changeProduct(event.target.value)} /></label>
-      <button type="button" disabled={loading || !/^[0-9]{1,18}$/.test(productId.trim())} onClick={() => void test(true)}>Consultar SKUs e origem</button>
+      <button type="button" disabled={loading || !/^[0-9]{1,18}$/.test(productId.trim())} onClick={() => void test(true)}>Consultar SKUs</button>
       {product && <>
         <label>SKU<select value={skuId} disabled={loading} onChange={(event) => { setSkuId(event.target.value); setResult(null); }}>
-          {product.variants.map((v) => <option key={v.skuId} value={v.skuId}>{v.skuId} — origem: {v.origin ?? 'não confirmada'} — estoque: {v.availableStock}</option>)}
+          {product.variants.map((v) => <option key={v.skuId} value={v.skuId}>{v.skuId} — estoque: {v.availableStock}</option>)}
         </select></label>
         <label>Quantidade<input type="number" min={1} max={100} value={quantity} disabled={loading} onChange={(event) => { setQuantity(Number(event.target.value)); setResult(null); }} /></label>
-        <p>Origem: {selected?.origin ? `${selected.origin} (atributo Ships From do SKU)` : 'não confirmada; cotação bloqueada'}. Destino: BR. Os dados serão consultados novamente no teste.</p>
+        <p>Destino: BR, sem códigos de província ou cidade não validados. Produto, SKU e estoque serão consultados novamente antes do teste.</p>
       </>}
-      <button type="button" onClick={() => void test()} disabled={loading || !selected?.origin || !Number.isInteger(quantity) || quantity < 1 || quantity > 100 || quantity > selected.availableStock} aria-describedby="aliexpress-freight-title">
+      <button type="button" onClick={() => void test()} disabled={loading || !selected || !Number.isInteger(quantity) || quantity < 1 || quantity > 100 || quantity > selected.availableStock} aria-describedby="aliexpress-freight-title">
         {loading ? 'Consultando frete…' : 'Testar cotação de frete'}
       </button>
       {loading && <p role="status">Consultando o AliExpress. Aguarde o resultado…</p>}

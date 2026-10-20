@@ -37,26 +37,27 @@ public class AliExpressFreightDiagnosticClient {
         this.client=client;this.appKey=appKey;this.secret=secret;this.clock=clock;
     }
 
-    public record Input(String productId, String skuId, int quantity, String origin) {}
+    public record Input(String productId, String skuId, int quantity, String destinationCountry) {}
 
     public AliExpressFreightDiagnosticResult query(String token, Input input) {
         if (input == null || input.productId() == null || !input.productId().matches("[0-9]{1,18}")
                 || input.skuId() == null || !input.skuId().matches("[0-9]{1,30}")
                 || input.quantity() < 1 || input.quantity() > 100
-                || !Arrays.asList(Locale.getISOCountries()).contains(input.origin()))
+                || !"BR".equals(input.destinationCountry()))
             return failure(PARAMETER_ERROR,"INVALID_TEST_INPUT");
         if (appKey.isBlank() || secret.isBlank() || appKey.contains("COLE_AQUI") || secret.contains("COLE_AQUI"))
             return failure(NOT_CONFIGURED,"APPLICATION_NOT_CONFIGURED");
         if (token == null || token.isBlank()) return failure(LOCAL_AUTHORIZATION_UNAVAILABLE,"LOCAL_TOKEN_UNAVAILABLE");
         try {
-            String dto = JSON.writeValueAsString(Map.of("product_id",new java.math.BigInteger(input.productId()),
-                    "product_num",input.quantity(),"country_code","BR", "sku_id",input.skuId(),
-                    "send_goods_country_code",input.origin()));
+            String dto = JSON.writeValueAsString(Map.of("productId",input.productId(),
+                    "quantity",input.quantity(),"shipToCountry",input.destinationCountry(), "selectedSkuId",input.skuId(),
+                    "language","pt_BR","locale","pt_BR","currency","BRL"));
             Map<String,String> params = new TreeMap<>();
-            params.put("method","aliexpress.logistics.buyer.freight.calculate");params.put("app_key",appKey);
+            params.put("method","aliexpress.ds.freight.query");params.put("app_key",appKey);
             params.put("session",token);params.put("sign_method","sha256");params.put("format","json");params.put("v","2.0");
             params.put("timestamp",Long.toString(clock.millis()));
-            params.put("param_aeop_freight_calculate_for_buyer_d_t_o",dto);
+            params.put("simplify","true");
+            params.put("queryDeliveryReq",dto);
             StringBuilder canonical = new StringBuilder();params.forEach((key,value)->canonical.append(key).append(value));
             Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
             params.put("sign",HexFormat.of().withUpperCase().formatHex(mac.doFinal(canonical.toString().getBytes(StandardCharsets.UTF_8))));
@@ -86,35 +87,56 @@ public class AliExpressFreightDiagnosticClient {
         if (body==null || !body.isObject()) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
         JsonNode error=body.path("error_response");
         if (error.isObject()) return rejection(error,true);
-        JsonNode result=body.path("aliexpress_logistics_buyer_freight_calculate_response").path("result");
-        if (!result.isObject() || !(result.path("success").isBoolean() || Set.of("true","false").contains(result.path("success").asText()))) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
+        JsonNode result=body.path("aliexpress_ds_freight_query_response").path("result");
+        if (result.isMissingNode()) result=body.path("result");
+        if (!result.isObject() || !isBoolean(result.path("success"))) return failure(INVALID_RESPONSE,"INVALID_RESPONSE_SHAPE");
         if (!"true".equals(result.path("success").asText())) return rejection(result,false);
-        JsonNode entries=result.path("aeop_freight_calculate_result_for_buyer_d_t_o_list");
-        if (entries.isObject()) entries=entries.path("aeop_freight_calculate_result_for_buyer_dto");
-        if (!entries.isArray()) return failure(INVALID_RESPONSE,"INVALID_METHOD_LIST");
+        if (!"200".equals(result.path("code").asText())) return failure(INVALID_RESPONSE,"CONTRADICTORY_SUCCESS_CODE");
+        JsonNode entries=result.path("delivery_options");
+        if (!entries.isArray() || entries.size()>500) return failure(INVALID_RESPONSE,"INVALID_METHOD_LIST");
         if (entries.isEmpty()) return failure(PRODUCT_UNAVAILABLE,"NO_DELIVERY_METHODS");
         List<Method> methods=new ArrayList<>();
         for (JsonNode entry:entries) {
-            if (!"0".equals(entry.path("error_code").asText())) return rejection(entry,false);
-            JsonNode money=entry.path("freight");
-            String amount=money.path("amount").asText();
-            String currency=money.path("currency_code").asText();String service=entry.path("service_name").asText();
-            if (!amount.matches("[0-9]{1,12}(?:\\.[0-9]{1,8})?") || !currency.matches("[A-Z]{3}")
+            String cent=entry.path("shipping_fee_cent").asText();
+            // docId 1579 says cents, but its example contains "1.99" next to
+            // "US $1.99". Decimal values are ambiguous: never divide or guess.
+            if (cent.matches("[0-9]{1,16}\\.[0-9]+")) return failure(INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT");
+            String currency=entry.path("shipping_fee_currency").asText(),service=entry.path("code").asText();
+            if (!cent.matches("[0-9]{1,16}") || !currency.matches("[A-Z]{3}")
                     || !service.matches("[A-Za-z0-9_.-]{1,120}") || sensitive(service,token))
                 return failure(INVALID_RESPONSE,"INVALID_METHOD_DATA");
-            BigDecimal value=new BigDecimal(amount);
-            // Keep amount exactly; never infer free shipping or convert currencies.
-            if (money.hasNonNull("cent")) {
-                String cent=money.path("cent").asText();
-                if (!cent.matches("[0-9]{1,16}") || value.multiply(new BigDecimal("100")).compareTo(new BigDecimal(cent))!=0)
-                    return failure(INVALID_RESPONSE,"CONFLICTING_MONETARY_FIELDS");
-            }
-            String estimate=entry.path("estimated_delivery_time").asText();
-            if (!estimate.matches("[0-9]{1,4}(?:\\s*[-~]\\s*[0-9]{1,4})?\\s*(?:days?|d|dias?)?") || sensitive(estimate,token)) estimate=null;
-            methods.add(new Method(service,value,currency,estimate));
+            // The contract explicitly defines this field in cents. Never parse formatted fees.
+            BigDecimal value=new BigDecimal(cent).movePointLeft(2);
+            // Formatted text is never the source of an amount. If its simple
+            // decimal representation contradicts cents, report the conflict.
+            var formatted=java.util.regex.Pattern.compile("^(?:[A-Z]{1,3}\\s*)?[$€£]?\\s*([0-9]{1,16}\\.[0-9]{2})$")
+                    .matcher(entry.path("shipping_fee_format").asText());
+            if (formatted.matches() && value.compareTo(new BigDecimal(formatted.group(1)))!=0)
+                return failure(INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT");
+            JsonNode free=entry.path("free_shipping");
+            if (!isBoolean(free) || ("true".equals(free.asText()) != (value.signum()==0)))
+                return failure(INVALID_RESPONSE,"CONFLICTING_MONETARY_FIELDS");
+            String origin=entry.path("ship_from_country").asText();
+            if (!Arrays.asList(Locale.getISOCountries()).contains(origin)) origin=null;
+            String company=entry.path("company").asText();
+            if (!company.matches("[A-Za-z][A-Za-z0-9 ._()/ -]{0,119}") || company.matches(".*[0-9]{8,}.*") || sensitive(company,token)) company=null;
+            String estimate=estimate(entry,token);
+            methods.add(new Method(service,value,currency,estimate,company,origin));
         }
         if (methods.stream().map(Method::serviceName).distinct().count()!=methods.size()) return failure(INVALID_RESPONSE,"DUPLICATE_SERVICE");
         return result(SUCCESS,"CALL_SUCCEEDED",methods);
+    }
+
+    private static boolean isBoolean(JsonNode node) {
+        return node.isBoolean() || (node.isString() && Set.of("true","false").contains(node.asText()));
+    }
+    private String estimate(JsonNode entry,String token) {
+        String minimum=entry.path("min_delivery_days").asText(), maximum=entry.path("max_delivery_days").asText();
+        if (minimum.matches("[0-9]{1,4}") && maximum.matches("[0-9]{1,4}")
+                && Integer.parseInt(minimum)>0 && Integer.parseInt(maximum)>=Integer.parseInt(minimum))
+            return minimum+"-"+maximum+"days";
+        String estimate=entry.path("estimated_delivery_time").asText();
+        return estimate.matches("[0-9]{1,4}(?:[-~][0-9]{1,4})?(?:days?|d)?") && !sensitive(estimate,token) ? estimate : null;
     }
 
     private boolean sensitive(String value,String token) { return value.contains(token) || value.contains(secret) || value.contains(appKey); }
@@ -143,6 +165,14 @@ public class AliExpressFreightDiagnosticClient {
             return failure(PERMISSION_DENIED,"PROVIDER_PERMISSION_DENIED");
         if (platformError && code.equals("7")) return failure(RATE_LIMITED,"PROVIDER_RATE_LIMIT");
         if (Set.of("isv.invalid-parameter","isv.missing-parameter").contains(sub)) return failure(PARAMETER_ERROR,"PROVIDER_PARAMETER_REJECTED");
+        // Exact symbolic business errors published by docId 1579. Never infer
+        // availability or permission from arbitrary free-form error text.
+        for (String value:List.of(code,sub,error.path("msg").asText())) {
+            if (value.equals("DELIVERY_NOT_AVAILABLE_TO_YOUR_ADDRESS"))
+                return failure(PRODUCT_UNAVAILABLE,"PROVIDER_DELIVERY_UNAVAILABLE");
+            if (value.equals("DELIVERY_INFO_EMPTY"))
+                return failure(PARAMETER_ERROR,"PROVIDER_PRODUCT_ID_REJECTED");
+        }
         // Do not guess permissions/product availability from free-form messages or unknown codes.
         return failure(PROVIDER_REJECTED,"UNCLASSIFIED_PROVIDER_REJECTION");
     }

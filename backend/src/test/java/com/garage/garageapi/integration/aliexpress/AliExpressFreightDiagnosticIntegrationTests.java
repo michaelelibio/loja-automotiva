@@ -54,6 +54,21 @@ class AliExpressFreightDiagnosticIntegrationTests {
             .andExpect(jsonPath("$.safeCode").value("INVALID_TEST_INPUT"));
         verifyNoInteractions(tokens,client,products);
     }
+    @Test void amountIsSerializedAsExactDecimalStringAndOnlySafeDetailsAreReturned() throws Exception {
+        when(tokens.existingAccessToken()).thenReturn("synthetic-token");
+        var method=new AliExpressFreightDiagnosticResult.Method("STANDARD",new java.math.BigDecimal("99999999999999.99"),"BRL","5-8days","AliExpress Standard","BR");
+        when(client.query("synthetic-token",INPUT)).thenReturn(AliExpressFreightDiagnosticResult.result(
+                AliExpressFreightDiagnosticResult.Status.SUCCESS,"CALL_SUCCEEDED",java.util.List.of(method)));
+        mvc.perform(post(PATH).contentType("application/json").content(BODY).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(jsonPath("$.methods[0].amount").isString())
+                .andExpect(jsonPath("$.methods[0].amount").value("99999999999999.99"))
+                .andExpect(jsonPath("$.methods[0].company").value("AliExpress Standard"))
+                .andExpect(jsonPath("$.methods[0].originCountry").value("BR"))
+                .andExpect(jsonPath("$.limitations").value(org.hamcrest.Matchers.hasItem("COUNTRY_ONLY_BR_DIAGNOSTIC")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-token"))));
+        verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();verify(client).query("synthetic-token",INPUT);
+    }
     @Test void productPreparationAlsoRequiresAdminAndCannotRunViaGet() throws Exception {
         mvc.perform(post(PATH+"/product").contentType("application/json").content("{\"productId\":\"1005010661577657\"}"))
                 .andExpect(status().isUnauthorized());

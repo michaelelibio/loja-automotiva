@@ -8,8 +8,9 @@ import java.util.List;
 
 /**
  * Fail closed until the application's freight contract supports a confirmed
- * destination and SKU. The public freight.calculate contract does not document
- * either postal code or SKU, and requires a trusted dispatch country.
+ * destination and SKU. Current freight APIs document SKU selection, but not
+ * postal-code/full-address pricing. App grants and BR destination coverage
+ * remain unverified; see ALIEXPRESS-CHECKOUT-FREIGHT-AUDIT.md.
  * Never substitute local shipping or treat a country-level estimate as a quote.
  */
 @Service

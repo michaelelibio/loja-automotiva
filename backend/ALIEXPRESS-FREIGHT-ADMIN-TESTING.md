@@ -1,5 +1,7 @@
 # Diagnóstico de frete pelo ADM — 19/10/2026
 
+Atualização de 20/10/2026: o diagnóstico migrou para `aliexpress.ds.freight.query` e deixou de exigir origem na entrada. Este texto descreve a versão anterior; consulte [o procedimento atual e suas limitações monetárias](ALIEXPRESS-DS-FREIGHT-DIAGNOSTIC.md).
+
 ## Protocolo e evidências
 
 O diagnóstico usa uma única URL: `https://api-sg.aliexpress.com/sync`, a mesma base da integração funcional de produtos. Método mantido: `aliexpress.logistics.buyer.freight.calculate`. POST form UTF-8, `session`, `sign_method=sha256`, HMAC-SHA256 sobre nomes/valores ordenados, sem prefixo de API, hexadecimal maiúsculo e timestamp epoch em milissegundos. Não há fallback de gateway nem de método.

@@ -104,7 +104,7 @@ function find(tree, predicate) {
   return null;
 }
 function harness(prepared = true) {
-  const states = prepared ? [false, null, null, "123", { productId: "123", variants: [{ skuId: "456", origin: "BR", originSource: "SKU_SHIPS_FROM", availableStock: 10 }] }, "456", 1] : [], refs = []; let cursor = 0, refCursor = 0, calls = 0, resolve, reject, loggedOut = 0; const routes = [];
+  const states = prepared ? [false, null, null, "123", { productId: "123", variants: [{ skuId: "456", availableStock: 10 }] }, "456", 1] : [], refs = []; let cursor = 0, refCursor = 0, calls = 0, resolve, reject, loggedOut = 0; const routes = [];
   const actualApi = api();
   const { AliExpressFreightDiagnostic } = load('components/admin/AliExpressFreightDiagnostic.tsx', {
     react: { ...React, useState(initial) { const index = cursor++; if (!(index in states)) states[index] = initial; return [states[index], (next) => { states[index] = next; }]; },
@@ -120,7 +120,7 @@ function harness(prepared = true) {
 test('button is manual, loading blocks duplicate clicks, success renders and diagnostic limits remain visible', async () => {
   const h = harness(); let tree = h.render(); assert.equal(h.calls(), 0);
   const initialHtml = renderToStaticMarkup(tree);
-  for (const text of ['Ships From', 'sem CEP', 'não cria pedidos', 'não executa pagamentos', 'permissão de frete']) assert.ok(initialHtml.includes(text), text);
+  for (const text of ['consulta por pa\u00eds', 'sem CEP', 'não cria pedidos', 'não executa pagamentos', 'permissão de frete']) assert.ok(initialHtml.includes(text), text);
   const button = find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title'); button.props.onClick(); button.props.onClick();
   assert.equal(h.calls(), 1); tree = h.render();
   assert.equal(find(tree, (node) => node.type === 'button' && node.props['aria-describedby'] === 'aliexpress-freight-title').props.disabled, true);
@@ -149,7 +149,7 @@ test('unprepared diagnostic cannot quote and exposes product ID and SKU lookup',
   const h = harness(false); const tree = h.render();
   assert.equal(find(tree, n => n.type === 'button' && n.props['aria-describedby']).props.disabled, true);
   assert.match(renderToStaticMarkup(tree), /ID AliExpress/);
-  assert.match(renderToStaticMarkup(tree), /Consultar SKUs e origem/);
+  assert.match(renderToStaticMarkup(tree), /Consultar SKUs/);
   assert.equal(h.calls(), 0);
 });
 
@@ -167,6 +167,30 @@ test('product preparation calls only backend and strips extra fields', async () 
     return Response.json({ productId: '123', secret: 'private', variants: [{ skuId: '12000053109276547', origin: null, originSource: 'UNCONFIRMED', availableStock: 1, message: 'private' }] });
   };
   const prepared = await api().prepareAliExpressFreight('123');
-  assert.equal(prepared.variants[0].origin, null);
+  assert.equal(prepared.variants[0].origin, undefined);
   assert.doesNotMatch(JSON.stringify(prepared), /private|secret|message/);
+});
+
+
+test('ds freight exact decimal strings, code, company and returned origin survive sanitization', () => {
+  const response = { status: 'SUCCESS', safeCode: 'CALL_SUCCEEDED', methods: [{ serviceName: 'STANDARD', company: 'AliExpress Standard', originCountry: 'BR', amount: '99999999999999.99', currency: 'BRL', estimatedDeliveryTime: '5-8days' }] };
+  const parsed = helper.parseFreightDiagnostic(response, 'synthetic-admin-token');
+  assert.deepEqual(parsed, response);
+  assert.equal(helper.freightAmount(parsed.methods[0]), 'BRL 99.999.999.999.999,99');
+});
+
+test('ambiguous monetary units and documented unavailable delivery remain distinct safe failures', () => {
+  for (const code of ['AMBIGUOUS_MONETARY_UNIT', 'PROVIDER_DELIVERY_UNAVAILABLE', 'PROVIDER_PRODUCT_ID_REJECTED']) {
+    const parsed = helper.parseFreightDiagnostic({ status: 'INVALID_RESPONSE', safeCode: code, methods: [] }, 'synthetic-admin-token');
+    assert.equal(parsed.safeCode, code);
+    assert.ok(helper.freightDiagnosticMessage(parsed));
+  }
+});
+
+test('SKU without origin metadata can trigger the manual ds freight diagnostic', () => {
+  const h = harness(); const tree = h.render();
+  const html = renderToStaticMarkup(tree);
+  assert.match(html, /aliexpress.ds.freight.query/);
+  assert.doesNotMatch(html, /Ships From/);
+  assert.equal(find(tree, n => n.props?.['aria-describedby'] === 'aliexpress-freight-title').props.disabled, false);
 });

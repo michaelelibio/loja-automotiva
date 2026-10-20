@@ -2,6 +2,8 @@
 
 Investigação de 17/10/2026. Entrega: diagnóstico e proposta técnica; nenhum código de execução ou configuração de produção foi alterado.
 
+Atualização de 20/10/2026: foi obtida evidência primária de `aliexpress.ds.freight.query` (docId 1579). A ausência de evidência registrada abaixo é histórica e foi superada; a concessão para a inGarage continua não confirmada. Consulte [a auditoria de checkout e os bloqueios por etapa](ALIEXPRESS-CHECKOUT-FREIGHT-AUDIT.md).
+
 ## Conclusão
 
 Existe uma divergência comprovada entre o cliente de frete e o contrato/SDK atual: ele chama o gateway Taobao legado, enquanto os exemplos atuais de **ambas** as operações (`freight.calculate` e `ds.product.get`) usam `IopClient` com `Protocol.TOP`. O SDK oficial resolve esse protocolo como `/sync`, HMAC-SHA256, timestamp em milissegundos e token em `session`.
