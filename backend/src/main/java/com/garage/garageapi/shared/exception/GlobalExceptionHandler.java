@@ -72,6 +72,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, exception.getMessage(), request.getRequestURI(), Map.of());
     }
 
+    @ExceptionHandler(com.garage.garageapi.integration.aliexpress.AliExpressShippingException.class)
+    public ResponseEntity<ApiError> handleAliExpressShipping(
+            com.garage.garageapi.integration.aliexpress.AliExpressShippingException exception,HttpServletRequest request) {
+        HttpStatus status=switch(exception.code()) {
+            case EXTERNAL_FAILURE, INVALID_RESPONSE -> HttpStatus.BAD_GATEWAY;
+            case NOT_CONFIGURED -> HttpStatus.SERVICE_UNAVAILABLE;
+            case RATE_LIMITED -> HttpStatus.TOO_MANY_REQUESTS;
+            default -> HttpStatus.CONFLICT;
+        };
+        return build(status,exception.getMessage(),request.getRequestURI(),Map.of("code","ALIEXPRESS_"+exception.code().name()));
+    }
+
     @ExceptionHandler(InactiveProductException.class)
     public ResponseEntity<ApiError> handleInactiveProduct(InactiveProductException exception,
                                                           HttpServletRequest request) {

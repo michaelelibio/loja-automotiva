@@ -22,6 +22,18 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
+import com.garage.garageapi.shipping.service.ShippingService;
+import com.garage.garageapi.shipping.provider.ShippingProvider;
+import com.garage.garageapi.shipping.provider.CompositeShippingProvider;
+import com.garage.garageapi.integration.aliexpress.AliExpressFreightGateway;
+import com.garage.garageapi.integration.aliexpress.AliExpressFreightDiagnosticClient;
+import com.garage.garageapi.integration.aliexpress.AliExpressTokenService;
+import com.garage.garageapi.integration.aliexpress.AliExpressDsFreightClient;
+import com.garage.garageapi.integration.aliexpress.AliExpressDsFreightGateway;
+import com.garage.garageapi.integration.aliexpress.AliExpressFreightDiagnosticResult;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -34,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -46,6 +59,23 @@ class ShippingIntegrationTests {
     @Autowired JwtService jwtService;
     @MockitoBean ProductAvailabilityProvider availabilityProvider;
     @MockitoBean CjCommerceService commerceService;
+    @MockitoBean AliExpressFreightDiagnosticClient aliExpressClient;
+    @MockitoBean AliExpressTokenService aliExpressTokens;
+    @MockitoBean AliExpressDsFreightClient sharedAliExpressClient;
+    @Autowired com.garage.garageapi.order.repository.OrderRepository orders;
+    @Autowired com.garage.garageapi.payment.repository.PaymentRepository payments;
+    @Autowired ApplicationContext applicationContext;
+    @Autowired ShippingService shippingService;
+
+    @Test
+    void springWiresCompositeProviderAndConcreteAliExpressGateway() {
+        Object target=AopTestUtils.getUltimateTargetObject(shippingService);
+        Object provider=ReflectionTestUtils.getField(target,"shippingProvider");
+        assertThat(provider).isSameAs(applicationContext.getBean(ShippingProvider.class));
+        assertThat(provider).isInstanceOf(CompositeShippingProvider.class);
+        assertThat(applicationContext.getBeansOfType(AliExpressFreightGateway.class)).hasSize(1);
+        assertThat(applicationContext.getBean(AliExpressFreightGateway.class)).isInstanceOf(AliExpressDsFreightGateway.class);
+    }
 
     private User user;
 
@@ -240,20 +270,58 @@ class ShippingIntegrationTests {
 
     @Test
     void aliExpressNeverFallsBackToLocalShippingEvenInMixedCarts() throws Exception {
-        Product ali = cjProduct("AliExpress", "ali-freight");
-        ali.linkSupplier("ALIEXPRESS", "1005010661577657", BigDecimal.TEN, BigDecimal.ONE, Instant.now());
-        productRepository.saveAndFlush(ali);
-        Product local = product("Local", "ali-local", "20", true, 10);
-        for (String zip : List.of("89229030", "01001000")) {
-            for (int quantity : List.of(1, 2)) {
-                String line = "{\"productId\":" + ali.getId() + ",\"quantity\":" + quantity + "}";
-                for (String lines : List.of("[" + line + "]", "[" + line + ",{\"productId\":" + local.getId() + ",\"quantity\":1}]")) {
-                    quote(zip, lines).andExpect(status().isConflict())
-                            .andExpect(jsonPath("$.message").value(com.garage.garageapi.integration.aliexpress.AliExpressFreightService.UNAVAILABLE));
-                }
-            }
+        var variant=aliVariant("ali-freight");Product ali=variant.getProduct();
+        when(aliExpressTokens.existingAccessToken()).thenReturn("synthetic-token");
+        when(sharedAliExpressClient.query(anyString(),any())).thenReturn(new AliExpressFreightDiagnosticResult(
+                AliExpressFreightDiagnosticResult.Status.PRODUCT_UNAVAILABLE,"NO_DELIVERY_METHODS",List.of(),List.of()));
+        Product local=product("Local","ali-local","20",true,10);
+        for(String zip:List.of("89229030","01001000")) for(int quantity:List.of(1,2)) {
+            String line="{\"productId\":"+ali.getId()+",\"variantId\":"+variant.getId()+",\"quantity\":"+quantity+"}";
+            for(String lines:List.of("["+line+"]","["+line+",{\"productId\":"+local.getId()+",\"quantity\":1}]"))
+                quote(zip,lines).andExpect(status().isConflict()).andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_FREIGHT_UNAVAILABLE"));
         }
-        verifyNoInteractions(availabilityProvider, commerceService);
+        verify(sharedAliExpressClient,times(8)).query(eq("synthetic-token"),any());
+        verify(aliExpressTokens,never()).accessToken();
+        verifyNoInteractions(availabilityProvider,commerceService,aliExpressClient);
+    }
+    @Test
+    void checkoutResolvesTrustedIdsAndCallsRealGatewayWithoutCreatingOrderOrCharge() throws Exception {
+        var variant=aliVariant("ali-connected");var ali=variant.getProduct();long orderCount=orders.count(),paymentCount=payments.count();
+        when(aliExpressTokens.existingAccessToken()).thenReturn("synthetic-token");
+        var method=new AliExpressFreightDiagnosticResult.Method("STANDARD",new BigDecimal("12.30"),"BRL","5-8days","Standard","CN");
+        when(sharedAliExpressClient.query(anyString(),any())).thenReturn(new AliExpressFreightDiagnosticResult(
+                AliExpressFreightDiagnosticResult.Status.SUCCESS,"CALL_SUCCEEDED",List.of(method),List.of()));
+        String lines="[{\"productId\":"+ali.getId()+",\"variantId\":"+variant.getId()+",\"quantity\":2,\"supplierVariantId\":\"FORGED\",\"supplierProductId\":\"FORGED\",\"price\":0}]";
+        quote("89229030",lines).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_DESTINATION_NOT_CONFIRMED"));
+        verify(sharedAliExpressClient).query("synthetic-token",new AliExpressDsFreightClient.Input("1005010661577657","12000053109276547",2,"BR"));
+        verify(aliExpressTokens).existingAccessToken();verify(aliExpressTokens,never()).accessToken();
+        verifyNoInteractions(availabilityProvider,commerceService,aliExpressClient);
+        assertThat(orders.count()).isEqualTo(orderCount);assertThat(payments.count()).isEqualTo(paymentCount);
+    }
+    private ProductVariant aliVariant(String slug) {
+        Product product=cjProduct("AliExpress",slug);
+        product.linkSupplier("ALIEXPRESS","1005010661577657",BigDecimal.TEN,BigDecimal.ONE,Instant.now());productRepository.saveAndFlush(product);
+        var variant=new ProductVariant(product,"ALIEXPRESS","12000053109276547","1005010661577657","AE-SKU","Variant",Map.of(),
+                BigDecimal.TEN,"BRL",null,null,null,null,null);
+        variant.setSupplierStockQuantity(10);return variantRepository.saveAndFlush(variant);
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "PERMISSION_DENIED,PROVIDER_PERMISSION_DENIED,ALIEXPRESS_PERMISSION_DENIED,409",
+            "TOKEN_REJECTED,PROVIDER_TOKEN_REJECTED,ALIEXPRESS_AUTHENTICATION_FAILED,409",
+            "INVALID_RESPONSE,AMBIGUOUS_MONETARY_UNIT,ALIEXPRESS_AMBIGUOUS_MONEY,409",
+            "COMMUNICATION_ERROR,COMMUNICATION_FAILURE,ALIEXPRESS_EXTERNAL_FAILURE,502"})
+    void checkoutPreservesDistinctSafeExternalErrors(AliExpressFreightDiagnosticResult.Status providerStatus,
+            String providerCode,String expectedCode,int expectedStatus) throws Exception {
+        var variant=aliVariant("ali-safe-error");
+        when(aliExpressTokens.existingAccessToken()).thenReturn("synthetic-token");
+        when(sharedAliExpressClient.query(anyString(),any())).thenReturn(new AliExpressFreightDiagnosticResult(
+                providerStatus,providerCode,List.of(),List.of()));
+        quote("89229030","[{\"productId\":"+variant.getProduct().getId()+",\"variantId\":"+variant.getId()+",\"quantity\":1}]")
+                .andExpect(status().is(expectedStatus)).andExpect(jsonPath("$.fields.code").value(expectedCode));
+        verify(sharedAliExpressClient).query("synthetic-token",new AliExpressDsFreightClient.Input("1005010661577657","12000053109276547",1,"BR"));
+        verify(aliExpressTokens,never()).accessToken();
     }
 
     private Product product(String name, String slug, String price, boolean active, int stock) {

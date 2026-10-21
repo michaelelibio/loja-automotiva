@@ -20,9 +20,8 @@ class AliExpressFreightQuoteTests {
     }
 
     @Test void simulatedGatewayPreservesMultipleMethodsAndExactAmounts() {
-        AliExpressFreightGateway gateway = context -> List.of(method("SIMULATED_STANDARD", "12.30"), method("SIMULATED_EXPRESS", "25.39"));
         Context context = context("89229030", 1);
-        var quote = new AliExpressFreightService(gateway, Clock.fixed(now, ZoneOffset.UTC)).candidate(context);
+        var quote = new AliExpressFreightQuote(context,List.of(method("SIMULATED_STANDARD", "12.30"),method("SIMULATED_EXPRESS", "25.39")),now);
         assertThat(quote.methods()).hasSize(2);
         assertThat(quote.select(context, "SIMULATED_EXPRESS", now).amount()).isEqualTo(new BigDecimal("25.39"));
         assertThat(quote.methods().get(0).currency()).isEqualTo("BRL");
@@ -43,6 +42,21 @@ class AliExpressFreightQuoteTests {
         var quote = quote("12.30");
         for (Instant time : List.of(now.minusSeconds(1), now.plus(VALIDITY), now.plus(VALIDITY).plusSeconds(1)))
             assertThatThrownBy(() -> quote.select(quote.context(), "SIMULATED_STANDARD", time)).isInstanceOf(ResourceConflictException.class);
+    }
+    @Test void skuCartOriginAndAddressFieldsInvalidateInternalCandidateEvenWithSameZip() {
+        var quote=quote("12.30");
+        var current=quote.context();
+        var original=current.items().get(0);
+        for(var changed:List.of(
+                new Context(List.of(new Line(original.productId(),"12000053109276548",1,"CN")),current.destination()),
+                new Context(List.of(original,new Line("1005010661577658","12000053109276548",1,"CN")),current.destination()),
+                new Context(List.of(new Line(original.productId(),original.variantId(),1,"BR")),current.destination()),
+                new Context(current.items(),new Destination("BR","89229030","SC","Outra Cidade","Rua Teste","10","Centro",null)),
+                new Context(current.items(),new Destination("BR","89229030","SP","Joinville","Rua Teste","10","Centro",null)),
+                new Context(current.items(),new Destination("BR","89229030","SC","Joinville","Rua Teste","10","Centro","Apto 2")))) {
+            assertThatThrownBy(()->quote.select(changed,"SIMULATED_STANDARD",now))
+                    .isInstanceOf(ResourceConflictException.class);
+        }
     }
 
     @Test void missingRatesOrUnknownMethodNeverMeanFreeShipping() {
@@ -77,8 +91,8 @@ class AliExpressFreightQuoteTests {
 
     @Test void communicationFailureNeverProducesAnEmptyOrZeroQuote() {
         AliExpressFreightGateway gateway = context -> { throw new IllegalStateException("token=secret destination=89229030"); };
-        var service = new AliExpressFreightService(gateway, Clock.fixed(now, ZoneOffset.UTC));
-        assertThatThrownBy(() -> service.candidate(context("89229030", 1))).isInstanceOf(ResourceConflictException.class)
-                .hasMessage(AliExpressFreightService.UNAVAILABLE).hasNoCause();
+        var service = new AliExpressFreightService(gateway);
+        assertThatThrownBy(() -> service.quote(new com.garage.garageapi.shipping.provider.ShippingProvider.Request("89229030",List.of()))).isInstanceOf(ResourceConflictException.class)
+                .hasMessage("Nao foi possivel concluir a consulta de frete AliExpress.").hasNoCause();
     }
 }

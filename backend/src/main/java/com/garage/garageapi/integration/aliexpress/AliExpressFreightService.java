@@ -18,30 +18,25 @@ public class AliExpressFreightService {
     public static final String UNAVAILABLE =
             "O frete dos produtos AliExpress ainda não pode ser confirmado. A compra está temporariamente indisponível para esses itens.";
     private final AliExpressFreightGateway gateway;
-    private final java.time.Clock clock;
 
-    public AliExpressFreightService() {
-        this(context -> { throw new ResourceConflictException(UNAVAILABLE); }, java.time.Clock.systemUTC());
-    }
-
-    AliExpressFreightService(AliExpressFreightGateway gateway, java.time.Clock clock) {
-        this.gateway = java.util.Objects.requireNonNull(gateway);
-        this.clock = java.util.Objects.requireNonNull(clock);
-    }
-
-    // Internal candidate only. Not exposed as a checkout selection until persisted
-    // ownership, expiry, snapshot and provider contract verification are implemented.
-    AliExpressFreightQuote candidate(AliExpressFreightQuote.Context context) {
-        try {
-            return new AliExpressFreightQuote(context, gateway.calculate(context), clock.instant());
-        } catch (RuntimeException exception) {
-            // Do not propagate provider messages, causes, payloads or destination.
-            throw new ResourceConflictException(UNAVAILABLE);
-        }
+    public AliExpressFreightService(AliExpressFreightGateway gateway) {
+        this.gateway=java.util.Objects.requireNonNull(gateway);
     }
 
     public List<ShippingProvider.Option> quote(ShippingProvider.Request request) {
-        throw new ResourceConflictException(UNAVAILABLE);
+        final AliExpressFreightGateway.Evaluation evaluation;
+        try { evaluation=gateway.calculate(request); }
+        catch (AliExpressShippingException ex) { throw ex; }
+        catch (RuntimeException ignored) { throw new AliExpressShippingException(AliExpressShippingException.Code.EXTERNAL_FAILURE); }
+        if (evaluation == null || evaluation.coverage() == null || evaluation.lines().isEmpty()
+                || evaluation.lines().stream().anyMatch(line -> line == null || line.methods().isEmpty()))
+            throw new AliExpressShippingException(AliExpressShippingException.Code.FREIGHT_UNAVAILABLE);
+        // A real call and normalized rates do not prove address coverage or reserve a price.
+        // There is deliberately no address-confirmed branch or payment-enabling flag yet.
+        switch(evaluation.coverage()) {
+            case COUNTRY_ONLY -> throw new AliExpressShippingException(AliExpressShippingException.Code.DESTINATION_NOT_CONFIRMED);
+        }
+        throw new AliExpressShippingException(AliExpressShippingException.Code.INVALID_RESPONSE);
     }
 
     /** Covers unpaid legacy orders too; existing paid orders are never modified. */

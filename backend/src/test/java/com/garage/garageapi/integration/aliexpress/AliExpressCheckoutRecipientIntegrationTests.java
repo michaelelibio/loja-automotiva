@@ -154,7 +154,7 @@ class AliExpressCheckoutRecipientIntegrationTests {
         doCallRealMethod().when(shipping).select(anyString(),anyList(),any());
         var request=body(fixture);request.put("shippingCode","STANDARD");request.put("shippingCost",0);
         mvc.perform(post("/api/orders").with(customer(fixture.user())).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value(AliExpressFreightService.UNAVAILABLE));
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_FREIGHT_UNAVAILABLE"));
         assertThat(orders.count()).isZero();assertThat(payments.count()).isZero();verifyNoInteractions(client,tokens);
     }
     @Test void requestRepresentationsNeverExposeValues() {
