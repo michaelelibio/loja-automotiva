@@ -15,7 +15,8 @@ export const freightStatusMessages = {
 
 export type FreightDiagnosticStatus = keyof typeof freightStatusMessages;
 export type FreightDiagnosticMethod = { serviceName: string; amount: number | string; currency: string; estimatedDeliveryTime: string | null; company?: string | null; originCountry?: string | null };
-export type FreightDiagnosticResult = { status: FreightDiagnosticStatus; safeCode: string; methods: FreightDiagnosticMethod[] };
+export type MoneyField = { optionIndex: number; path: string; present: boolean; jsonType: string; currency: string | null; documentedScale: string; safeValue: string | null };
+export type FreightDiagnosticResult = { status: FreightDiagnosticStatus; safeCode: string; methods: FreightDiagnosticMethod[]; monetaryStructure?: MoneyField[] };
 
 const protocolMessages = {
   TOP_21_MISSING_METHOD: 'O AliExpress retornou o código 21: método ausente na requisição. Revise o formato e o transporte da consulta.',
@@ -77,8 +78,23 @@ export function parseFreightDiagnostic(value: unknown, token: string): FreightDi
   if (new Set(methods.map((method) => method.serviceName)).size !== methods.length
       || (value.status === 'SUCCESS' && methods.length === 0)
       || (value.status !== 'SUCCESS' && methods.length !== 0)) throw new Error('Invalid diagnostic');
+  const fields = ['shipping_fee_cent','shipping_fee_currency','shipping_fee_format','free_shipping','shipping_fee','amount','cent','currency_code','free_shipping_threshold','shipping_fee.amount','shipping_fee.cent','shipping_fee.currency_code','amount.amount','amount.cent','amount.currency_code'];
+  const monetaryStructure: MoneyField[] = [];
+  if (Array.isArray(value.monetaryStructure) && value.monetaryStructure.length <= 7500) {
+    for (const f of value.monetaryStructure) {
+      if (!object(f) || !Number.isInteger(f.optionIndex) || (f.optionIndex as number) < 0 || (f.optionIndex as number) >= 500
+          || typeof f.path !== 'string' || !fields.includes(f.path) || typeof f.present !== 'boolean'
+          || typeof f.jsonType !== 'string' || !['MISSING','NULL','STRING','NUMBER','BOOLEAN','OBJECT','ARRAY'].includes(f.jsonType)
+          || typeof f.documentedScale !== 'string' || !['CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT','DISPLAY_TEXT_ONLY','NOT_DOCUMENTED_AS_AMOUNT'].includes(f.documentedScale)) continue;
+      monetaryStructure.push({ optionIndex: f.optionIndex as number, path: f.path, present: f.present, jsonType: f.jsonType,
+        documentedScale: f.documentedScale,
+        currency: typeof f.currency === 'string' && ['BRL','USD','EUR','GBP','JPY','CNY','CAD','AUD'].includes(f.currency) && !f.currency.includes(token) ? f.currency : null,
+        safeValue: typeof f.safeValue === 'string' && /^(?:[0-9]{1,6}(?:\.[0-9]{1,4})?|true|false|BRL|USD|EUR|GBP|JPY|CNY|CAD|AUD)$/.test(f.safeValue) && !f.safeValue.includes(token) ? f.safeValue : null });
+    }
+  }
   return { status: value.status as FreightDiagnosticStatus,
-    safeCode: typeof value.safeCode === 'string' && safeCodes.has(value.safeCode) ? value.safeCode : 'UNRECOGNIZED_RESULT', methods };
+    safeCode: typeof value.safeCode === 'string' && safeCodes.has(value.safeCode) ? value.safeCode : 'UNRECOGNIZED_RESULT', methods,
+    ...(monetaryStructure.length ? { monetaryStructure } : {}) };
 }
 
 export function freightEstimate(value: string | null): string {

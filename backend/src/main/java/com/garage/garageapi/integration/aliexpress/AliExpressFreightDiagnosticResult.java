@@ -4,7 +4,15 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record AliExpressFreightDiagnosticResult(Status status, String safeCode, List<Method> methods,
-        List<String> limitations) {
+        List<String> limitations, List<MoneyField> monetaryStructure) {
+    public record MoneyField(int optionIndex, String path, boolean present, String jsonType,
+            String currency, String documentedScale, String safeValue) {}
+    public AliExpressFreightDiagnosticResult(Status status, String code, List<Method> methods, List<String> limitations) {
+        this(status,code,methods,limitations,List.of());
+    }
+    public AliExpressFreightDiagnosticResult withMonetaryStructure(List<MoneyField> fields) {
+        return new AliExpressFreightDiagnosticResult(status,safeCode,methods,limitations,fields);
+    }
     public enum Status {
         SUCCESS, PERMISSION_DENIED, TOKEN_REJECTED, PRODUCT_UNAVAILABLE, PARAMETER_ERROR,
         COMMUNICATION_ERROR, INVALID_RESPONSE, PROVIDER_REJECTED, LOCAL_AUTHORIZATION_UNAVAILABLE,
@@ -18,7 +26,7 @@ public record AliExpressFreightDiagnosticResult(Status status, String safeCode, 
         }
     }
     public AliExpressFreightDiagnosticResult {
-        methods = List.copyOf(methods); limitations = List.copyOf(limitations);
+        methods = List.copyOf(methods); limitations = List.copyOf(limitations); monetaryStructure = List.copyOf(monetaryStructure);
     }
     static AliExpressFreightDiagnosticResult result(Status status, String code, List<Method> methods) {
         return new AliExpressFreightDiagnosticResult(status,code,methods,List.of(

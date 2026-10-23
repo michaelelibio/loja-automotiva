@@ -76,7 +76,7 @@ public class AliExpressDsFreightClient {
                         final JsonNode parsed;
                         try { parsed=JSON.readTree(bytes); }
                         catch (Exception ignored) { return failure(INVALID_RESPONSE,"INVALID_JSON_RESPONSE"); }
-                        return parse(parsed,token);
+                        return parse(parsed,token).withMonetaryStructure(monetaryStructure(parsed,token));
                     });
         } catch (Exception ignored) {
             return failure(COMMUNICATION_ERROR,"COMMUNICATION_FAILURE");
@@ -97,6 +97,9 @@ public class AliExpressDsFreightClient {
         if (entries.isEmpty()) return failure(PRODUCT_UNAVAILABLE,"NO_DELIVERY_METHODS");
         List<Method> methods=new ArrayList<>();
         for (JsonNode entry:entries) {
+            // No DS scale is proven for these aliases; never silently ignore a second monetary source.
+            if (List.of("shipping_fee","amount","cent","currency_code").stream().anyMatch(entry::has))
+                return failure(INVALID_RESPONSE,"CONFLICTING_MONETARY_FIELDS");
             String cent=entry.path("shipping_fee_cent").asText();
             // docId 1579 says cents, but its example contains "1.99" next to
             // "US $1.99". Decimal values are ambiguous: never divide or guess.
@@ -126,6 +129,50 @@ public class AliExpressDsFreightClient {
         }
         if (methods.stream().map(Method::serviceName).distinct().count()!=methods.size()) return failure(INVALID_RESPONSE,"DUPLICATE_SERVICE");
         return result(SUCCESS,"CALL_SUCCEEDED",methods);
+    }
+
+    /** Fixed allowlist: no arbitrary names, raw objects, formatted text or personal data copied. */
+    private List<MoneyField> monetaryStructure(JsonNode body,String token) {
+        JsonNode result=body.path("aliexpress_ds_freight_query_response").path("result");
+        if (result.isMissingNode()) result=body.path("result");
+        JsonNode entries=result.path("delivery_options");
+        if (!entries.isArray() || entries.size()>500) return List.of();
+        List<MoneyField> fields=new ArrayList<>();
+        for (int i=0;i<entries.size();i++) {
+            JsonNode entry=entries.get(i);
+            String currency=entry.path("shipping_fee_currency").asText();
+            if (!Set.of("BRL","USD","EUR","GBP","JPY","CNY","CAD","AUD").contains(currency)
+                    || sensitive(currency,token)) currency=null;
+            for (String name:List.of("shipping_fee_cent","shipping_fee_currency","shipping_fee_format",
+                    "free_shipping","shipping_fee","amount","cent","currency_code","free_shipping_threshold")) {
+                addMoneyField(fields,i,name,entry.path(name),currency,token);
+                if (Set.of("shipping_fee","amount").contains(name) && entry.path(name).isObject())
+                    for (String child:List.of("amount","cent","currency_code"))
+                        addMoneyField(fields,i,name+"."+child,entry.path(name).path(child),currency,token);
+            }
+        }
+        return fields;
+    }
+    private void addMoneyField(List<MoneyField> fields,int index,String path,JsonNode node,String currency,String token) {
+        String type=node.isMissingNode()?"MISSING":node.isNull()?"NULL":node.isString()?"STRING":
+                node.isNumber()?"NUMBER":node.isBoolean()?"BOOLEAN":node.isArray()?"ARRAY":"OBJECT";
+        String scale=path.equals("shipping_fee_cent")?"CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT":
+                path.equals("shipping_fee_format")?"DISPLAY_TEXT_ONLY":"NOT_DOCUMENTED_AS_AMOUNT";
+        String value=null;
+        // Only bounded numeric freight scalars. Long digit sequences and all free text are suppressed.
+        if (Set.of("shipping_fee_cent","shipping_fee","amount","cent").contains(path)
+                && (node.isString() || node.isNumber()) && node.asText().matches("[0-9]{1,6}(?:\\.[0-9]{1,4})?")
+                && !sensitive(node.asText(),token)) value=new BigDecimal(node.asText()).toPlainString();
+        if (path.equals("free_shipping") && isBoolean(node)) value=node.asText();
+        if (path.equals("shipping_fee_format") && node.isString() && !sensitive(node.asText(),token)) {
+            var formatted=java.util.regex.Pattern.compile("^(?:[A-Z]{1,3}\\s*)?[$€£]?\\s*([0-9]{1,6}\\.[0-9]{2})$")
+                    .matcher(node.asText());
+            if (formatted.matches()) value=new BigDecimal(formatted.group(1)).toPlainString();
+        }
+        if ((path.equals("shipping_fee_currency") || path.endsWith("currency_code")) && node.isString()
+                && Set.of("BRL","USD","EUR","GBP","JPY","CNY","CAD","AUD").contains(node.asText())
+                && !sensitive(node.asText(),token)) value=node.asText();
+        fields.add(new MoneyField(index,path,!node.isMissingNode(),type,currency,scale,value));
     }
 
     private static boolean isBoolean(JsonNode node) {

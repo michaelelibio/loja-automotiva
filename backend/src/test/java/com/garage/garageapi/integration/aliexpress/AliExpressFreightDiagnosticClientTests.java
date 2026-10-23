@@ -143,6 +143,29 @@ class AliExpressFreightDiagnosticClientTests {
         server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","\"1.99\"","USD")+"]"),MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token",input()).safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");server.verify();
     }
+    @Test void rejectedDocumentedExampleRetainsOnlySanitizedMonetaryShape(CapturedOutput output) {
+        String entry=method("STANDARD","\"1.99\"","USD").replace("\"code\":",
+                "\"shipping_fee_format\":\"US $1.99 synthetic-token CPF 52998224725\",\"recipient\":\"private-name\",\"code\":");
+        server.expect(anything()).andRespond(withSuccess(response("["+entry+"]"),MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token",input());
+        assertThat(result.safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");
+        assertThat(result.methods()).isEmpty();
+        assertThat(result.monetaryStructure()).anySatisfy(f->{
+            assertThat(f.path()).isEqualTo("shipping_fee_cent"); assertThat(f.jsonType()).isEqualTo("STRING");
+            assertThat(f.safeValue()).isEqualTo("1.99"); assertThat(f.currency()).isEqualTo("USD");
+        }).anySatisfy(f->{ assertThat(f.path()).isEqualTo("shipping_fee"); assertThat(f.present()).isFalse(); });
+        assertThat(result.toString()+output.getAll()).doesNotContain("synthetic-token","52998224725","private-name","US $1.99");
+        server.verify();
+    }
+    @ParameterizedTest @CsvSource({"shipping_fee","amount","cent","currency_code"})
+    void undocumentedAlternateMoneyAlwaysBlocksEvenAlongsideValidCents(String field) {
+        String entry=method("STANDARD","1230","BRL").replace("\"code\":","\""+field+"\":{\"amount\":\"99.99\",\"cent\":9999,\"currency_code\":\"USD\"},\"code\":");
+        server.expect(anything()).andRespond(withSuccess(response("["+entry+"]"),MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token",input());
+        assertThat(result.safeCode()).isEqualTo("CONFLICTING_MONETARY_FIELDS"); assertThat(result.methods()).isEmpty();
+        assertThat(result.monetaryStructure()).anySatisfy(f->{ assertThat(f.path()).isEqualTo("shipping_fee_cent"); assertThat(f.jsonType()).isEqualTo("NUMBER"); });
+        server.verify();
+    }
     @Test void missingAmountNeverDefaultsToZero() {
         server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","null","BRL")+"]"),MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token",input()).status()).isEqualTo(INVALID_RESPONSE);server.verify();

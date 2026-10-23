@@ -194,3 +194,13 @@ test('SKU without origin metadata can trigger the manual ds freight diagnostic',
   assert.doesNotMatch(html, /Ships From/);
   assert.equal(find(tree, n => n.props?.['aria-describedby'] === 'aliexpress-freight-title').props.disabled, false);
 });
+
+test('monetary structure survives rejection and copies only allowed metadata', () => {
+  const f = { optionIndex: 0, path: 'shipping_fee_cent', present: true, jsonType: 'STRING', currency: 'USD', documentedScale: 'CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT', safeValue: '1.99', raw: 'private-token' };
+  const result = helper.parseFreightDiagnostic({ status: 'INVALID_RESPONSE', safeCode: 'AMBIGUOUS_MONETARY_UNIT', methods: [], monetaryStructure: [f, { ...f, path: 'recipient' }, { ...f, path: 'amount', safeValue: '52998224725' }] }, 'private-token');
+  assert.equal(result.monetaryStructure.length, 2);
+  assert.equal(result.monetaryStructure[0].safeValue, '1.99');
+  assert.equal(result.monetaryStructure[1].safeValue, null);
+  assert.ok(!JSON.stringify(result).includes('private-token'));
+  assert.ok(!JSON.stringify(result).includes('52998224725'));
+});

@@ -14,6 +14,14 @@ export function AliExpressFreightResult({ result }: { result: FreightDiagnosticR
       <h3>{success ? 'Consulta concluída com sucesso' : 'Não foi possível confirmar a cotação'}</h3>
       <p>Status: <code>{result.status}</code></p><p>{freightDiagnosticMessage(result)}</p><p>Código: <code>{result.safeCode}</code></p>
     </div>
+    {!!result.monetaryStructure?.length && <div className="admin-aliexpress-table-wrap"><table className="admin-aliexpress-table">
+      <caption>Estrutura monetária sanitizada. Valores observados sem conversão; vazio indica valor suprimido.</caption>
+      <thead><tr><th>Opção</th><th>Campo</th><th>Presente</th><th>Tipo JSON</th><th>Moeda</th><th>Escala documentada</th><th>Valor observado</th></tr></thead>
+      <tbody>{result.monetaryStructure.map((field) => <tr key={field.optionIndex + ':' + field.path}>
+        <td>{field.optionIndex + 1}</td><td><code>{field.path}</code></td><td>{field.present ? 'Sim' : 'Não'}</td>
+        <td>{field.jsonType}</td><td>{field.currency ?? '—'}</td><td>{field.documentedScale}</td><td>{field.safeValue ?? '—'}</td>
+      </tr>)}</tbody>
+    </table></div>}
     {result.methods.length > 0 && <div className="admin-aliexpress-table-wrap"><table className="admin-aliexpress-table">
       <caption className="sr-only">Modalidades retornadas no diagnóstico de frete</caption>
       <thead><tr><th scope="col">Modalidade / código</th><th scope="col">Origem retornada</th><th scope="col">Valor</th><th scope="col">Moeda</th><th scope="col">Prazo estimado</th></tr></thead>
