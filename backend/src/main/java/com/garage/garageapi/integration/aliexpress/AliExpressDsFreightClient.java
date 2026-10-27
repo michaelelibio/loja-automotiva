@@ -146,6 +146,17 @@ public class AliExpressDsFreightClient {
             for (String name:List.of("shipping_fee_cent","shipping_fee_currency","shipping_fee_format",
                     "free_shipping","shipping_fee","amount","cent","currency_code","free_shipping_threshold")) {
                 addMoneyField(fields,i,name,entry.path(name),currency,token);
+                if (name.equals("shipping_fee_format")) {
+                    MoneyField field=fields.remove(fields.size()-1);
+                    String comparison="UNAVAILABLE";
+                    String cent=entry.path("shipping_fee_cent").asText();
+                    if (currency!=null && field.safeValue()!=null && cent.matches("[0-9]{1,6}(?:\\.[0-9]{1,4})?") && !sensitive(cent,token)) {
+                        BigDecimal observed=new BigDecimal(cent), display=new BigDecimal(field.safeValue());
+                        boolean major=observed.compareTo(display)==0, minor=observed.movePointLeft(2).compareTo(display)==0;
+                        comparison=major && minor?"BOTH_MATCH":major?"MAJOR_MATCH":minor?"MINOR_MATCH":"NEITHER_MATCH";
+                    }
+                    fields.add(new MoneyField(i,name,field.present(),field.jsonType(),currency,field.documentedScale(),field.safeValue(),comparison));
+                }
                 if (Set.of("shipping_fee","amount").contains(name) && entry.path(name).isObject())
                     for (String child:List.of("amount","cent","currency_code"))
                         addMoneyField(fields,i,name+"."+child,entry.path(name).path(child),currency,token);
@@ -167,7 +178,16 @@ public class AliExpressDsFreightClient {
         if (path.equals("shipping_fee_format") && node.isString() && !sensitive(node.asText(),token)) {
             var formatted=java.util.regex.Pattern.compile("^(?:[A-Z]{1,3}\\s*)?[$€£]?\\s*([0-9]{1,6}\\.[0-9]{2})$")
                     .matcher(node.asText());
-            if (formatted.matches()) value=new BigDecimal(formatted.group(1)).toPlainString();
+            if (formatted.matches() && currency!=null && (node.asText().matches("[0-9]{1,6}\\.[0-9]{2}")
+                    || node.asText().startsWith(currency+" ")
+                    || ("USD".equals(currency) && node.asText().matches("(?:US )?\\$[0-9]{1,6}\\.[0-9]{2}"))))
+                value=new BigDecimal(formatted.group(1)).toPlainString();
+            // BRL local presentation only: anchored, bounded, no grouping or free text.
+            // Never used to select a checkout scale or populate Method.amount.
+            if ("BRL".equals(currency)) {
+                var brl=java.util.regex.Pattern.compile("^(?:R\\$|BRL)[ \\u00a0]?([0-9]{1,6})([.,])([0-9]{2})$").matcher(node.asText());
+                if (brl.matches()) value=new BigDecimal(brl.group(1)+"."+brl.group(3)).toPlainString();
+            }
         }
         if ((path.equals("shipping_fee_currency") || path.endsWith("currency_code")) && node.isString()
                 && Set.of("BRL","USD","EUR","GBP","JPY","CNY","CAD","AUD").contains(node.asText())

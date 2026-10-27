@@ -6,7 +6,11 @@ import java.util.List;
 public record AliExpressFreightDiagnosticResult(Status status, String safeCode, List<Method> methods,
         List<String> limitations, List<MoneyField> monetaryStructure) {
     public record MoneyField(int optionIndex, String path, boolean present, String jsonType,
-            String currency, String documentedScale, String safeValue) {}
+            String currency, String documentedScale, String safeValue, String comparison) {
+        public MoneyField(int index, String path, boolean present, String type, String currency, String scale, String value) {
+            this(index,path,present,type,currency,scale,value,null);
+        }
+    }
     public AliExpressFreightDiagnosticResult(Status status, String code, List<Method> methods, List<String> limitations) {
         this(status,code,methods,limitations,List.of());
     }

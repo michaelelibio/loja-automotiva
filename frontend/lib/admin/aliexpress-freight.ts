@@ -15,7 +15,7 @@ export const freightStatusMessages = {
 
 export type FreightDiagnosticStatus = keyof typeof freightStatusMessages;
 export type FreightDiagnosticMethod = { serviceName: string; amount: number | string; currency: string; estimatedDeliveryTime: string | null; company?: string | null; originCountry?: string | null };
-export type MoneyField = { optionIndex: number; path: string; present: boolean; jsonType: string; currency: string | null; documentedScale: string; safeValue: string | null };
+export type MoneyField = { optionIndex: number; path: string; present: boolean; jsonType: string; currency: string | null; documentedScale: string; safeValue: string | null; comparison?: string | null };
 export type FreightDiagnosticResult = { status: FreightDiagnosticStatus; safeCode: string; methods: FreightDiagnosticMethod[]; monetaryStructure?: MoneyField[] };
 
 const protocolMessages = {
@@ -88,6 +88,7 @@ export function parseFreightDiagnostic(value: unknown, token: string): FreightDi
           || typeof f.documentedScale !== 'string' || !['CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT','DISPLAY_TEXT_ONLY','NOT_DOCUMENTED_AS_AMOUNT'].includes(f.documentedScale)) continue;
       monetaryStructure.push({ optionIndex: f.optionIndex as number, path: f.path, present: f.present, jsonType: f.jsonType,
         documentedScale: f.documentedScale,
+        comparison: typeof f.comparison === 'string' && ['UNAVAILABLE','BOTH_MATCH','MAJOR_MATCH','MINOR_MATCH','NEITHER_MATCH'].includes(f.comparison) ? f.comparison : null,
         currency: typeof f.currency === 'string' && ['BRL','USD','EUR','GBP','JPY','CNY','CAD','AUD'].includes(f.currency) && !f.currency.includes(token) ? f.currency : null,
         safeValue: typeof f.safeValue === 'string' && /^(?:[0-9]{1,6}(?:\.[0-9]{1,4})?|true|false|BRL|USD|EUR|GBP|JPY|CNY|CAD|AUD)$/.test(f.safeValue) && !f.safeValue.includes(token) ? f.safeValue : null });
     }

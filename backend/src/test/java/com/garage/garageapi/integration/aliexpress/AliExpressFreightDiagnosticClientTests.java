@@ -143,6 +143,26 @@ class AliExpressFreightDiagnosticClientTests {
         server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","\"1.99\"","USD")+"]"),MediaType.APPLICATION_JSON));
         assertThat(client.query("synthetic-token",input()).safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");server.verify();
     }
+    @ParameterizedTest
+    @CsvSource(value={"R$ 24,00|24.00|MAJOR_MATCH", "BRL 24.00|24.00|MAJOR_MATCH",
+            "R$ 0,24|0.24|MINOR_MATCH", "R$ 25,00|25.00|NEITHER_MATCH",
+            "R$ 24,00 CPF 52998224725||UNAVAILABLE", "US $24.00||UNAVAILABLE",
+            "R$ 1.234,56||UNAVAILABLE", "R$ 24,00 synthetic-token||UNAVAILABLE"}, delimiter='|')
+    void productionDecimalRemainsBlockedWhileDisplayIsComparedSafely(String formatted,String safe,String comparison,CapturedOutput output) {
+        String entry=method("STANDARD","\"24.00\"","BRL").replace("\"code\":",
+                "\"shipping_fee_format\":\""+formatted+"\",\"code\":");
+        server.expect(anything()).andRespond(withSuccess(response("["+entry+"]"),MediaType.APPLICATION_JSON));
+        var result=client.query("synthetic-token",input());
+        assertThat(result.safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");
+        assertThat(result.methods()).isEmpty();
+        assertThat(result.monetaryStructure()).anySatisfy(f->{
+            assertThat(f.path()).isEqualTo("shipping_fee_format");
+            assertThat(f.optionIndex()).isZero(); assertThat(f.currency()).isEqualTo("BRL");
+            assertThat(f.safeValue()).isEqualTo(safe); assertThat(f.comparison()).isEqualTo(comparison);
+        });
+        assertThat(result.toString()+output.getAll()).doesNotContain("synthetic-token","52998224725");
+        server.verify();
+    }
     @Test void rejectedDocumentedExampleRetainsOnlySanitizedMonetaryShape(CapturedOutput output) {
         String entry=method("STANDARD","\"1.99\"","USD").replace("\"code\":",
                 "\"shipping_fee_format\":\"US $1.99 synthetic-token CPF 52998224725\",\"recipient\":\"private-name\",\"code\":");

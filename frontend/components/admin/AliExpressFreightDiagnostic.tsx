@@ -19,7 +19,7 @@ export function AliExpressFreightResult({ result }: { result: FreightDiagnosticR
       <thead><tr><th>Opção</th><th>Campo</th><th>Presente</th><th>Tipo JSON</th><th>Moeda</th><th>Escala documentada</th><th>Valor observado</th></tr></thead>
       <tbody>{result.monetaryStructure.map((field) => <tr key={field.optionIndex + ':' + field.path}>
         <td>{field.optionIndex + 1}</td><td><code>{field.path}</code></td><td>{field.present ? 'Sim' : 'Não'}</td>
-        <td>{field.jsonType}</td><td>{field.currency ?? '—'}</td><td>{field.documentedScale}</td><td>{field.safeValue ?? '—'}</td>
+        <td>{field.jsonType}</td><td>{field.currency ?? '—'}</td><td>{field.documentedScale}</td><td>{field.safeValue ?? '—'}{field.comparison && <small> Comparação: {field.comparison} (não confirma escala)</small>}</td>
       </tr>)}</tbody>
     </table></div>}
     {result.methods.length > 0 && <div className="admin-aliexpress-table-wrap"><table className="admin-aliexpress-table">

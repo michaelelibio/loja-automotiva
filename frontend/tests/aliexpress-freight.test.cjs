@@ -204,3 +204,12 @@ test('monetary structure survives rejection and copies only allowed metadata', (
   assert.ok(!JSON.stringify(result).includes('private-token'));
   assert.ok(!JSON.stringify(result).includes('52998224725'));
 });
+
+test('formatted monetary comparison is allowlisted and cannot approve a quote', () => {
+  const f = { optionIndex: 0, path: 'shipping_fee_format', present: true, jsonType: 'STRING', currency: 'BRL', documentedScale: 'DISPLAY_TEXT_ONLY', safeValue: '24.00', comparison: 'MAJOR_MATCH' };
+  const result = helper.parseFreightDiagnostic({ status: 'INVALID_RESPONSE', safeCode: 'AMBIGUOUS_MONETARY_UNIT', methods: [], monetaryStructure: [f, { ...f, comparison: 'private-token' }] }, 'private-token');
+  assert.equal(result.monetaryStructure[0].comparison, 'MAJOR_MATCH');
+  assert.equal(result.monetaryStructure[1].comparison, null);
+  assert.equal(result.safeCode, 'AMBIGUOUS_MONETARY_UNIT');
+  assert.equal(result.methods.length, 0);
+});
