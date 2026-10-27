@@ -1,0 +1,185 @@
+﻿{
+    "reviewDate":  "2026-10-27",
+    "scope":  "Brazil territorial mapping only; no freight/order/payment business calls",
+    "contracts":  [
+                      {
+                          "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.address.get\u0026methodType=GET%2FPOST",
+                          "commonAccessTokenRequired":  false,
+                          "snapshotSha256":  "9b6011d8f3b76270680959c7e56b7daf16bd218ac7a0bd1deeaedab82c669d87",
+                          "method":  "aliexpress.ds.address.get",
+                          "response":  [
+                                           {
+                                               "path":  "result",
+                                               "type":  "Object",
+                                               "required":  true
+                                           },
+                                           {
+                                               "path":  "result.ret",
+                                               "type":  "Boolean",
+                                               "required":  true
+                                           },
+                                           {
+                                               "path":  "result.code",
+                                               "type":  "String",
+                                               "required":  true
+                                           },
+                                           {
+                                               "path":  "result.data",
+                                               "type":  "Object",
+                                               "required":  true
+                                           },
+                                           {
+                                               "path":  "result.data.country",
+                                               "type":  "String",
+                                               "required":  false
+                                           },
+                                           {
+                                               "path":  "result.data.type",
+                                               "type":  "String",
+                                               "required":  false
+                                           },
+                                           {
+                                               "path":  "result.data.children",
+                                               "type":  "String",
+                                               "required":  false
+                                           },
+                                           {
+                                               "path":  "result.msg",
+                                               "type":  "String",
+                                               "required":  true
+                                           }
+                                       ],
+                          "lastModified":  "2024-03-25 10:47:28",
+                          "docId":  1584,
+                          "authType":  2,
+                          "request":  [
+                                          {
+                                              "path":  "language",
+                                              "type":  "String",
+                                              "required":  false
+                                          },
+                                          {
+                                              "path":  "countryCode",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "isMultiLanguage",
+                                              "type":  "String",
+                                              "required":  false
+                                          }
+                                      ]
+                      },
+                      {
+                          "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.freight.query\u0026methodType=GET%2FPOST",
+                          "request":  [
+                                          {
+                                              "path":  "queryDeliveryReq",
+                                              "type":  "Object",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.quantity",
+                                              "type":  "Number",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.shipToCountry",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.productId",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.provinceCode",
+                                              "type":  "String",
+                                              "required":  false
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.cityCode",
+                                              "type":  "String",
+                                              "required":  false
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.language",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.locale",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.selectedSkuId",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.currency",
+                                              "type":  "String",
+                                              "required":  true
+                                          },
+                                          {
+                                              "path":  "queryDeliveryReq.province",
+                                              "type":  "String",
+                                              "required":  false
+                                          }
+                                      ],
+                          "lastModified":  "2024-03-04 20:23:41",
+                          "method":  "aliexpress.ds.freight.query",
+                          "snapshotSha256":  "febe5ae425d73984c60810756d4fd332a20adc353c515c9926bd434e1724dcd7",
+                          "authType":  1,
+                          "docId":  1579
+                      }
+                  ],
+    "localPersistedOAuth":  {
+                                "providerCallUsingPersistedOAuthPerformed":  false,
+                                "credentialMutationPerformed":  false,
+                                "encryptionKeyConfigured":  false
+                            },
+    "liveProbe":  {
+                      "rawResponseStored":  false,
+                      "numberOfReadCalls":  2,
+                      "method":  "aliexpress.ds.address.get",
+                      "countryCode":  "BR",
+                      "credentialSource":  "USER_SUPPLIED_ACCESS_TOKEN",
+                      "finalParserClassification":  "TOKEN_REJECTED / PROVIDER_TOKEN_REJECTED (verified by replay fixture, no third live call)",
+                      "host":  "https://api-sg.aliexpress.com/sync",
+                      "language":  "OMITTED_OPTIONAL_PARAMETER",
+                      "isMultiLanguage":  "true",
+                      "observedResult":  {
+                                             "status":  "PROVIDER_REJECTED",
+                                             "safeCode":  "UNCLASSIFIED_PROVIDER_REJECTION",
+                                             "applicationAccess":  "NOT_CONFIRMED",
+                                             "country":  null,
+                                             "matches":  [
+
+                                                         ],
+                                             "observedFieldNames":  [
+
+                                                                    ],
+                                             "limitations":  [
+                                                                 "DIAGNOSTIC_ONLY_CHECKOUT_BLOCKED",
+                                                                 "TERRITORIAL_IDS_NOT_FREIGHT_MAPPING",
+                                                                 "POSTAL_CODE_SUPPORT_NOT_CONFIRMED",
+                                                                 "TARGET_NOT_OBSERVED_DOES_NOT_PROVE_UNAVAILABLE"
+                                                             ],
+                                             "providerCode":  "IllegalAccessToken",
+                                             "providerSubCode":  null
+                                         },
+                      "tokenStored":  false
+                  },
+    "observedTerritories":  {
+                                "SantaCatarina":  "NOT_OBSERVED_AUTHENTICATION_REJECTED",
+                                "BR":  "REQUESTED_ONLY_NOT_RETURNED",
+                                "Joinville":  "NOT_OBSERVED_AUTHENTICATION_REJECTED"
+                            },
+    "freightParameterMapping":  "NOT_CONFIRMED",
+    "postalCodeSupport":  "NOT_CONFIRMED",
+    "checkoutBlocked":  true,
+    "paymentsBlocked":  true
+}

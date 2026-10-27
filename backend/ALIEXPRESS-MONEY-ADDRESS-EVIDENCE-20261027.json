@@ -1,0 +1,1225 @@
+﻿{
+    "retrievedOn":  "2026-10-27",
+    "access":  "Public documentation HTTP GET only; no authenticated business calls",
+    "transportInRepository":  {
+                                  "simplify":  "true",
+                                  "host":  "api-sg.aliexpress.com",
+                                  "v":  "2.0",
+                                  "path":  "/sync",
+                                  "method":  "aliexpress.ds.freight.query",
+                                  "note":  "2.0 is TOP protocol version; no separate business revision pinned in request",
+                                  "protocol":  "TOP"
+                              },
+    "reportedProductionObservation":  {
+                                          "comparison":  "MAJOR_MATCH",
+                                          "shipping_fee_format_normalized":  "24.00",
+                                          "provenance":  "User supplied sanitized diagnostic; not independently replayed",
+                                          "optionIndex":  0,
+                                          "safeCode":  "AMBIGUOUS_MONETARY_UNIT",
+                                          "free_shipping":  false,
+                                          "shipping_fee_currency":  "BRL",
+                                          "shipping_fee_cent":  "24.00"
+                                      },
+    "monetaryContract":  {
+                             "description":  "shipping fee amount in cent",
+                             "scaleConfirmed":  false,
+                             "officialExample":  {
+                                                     "shipping_fee_currency":  "USD",
+                                                     "shipping_fee_format":  "US $1.99",
+                                                     "shipping_fee_cent":  "1.99"
+                                                 },
+                             "type":  "String"
+                         },
+    "sdk":  {
+                "typedDto":  "com.aliexpress.open.domain.AliexpressDsFreightQueryDeliveryOptionDTO",
+                "feeSetter":  "Direct assignment; no monetary conversion",
+                "sourceFiles":  [
+                                    {
+                                        "sha256":  "7bfc350a347459c573f64a0584edeab4aad65b2de3adfae595775aa0cd3cd5e5",
+                                        "name":  "review-20261027-AliexpressDsFreightQueryDeliveryOptionDTO.java"
+                                    },
+                                    {
+                                        "sha256":  "91ada9c48f04f06278498276da87570d504a394f6eebbb1c113a3a8bfe55c408",
+                                        "name":  "review-20261027-AliexpressDsFreightQueryOutProductRequest.java"
+                                    },
+                                    {
+                                        "sha256":  "41273c603c87969bae51b6e4c2922dda9eb05787816339dacd7eab87cc912196",
+                                        "name":  "review-20261027-AliexpressDsFreightQueryRequest.java"
+                                    },
+                                    {
+                                        "sha256":  "8c1d9144105b28a4dfb809043c578d6e8b3088530724829cf479e76e1e2d4a5c",
+                                        "name":  "review-20261027-AliexpressDsFreightQueryResponse.java"
+                                    },
+                                    {
+                                        "sha256":  "a0819081db8303f0dd6c164e6dea9139fb55a9a8f6603796d2de52239bd5938c",
+                                        "name":  "review-20261027-AliexpressDsFreightQueryResponseDTO.java"
+                                    }
+                                ],
+                "executed":  false,
+                "feeType":  "String",
+                "zipSha256":  "995ba86ac90d1b3a7a4a987d584f355fcc2b9d92b84be6d523210220da762dd8",
+                "sourceJar":  "gop-sdk-Java1793077207627-source.jar",
+                "source":  "https://ae-open-platform-public.oss-ap-southeast-1.aliyuncs.com/online/oss_1793077216670_0_DN7u.zip"
+            },
+    "apis":  [
+                 {
+                     "method":  "aliexpress.ds.freight.query",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.freight.query\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "80e7df7d11a88511ae84d73bcf13d7c3474d9c44eb4d44595a87ca324044a0e7",
+                     "docId":  1579,
+                     "lastModified":  "2024-03-04 20:23:41",
+                     "matchedContract":  true,
+                     "title":  "Delivery/Freight API",
+                     "request":  [
+                                     {
+                                         "path":  "queryDeliveryReq",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.quantity",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.shipToCountry",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.productId",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.provinceCode",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.cityCode",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.language",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.locale",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.selectedSkuId",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.currency",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "queryDeliveryReq.province",
+                                         "type":  "String",
+                                         "required":  false
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.delivery_options.shipping_fee_format",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.delivery_options.code",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.delivery_options.free_shipping",
+                                                        "type":  "Boolean",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.delivery_options.shipping_fee_currency",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.delivery_options.shipping_fee_cent",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.delivery_options.free_shipping_threshold",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.code",
+                                                        "type":  "Number",
+                                                        "required":  true
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.ds.address.get",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.address.get\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "99998160b39698385ecceb41f79aed1de74eedd1121e4900c47f64ba18aea18d",
+                     "docId":  1584,
+                     "lastModified":  "2024-03-25 10:47:28",
+                     "matchedContract":  true,
+                     "title":  "Get restrict name on AE",
+                     "request":  [
+                                     {
+                                         "path":  "language",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "countryCode",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "isMultiLanguage",
+                                         "type":  "String",
+                                         "required":  false
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.ret",
+                                                        "type":  "Boolean",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.code",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.data",
+                                                        "type":  "Object",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.data.country",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.data.type",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.data.children",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.ds.order.create",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.order.create\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "7fb5c1f4add90aa33290894be228041e414ed15991c11eec5bbaa5be123edc5b",
+                     "docId":  1615,
+                     "lastModified":  "2024-04-29 13:36:13",
+                     "matchedContract":  true,
+                     "title":  "AE DS Order Create and Pay API",
+                     "request":  [
+                                     {
+                                         "path":  "ds_extend_request",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.promotion",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.promotion.promotion_channel_info",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.promotion.promotion_activity_id",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.payment",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.payment.pay_currency",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.payment.try_to_pay",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.trade_extra_param",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.trade_extra_param.business_model",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.trade_extra_param.customize_sku_map",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.trade_extra_param.nat_addr",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.trade_extra_param.birthday",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "ds_extend_request.channel_strategy",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.out_order_id",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.address",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.address2",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.city",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.contact_person",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.country",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.cpf",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.full_name",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.locale",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.mobile_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no_date",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.passport_organization",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.phone_country",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.province",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.tax_number",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.zip",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.rut_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.foreigner_passport_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.is_foreigner",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.vat_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.tax_company",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.location_tree_address_id",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items",
+                                         "type":  "Object[]",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.product_count",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.product_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.sku_attr",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.logistics_service_name",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.order_memo",
+                                         "type":  "String",
+                                         "required":  false
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.order_list",
+                                                        "type":  "Number[]",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.is_success",
+                                                        "type":  "Boolean",
+                                                        "required":  false
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.trade.buy.placeorder",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.trade.buy.placeorder\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "44f171ff746f51d6ae0e7cf3641f072252ee70ca8083bb5accbba5f15ea032b1",
+                     "docId":  479,
+                     "lastModified":  "2022-03-29 16:52:58",
+                     "matchedContract":  true,
+                     "title":  "API for place order",
+                     "request":  [
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.out_order_id",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.ds_extend_request",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.ds_extend_request.trade_extra_param",
+                                         "type":  "Object",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.ds_extend_request.trade_extra_param.nat_addr",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.ds_extend_request.trade_extra_param.birthday",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.ds_extend_request.channel_strategy",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.address",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.address2",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.city",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.contact_person",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.country",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.cpf",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.full_name",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.locale",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.mobile_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.passport_no_date",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.passport_organization",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.phone_country",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.province",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.tax_number",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.zip",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.rut_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.foreigner_passport_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.is_foreigner",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.vat_no",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.tax_company",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.logistics_address.location_tree_address_id",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items",
+                                         "type":  "Object[]",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.product_count",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.product_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.sku_attr",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.logistics_service_name",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_place_order_request4_open_api_d_t_o.product_items.order_memo",
+                                         "type":  "String",
+                                         "required":  false
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.order_list",
+                                                        "type":  "Number[]",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.is_success",
+                                                        "type":  "Boolean",
+                                                        "required":  false
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.trade.ds.order.get",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.trade.ds.order.get\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "7f72db9f49d67d27208fbc1c96db5936e8436c49620e8c1010caef60eff24682",
+                     "docId":  524,
+                     "lastModified":  "2022-03-30 15:43:59",
+                     "matchedContract":  true,
+                     "title":  "buyer query order details",
+                     "request":  [
+                                     {
+                                         "path":  "single_order_query",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "single_order_query.order_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.user_order_amount",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.user_order_amount.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.user_order_amount.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.pay_timeout_second",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.order_status",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.order_amount",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.order_amount.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.order_amount.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list",
+                                                        "type":  "Object[]",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_tax_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_tax_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_tax_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_shipping_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_shipping_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_shipping_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.already_include_tax",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.shipping_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.shipping_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.shipping_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sale_discount_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sale_discount_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sale_discount_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sale_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sale_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sale_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.actual_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.shipping_discount_fee",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.shipping_discount_fee.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.shipping_discount_fee.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.end_reason",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.sku_id",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.price_include_tax",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.end_reason_desc",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_id",
+                                                        "type":  "Number",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_price",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_price.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_price.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_name",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_count",
+                                                        "type":  "Number",
+                                                        "required":  false
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.ds.trade.order.get",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.trade.order.get\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "59631316474eab39b0e64cbde089f3f3989a69ceafd8341036b0bfb4c4f66be9",
+                     "docId":  1199,
+                     "lastModified":  "2023-02-10 16:37:09",
+                     "matchedContract":  true,
+                     "title":  "ds trade order query",
+                     "request":  [
+                                     {
+                                         "path":  "order_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.order_amount",
+                                                        "type":  "Object",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.order_amount.amount",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.order_amount.currency_code",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.order_status",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list",
+                                                        "type":  "Object[]",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_id",
+                                                        "type":  "Number",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_count",
+                                                        "type":  "Number",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_price",
+                                                        "type":  "Object",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_price.amount",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_price.currency_code",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.child_order_list.product_name",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.logistics.buyer.freight.get",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.logistics.buyer.freight.get\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "1db4967dd250c27c7cb31698107a86b44385b1c13f6bf5e0a03fb97023d49eae",
+                     "docId":  1442,
+                     "lastModified":  "2023-10-18 02:49:24",
+                     "matchedContract":  true,
+                     "title":  "Freight calculation (new)",
+                     "request":  [
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.price_currency",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.product_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.country_code",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.province_code",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.city_code",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.send_goods_country_code",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.price",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.product_num",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "aeopFreightCalculateForBuyerDTO.sku_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist",
+                                                        "type":  "Object[]",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.estimated_delivery_time",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.shipping_method",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.freight",
+                                                        "type":  "Object",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.freight.cent",
+                                                        "type":  "Number",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.freight.currency",
+                                                        "type":  "Object",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.freight.currency_code",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.error_code",
+                                                        "type":  "Number",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.tracking_available",
+                                                        "type":  "Boolean",
+                                                        "required":  true
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_dtolist.service_name",
+                                                        "type":  "String",
+                                                        "required":  true
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.logistics.buyer.freight.calculate",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.logistics.buyer.freight.calculate\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "7a86e98047ca80b423f1120a3635b9e89bb065d7e63c370713a968ba6d0bf518",
+                     "docId":  525,
+                     "lastModified":  "2022-03-30 15:44:05",
+                     "matchedContract":  true,
+                     "title":  "Freight calculation interface provided for buyers",
+                     "request":  [
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o",
+                                         "type":  "Object",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.sku_id",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.city_code",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.country_code",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.product_id",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.product_num",
+                                         "type":  "Number",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.province_code",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.send_goods_country_code",
+                                         "type":  "String",
+                                         "required":  true
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.price",
+                                         "type":  "String",
+                                         "required":  false
+                                     },
+                                     {
+                                         "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.price_currency",
+                                         "type":  "String",
+                                         "required":  false
+                                     }
+                                 ],
+                     "responseMoneyAndStatus":  [
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list",
+                                                        "type":  "Object[]",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.tracking_available",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.error_code",
+                                                        "type":  "Number",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.estimated_delivery_time",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight",
+                                                        "type":  "Object",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight.amount",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight.cent",
+                                                        "type":  "Number",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight.currency_code",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    },
+                                                    {
+                                                        "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.service_name",
+                                                        "type":  "String",
+                                                        "required":  false
+                                                    }
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.ds.order.get",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.order.get\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "6cfb00fbae27d064da27d42cbedf56adc7ab81e3e14183219cf714aef64f9b8f",
+                     "docId":  null,
+                     "lastModified":  "",
+                     "matchedContract":  false,
+                     "title":  null,
+                     "request":  [
+
+                                 ],
+                     "responseMoneyAndStatus":  [
+
+                                                ]
+                 },
+                 {
+                     "method":  "aliexpress.freight.query",
+                     "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.freight.query\u0026methodType=GET%2FPOST",
+                     "snapshotSha256":  "6cfb00fbae27d064da27d42cbedf56adc7ab81e3e14183219cf714aef64f9b8f",
+                     "docId":  null,
+                     "lastModified":  "",
+                     "matchedContract":  false,
+                     "title":  null,
+                     "request":  [
+
+                                 ],
+                     "responseMoneyAndStatus":  [
+
+                                                ]
+                 }
+             ]
+}

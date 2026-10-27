@@ -1,5 +1,7 @@
 # DS freight: resposta monetária informada em 27/10/2026
 
+Atualização posterior: o operador confirmou formato normalizado `24.00` e `MAJOR_MATCH`; a releitura pública oficial foi concluída com acesso de rede ampliado. Consulte [a investigação atual de moeda e endereço](ALIEXPRESS-MONEY-ADDRESS-REVIEW-20261027.md). Os limites de conectividade e de formato desconhecido descritos abaixo registram a etapa anterior, não o estado atual da evidência.
+
 ## Causa exata
 
 Na opção de índice 0 informada pelo operador, `shipping_fee_cent` é STRING `24.00`, moeda BRL e `free_shipping=false`. A condição `cent.matches("[0-9]{1,16}\\.[0-9]+")` em `AliExpressDsFreightClient.parse` retorna imediatamente `INVALID_RESPONSE / AMBIGUOUS_MONETARY_UNIT`. O parser não chega à leitura da moeda, comparação do formato ou flag de gratuidade nesse caso. O gateway traduz para `AMBIGUOUS_MONEY`, exposto como HTTP 409 / `ALIEXPRESS_AMBIGUOUS_MONEY`.

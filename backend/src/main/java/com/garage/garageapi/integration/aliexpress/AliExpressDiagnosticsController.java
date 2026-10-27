@@ -11,8 +11,15 @@ import org.springframework.http.ResponseEntity;
 public class AliExpressDiagnosticsController {
     private final AliExpressAuthorizationDiagnostics diagnostics;
     private final AliExpressFreightDiagnosticService freight;
-    public AliExpressDiagnosticsController(AliExpressAuthorizationDiagnostics diagnostics, AliExpressFreightDiagnosticService freight) {
-        this.diagnostics = diagnostics; this.freight=freight;
+    private final AliExpressTerritorialDiagnosticService territorial;
+    public AliExpressDiagnosticsController(AliExpressAuthorizationDiagnostics diagnostics, AliExpressFreightDiagnosticService freight,
+            AliExpressTerritorialDiagnosticService territorial) {
+        this.diagnostics = diagnostics; this.freight=freight; this.territorial=territorial;
+    }
+
+    @PostMapping("/territorial-diagnostic")
+    public ResponseEntity<AliExpressTerritorialDiagnosticResult> territorial() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(territorial.run());
     }
 
     @GetMapping("/authorization-diagnostic")
