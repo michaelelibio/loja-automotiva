@@ -33,17 +33,37 @@ public class AliExpressFreightDiagnosticService {
                 .map(v -> new Option(v.skuId(),v.availableStock())).toList());
     }
     public AliExpressFreightDiagnosticResult run(AliExpressFreightDiagnosticRequest request) {
+        var probe=prepareProbe(request);
+        return probe.failure()!=null?probe.failure():client.query(probe.token(),probe.input());
+    }
+    public AliExpressFreightProvinceComparison compareProvince(AliExpressFreightDiagnosticRequest request) {
+        var probe=prepareProbe(request);
+        if(probe.failure()!=null) return AliExpressFreightProvinceComparison.of("NOT_EXECUTED",probe.failure().safeCode(),null,null);
+        var baseline=client.queryObserved(probe.token(),probe.input());
+        // Two planned observations, not retries. Abort if baseline cannot safely support the second call.
+        if (baseline.result().status()!=Status.SUCCESS && !Set.of("AMBIGUOUS_MONETARY_UNIT","CONFLICTING_MONETARY_FIELDS","NO_DELIVERY_METHODS").contains(baseline.result().safeCode()))
+            return AliExpressFreightProvinceComparison.of("STOPPED_AFTER_BASELINE",baseline.result().safeCode(),baseline,null);
+        var input=probe.input();
+        var province=client.queryObserved(probe.token(),new AliExpressFreightDiagnosticClient.Input(
+                input.productId(),input.skuId(),input.quantity(),"BR","Santa Catarina"));
+        return AliExpressFreightProvinceComparison.of("COMPLETED","COMPARISON_COLLECTED",baseline,province);
+    }
+    private record ProbeContext(String token,AliExpressFreightDiagnosticClient.Input input,AliExpressFreightDiagnosticResult failure) {
+        @Override public String toString() { return "FreightProbeContext[redacted]"; }
+    }
+    private static ProbeContext failed(Status status,String code) { return new ProbeContext(null,null,failure(status,code)); }
+    private ProbeContext prepareProbe(AliExpressFreightDiagnosticRequest request) {
         if (request == null || request.productId() == null || !request.productId().matches("[0-9]{1,18}")
                 || request.skuId() == null || !request.skuId().matches("[0-9]{1,30}")
                 || request.quantity() == null || request.quantity()<1 || request.quantity()>100)
-            return failure(Status.PARAMETER_ERROR,"INVALID_TEST_INPUT");
+            return failed(Status.PARAMETER_ERROR,"INVALID_TEST_INPUT");
         final String token;
         try { token=tokens.existingAccessToken(); }
-        catch (RuntimeException ignored) { return failure(Status.LOCAL_AUTHORIZATION_UNAVAILABLE,"LOCAL_TOKEN_UNAVAILABLE"); }
+        catch (RuntimeException ignored) { return failed(Status.LOCAL_AUTHORIZATION_UNAVAILABLE,"LOCAL_TOKEN_UNAVAILABLE"); }
         final Preparation product;
         try { product=options(load(request.productId(),token)); }
         catch (AliExpressIntegrationException ex) {
-            return failure(switch(ex.getReason()) {
+            return failed(switch(ex.getReason()) {
                 case PERMISSION -> Status.PERMISSION_DENIED;
                 case AUTHORIZATION_REQUIRED -> Status.TOKEN_REJECTED;
                 case NOT_FOUND, UNAVAILABLE, COUNTRY_REJECTED -> Status.PRODUCT_UNAVAILABLE;
@@ -54,8 +74,8 @@ public class AliExpressFreightDiagnosticService {
             },"PRODUCT_LOOKUP_FAILED");
         }
         Option selected=product.variants().stream().filter(v -> request.skuId().equals(v.skuId())).findFirst().orElse(null);
-        if (selected == null) return failure(Status.PARAMETER_ERROR,"SKU_NOT_IN_PRODUCT");
-        if (selected.availableStock()<request.quantity()) return failure(Status.PRODUCT_UNAVAILABLE,"INSUFFICIENT_SUPPLIER_STOCK");
-        return client.query(token,new AliExpressFreightDiagnosticClient.Input(product.productId(),selected.skuId(),request.quantity(),"BR"));
+        if (selected == null) return failed(Status.PARAMETER_ERROR,"SKU_NOT_IN_PRODUCT");
+        if (selected.availableStock()<request.quantity()) return failed(Status.PRODUCT_UNAVAILABLE,"INSUFFICIENT_SUPPLIER_STOCK");
+        return new ProbeContext(token,new AliExpressFreightDiagnosticClient.Input(product.productId(),selected.skuId(),request.quantity(),"BR"),null);
     }
 }

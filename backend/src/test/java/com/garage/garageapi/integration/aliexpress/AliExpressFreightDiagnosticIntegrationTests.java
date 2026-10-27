@@ -32,6 +32,29 @@ class AliExpressFreightDiagnosticIntegrationTests {
         mvc.perform(get(PATH).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))).andExpect(status().isMethodNotAllowed());
         verifyNoInteractions(tokens,client);
     }
+    @Test void provinceComparisonRequiresAdminAndUsesOnlyPersistedToken() throws Exception {
+        String path=PATH+"/province-comparison";
+        mvc.perform(post(path).contentType("application/json").content(BODY)).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))).andExpect(status().isForbidden());
+        mvc.perform(get(path).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))).andExpect(status().isMethodNotAllowed());
+        verifyNoInteractions(tokens,client,products);
+        mvc.perform(post(path).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(jsonPath("$.executionStatus").value("NOT_EXECUTED"));
+        when(tokens.existingAccessToken()).thenReturn("synthetic-token");
+        var diagnostic=AliExpressFreightDiagnosticResult.failure(AliExpressFreightDiagnosticResult.Status.INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT");
+        var observed=new AliExpressDsFreightClient.Observation(new AliExpressDsFreightClient.RequestEvidence(java.util.List.of("shipToCountry"),"BR",null,true,true),diagnostic);
+        when(client.queryObserved(eq("synthetic-token"),any())).thenReturn(observed);
+        mvc.perform(post(path).contentType("application/json").content(BODY).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
+                .andExpect(jsonPath("$.executionStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.withProvince.result.safeCode").value("AMBIGUOUS_MONETARY_UNIT"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-token"))));
+        verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();
+        verify(client).queryObserved("synthetic-token",INPUT);
+        verify(client).queryObserved("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,"BR","Santa Catarina"));
+        verifyNoMoreInteractions(client,tokens);
+    }
     @Test void adminUsesExistingTokenExactlyOnceWithoutRefresh() throws Exception {
         when(tokens.existingAccessToken()).thenReturn("synthetic-token");
         when(client.query("synthetic-token",INPUT)).thenReturn(AliExpressFreightDiagnosticResult.failure(

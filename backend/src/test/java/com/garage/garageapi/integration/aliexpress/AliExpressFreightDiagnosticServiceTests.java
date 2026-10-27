@@ -65,4 +65,34 @@ class AliExpressFreightDiagnosticServiceTests {
         assertThat(prepared.toString()).doesNotContain("synthetic-token","store_country_code");
         verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();verifyNoInteractions(freight);
     }
+    AliExpressDsFreightClient.Observation observed(String value,String province) {
+        var result=AliExpressFreightDiagnosticResult.failure(AliExpressFreightDiagnosticResult.Status.INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT")
+                .withMonetaryStructure(List.of(new AliExpressFreightDiagnosticResult.MoneyField(0,"shipping_fee_cent",true,"STRING","BRL","CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT",value)));
+        return new AliExpressDsFreightClient.Observation(new AliExpressDsFreightClient.RequestEvidence(List.of("shipToCountry"),"BR",province,true,true),result);
+    }
+    @Test void provinceComparisonUsesOneTokenOneProductSnapshotAndTwoPlannedReadCalls() {
+        product(Map.of(),10);
+        var country=new AliExpressFreightDiagnosticClient.Input(ID,SKU,1,"BR");
+        var province=new AliExpressFreightDiagnosticClient.Input(ID,SKU,1,"BR","Santa Catarina");
+        when(freight.queryObserved("synthetic-token",country)).thenReturn(observed("24.00",null));
+        when(freight.queryObserved("synthetic-token",province)).thenReturn(observed("30.00","Santa Catarina"));
+        var result=service.compareProvince(REQUEST);
+        assertThat(result.executionStatus()).isEqualTo("COMPLETED");assertThat(result.responseComparison()).isEqualTo("OBSERVED_DIFFERENCE");
+        assertThat(result.withProvince().result().safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");
+        var calls=inOrder(tokens,products,normalizer,freight);
+        calls.verify(tokens).existingAccessToken();calls.verify(products).get(ID,"BR","BRL","en","synthetic-token");
+        calls.verify(normalizer).normalize(any(),eq(ID),eq("BR"));calls.verify(freight).queryObserved("synthetic-token",country);
+        calls.verify(freight).queryObserved("synthetic-token",province);verifyNoMoreInteractions(tokens,products,normalizer,freight);
+    }
+    @Test void failedPreflightMakesNeitherCallAndBaselinePermissionFailureStopsThePair() {
+        assertThat(service.compareProvince(null).executionStatus()).isEqualTo("NOT_EXECUTED");verifyNoInteractions(tokens,products,freight);
+        product(Map.of(),10);
+        var country=new AliExpressFreightDiagnosticClient.Input(ID,SKU,1,"BR");
+        var denied=AliExpressFreightDiagnosticResult.failure(AliExpressFreightDiagnosticResult.Status.PERMISSION_DENIED,"PROVIDER_PERMISSION_DENIED");
+        when(freight.queryObserved("synthetic-token",country)).thenReturn(new AliExpressDsFreightClient.Observation(
+                new AliExpressDsFreightClient.RequestEvidence(List.of("shipToCountry"),"BR",null,true,true),denied));
+        var result=service.compareProvince(REQUEST);
+        assertThat(result.executionStatus()).isEqualTo("STOPPED_AFTER_BASELINE");assertThat(result.withProvince()).isNull();
+        verify(freight).queryObserved("synthetic-token",country);verifyNoMoreInteractions(freight);verify(tokens,never()).accessToken();
+    }
 }

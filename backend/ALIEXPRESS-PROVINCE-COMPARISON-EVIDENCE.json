@@ -1,0 +1,61 @@
+﻿{
+    "reviewDate":  "2026-10-27",
+    "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.freight.query\u0026methodType=GET%2FPOST",
+    "docId":  1579,
+    "lastModified":  "2024-03-04 20:23:41",
+    "snapshotSha256":  "54a9ca7f2efc672d5433a2624de8bedd873a0ac01dd9c1f54c35ef6a19048363",
+    "territorialParameters":  [
+                                  {
+                                      "name":  "provinceCode",
+                                      "type":  "String",
+                                      "required":  false,
+                                      "desc":  "The province code, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+                                  },
+                                  {
+                                      "name":  "cityCode",
+                                      "type":  "String",
+                                      "required":  false,
+                                      "desc":  "The city code. Optional."
+                                  },
+                                  {
+                                      "name":  "province",
+                                      "type":  "String",
+                                      "required":  false,
+                                      "desc":  "The province name, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+                                  }
+                              ],
+    "railwayTerritorialObservation":  {
+                                          "provenance":  "Reported by user; not independently replayed in this task",
+                                          "applicationAccess":  "CALL_ACCEPTED",
+                                          "observedFields":  [
+                                                                 "children",
+                                                                 "country",
+                                                                 "name",
+                                                                 "type"
+                                                             ],
+                                          "status":  "SUCCESS",
+                                          "province":  "Santa Catarina",
+                                          "country":  "BR",
+                                          "city":  "Joinville",
+                                          "numericOrCityIdentifiersReturned":  false
+                                      },
+    "provinceComparison":  {
+                               "territorialEffectConfirmed":  false,
+                               "postalCodeSupportConfirmed":  false,
+                               "realCallPerformed":  false,
+                               "plannedRequests":  [
+                                                       {
+                                                           "province":  "OMITTED",
+                                                           "cityCode":  "OMITTED",
+                                                           "provinceCode":  "OMITTED",
+                                                           "shipToCountry":  "BR"
+                                                       },
+                                                       {
+                                                           "province":  "Santa Catarina",
+                                                           "cityCode":  "OMITTED",
+                                                           "provinceCode":  "OMITTED",
+                                                           "shipToCountry":  "BR"
+                                                       }
+                                                   ]
+                           }
+}

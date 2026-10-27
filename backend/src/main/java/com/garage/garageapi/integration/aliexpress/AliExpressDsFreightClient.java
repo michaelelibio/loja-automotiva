@@ -37,21 +37,48 @@ public class AliExpressDsFreightClient {
         this.client=client;this.appKey=appKey;this.secret=secret;this.clock=clock;
     }
 
-    public record Input(String productId, String skuId, int quantity, String destinationCountry) {}
+    public record Input(String productId, String skuId, int quantity, String destinationCountry, String province) {
+        public Input(String productId,String skuId,int quantity,String country) { this(productId,skuId,quantity,country,null); }
+    }
+    public record RequestEvidence(List<String> queryDeliveryReqFields, String shipToCountry, String province,
+            boolean requestBodyWritten, boolean httpResponseReceived) {
+        public RequestEvidence { queryDeliveryReqFields=List.copyOf(queryDeliveryReqFields); }
+    }
+    public record Observation(RequestEvidence request, AliExpressFreightDiagnosticResult result) {}
+    private static final class Probe {
+        List<String> fields=List.of();String country,province;boolean written,received;
+    }
+    public Observation queryObserved(String token,Input input) {
+        Probe probe=new Probe();
+        var result=queryInternal(token,input,probe);
+        if (probe.fields.contains("province")) result=new AliExpressFreightDiagnosticResult(result.status(),result.safeCode(),result.methods(),
+                result.limitations().stream().map(limit->limit.equals("COUNTRY_ONLY_BR_DIAGNOSTIC")
+                        ?"COUNTRY_AND_PROVINCE_DIAGNOSTIC_NOT_ADDRESS_CONFIRMED":limit).toList(),result.monetaryStructure());
+        return new Observation(new RequestEvidence(probe.fields,probe.country,probe.province,probe.written,probe.received),result);
+    }
 
     public AliExpressFreightDiagnosticResult query(String token, Input input) {
+        return queryInternal(token,input,null);
+    }
+    private AliExpressFreightDiagnosticResult queryInternal(String token, Input input, Probe probe) {
         if (input == null || input.productId() == null || !input.productId().matches("[0-9]{1,18}")
                 || input.skuId() == null || !input.skuId().matches("[0-9]{1,30}")
                 || input.quantity() < 1 || input.quantity() > 100
-                || !"BR".equals(input.destinationCountry()))
+                || !"BR".equals(input.destinationCountry())
+                || (input.province()!=null && !"Santa Catarina".equals(input.province())))
             return failure(PARAMETER_ERROR,"INVALID_TEST_INPUT");
         if (appKey.isBlank() || secret.isBlank() || appKey.contains("COLE_AQUI") || secret.contains("COLE_AQUI"))
             return failure(NOT_CONFIGURED,"APPLICATION_NOT_CONFIGURED");
         if (token == null || token.isBlank()) return failure(LOCAL_AUTHORIZATION_UNAVAILABLE,"LOCAL_TOKEN_UNAVAILABLE");
         try {
-            String dto = JSON.writeValueAsString(Map.of("productId",input.productId(),
+            Map<String,Object> delivery=new TreeMap<>(Map.of("productId",input.productId(),
                     "quantity",input.quantity(),"shipToCountry",input.destinationCountry(), "selectedSkuId",input.skuId(),
                     "language","pt_BR","locale","pt_BR","currency","BRL"));
+            if (input.province()!=null) delivery.put("province",input.province());
+            String dto=JSON.writeValueAsString(delivery);
+            if (probe!=null) {
+                probe.fields=List.copyOf(delivery.keySet());probe.country=(String)delivery.get("shipToCountry");probe.province=(String)delivery.get("province");
+            }
             Map<String,String> params = new TreeMap<>();
             params.put("method","aliexpress.ds.freight.query");params.put("app_key",appKey);
             params.put("session",token);params.put("sign_method","sha256");params.put("format","json");params.put("v","2.0");
@@ -67,7 +94,8 @@ public class AliExpressDsFreightClient {
             // Streaming avoids form converter logging. Exchange avoids raw response converter logging.
             // No redirects, retries, fallback protocols, OAuth refresh or additional product calls.
             return client.post().uri("/sync").contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .accept(MediaType.APPLICATION_JSON).body(output->output.write(body)).exchange((request,response)-> {
+                    .accept(MediaType.APPLICATION_JSON).body(output->{ output.write(body);if(probe!=null) probe.written=true; }).exchange((request,response)-> {
+                        if (probe!=null) probe.received=true;
                         int status=response.getStatusCode().value();
                         if (status==429) return failure(RATE_LIMITED,"HTTP_RATE_LIMIT");
                         if (status<200 || status>=300) return failure(COMMUNICATION_ERROR,"HTTP_FAILURE");

@@ -14,9 +14,15 @@ public class AliExpressFreightDiagnosticClient {
     AliExpressFreightDiagnosticClient(RestClient http,String key,String secret,Clock clock) {
         this(new AliExpressDsFreightClient(http,key,secret,clock));
     }
-    public record Input(String productId,String skuId,int quantity,String destinationCountry) {}
+    public record Input(String productId,String skuId,int quantity,String destinationCountry,String province) {
+        public Input(String productId,String skuId,int quantity,String country) { this(productId,skuId,quantity,country,null); }
+    }
     public AliExpressFreightDiagnosticResult query(String token,Input input) {
         return client.query(token,input == null ? null : new AliExpressDsFreightClient.Input(
-                input.productId(),input.skuId(),input.quantity(),input.destinationCountry()));
+                input.productId(),input.skuId(),input.quantity(),input.destinationCountry(),input.province()));
+    }
+    public AliExpressDsFreightClient.Observation queryObserved(String token,Input input) {
+        return client.queryObserved(token,input==null?null:new AliExpressDsFreightClient.Input(
+                input.productId(),input.skuId(),input.quantity(),input.destinationCountry(),input.province()));
     }
 }

@@ -34,4 +34,8 @@ public class AliExpressDiagnosticsController {
     public ResponseEntity<AliExpressFreightDiagnosticResult> freight(@RequestBody(required=false) AliExpressFreightDiagnosticRequest request) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(freight.run(request));
     }
+    @PostMapping("/freight-diagnostic/province-comparison")
+    public ResponseEntity<AliExpressFreightProvinceComparison> compareProvince(@RequestBody(required=false) AliExpressFreightDiagnosticRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(freight.compareProvince(request));
+    }
 }
