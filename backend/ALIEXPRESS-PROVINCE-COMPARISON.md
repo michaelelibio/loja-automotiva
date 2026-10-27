@@ -1,5 +1,7 @@
 # DS freight — comparar BR com BR + Santa Catarina
 
+Atualização posterior: o responsável informou NO_OBSERVED_DIFFERENCE nas duas consultas reais. A [investigação de origem e caminho para a primeira venda](ALIEXPRESS-ORIGIN-FIRST-SALE.md) amplia o retorno com `deliveryOptions` sanitizado, sem liberar dinheiro. O comparador novo inclui esse metadado; a comparação anterior não comprovava igualdade de origem/modalidade.
+
 ## Contrato e evidência disponível — 27/10/2026
 
 Relido com HTTP 200 o [contrato oficial aliexpress.ds.freight.query, docId 1579](https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.freight.query&methodType=GET%2FPOST), lastModified 2024-03-04 20:23:41. O campo **province é String opcional e representa o nome da província**, descrito para consulta de produtos local-to-local. Deve ser enviado province OU provinceCode, não ambos. cityCode é opcional; não há parâmetro city para nome literal nem parâmetro de CEP no esquema consultado.

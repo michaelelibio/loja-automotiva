@@ -2,6 +2,8 @@ package com.garage.garageapi.integration.aliexpress;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -78,5 +80,32 @@ class AliExpressFreightProvinceClientTests {
         var observation=client.queryObserved("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,"BR","Santa Catarina"));
         assertThat(observation.request().httpResponseReceived()).isFalse();assertThat(observation.result().safeCode()).isEqualTo("COMMUNICATION_FAILURE");
         assertThat(AliExpressFreightProvinceComparison.of("COMPLETED","COMPARISON_COLLECTED",observation,observation).responseComparison()).isEqualTo("INSUFFICIENT_OBSERVABLE_DATA");server.verify();
+    }
+    @ParameterizedTest @CsvSource({"BR,BR,SAME_COUNTRY_ROUTE_CANDIDATE","CN,CN,CROSS_BORDER_ROUTE_OBSERVED",
+            "ZZ,,ORIGIN_NOT_CONFIRMED","synthetic-token,,ORIGIN_NOT_CONFIRMED"})
+    void monetaryRejectionCannotHideOriginOrTurnItIntoApprovedShipping(String supplied,String safeOrigin,String route) {
+        server.expect(anything()).andRespond(withSuccess(body().replace("\"ship_from_country\":\"BR\"","\"ship_from_country\":\""+supplied+"\""),MediaType.APPLICATION_JSON));
+        var observation=client.queryObserved("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,"BR"));
+        assertThat(observation.result().safeCode()).isEqualTo("AMBIGUOUS_MONETARY_UNIT");assertThat(observation.result().methods()).isEmpty();
+        assertThat(observation.deliveryOptions()).containsExactly(new AliExpressDsFreightClient.DeliveryEvidence(0,"STANDARD",safeOrigin,route));
+        assertThat(observation.toString()).doesNotContain("synthetic-token");server.verify();
+    }
+    @Test void missingOriginNeverDefaultsToCNAndOnlySanitizedDeliveryCodeEscapes() {
+        server.expect(anything()).andRespond(withSuccess(body().replace("\"ship_from_country\":\"BR\",","").replace("\"STANDARD\"","\"synthetic-token\""),MediaType.APPLICATION_JSON));
+        var observation=client.queryObserved("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,"BR"));
+        assertThat(observation.deliveryOptions()).containsExactly(new AliExpressDsFreightClient.DeliveryEvidence(0,null,null,"ORIGIN_NOT_CONFIRMED"));server.verify();
+    }
+    @Test void differentOriginIsAnObservedDifferenceEvenWithEqualMoney() {
+        var result=AliExpressFreightDiagnosticResult.failure(AliExpressFreightDiagnosticResult.Status.INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT")
+                .withMonetaryStructure(List.of(new AliExpressFreightDiagnosticResult.MoneyField(0,"shipping_fee_cent",true,"STRING","BRL","CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT","24.00")));
+        var request=new AliExpressDsFreightClient.RequestEvidence(List.of("shipToCountry"),"BR",null,true,true);
+        var a=new AliExpressDsFreightClient.Observation(request,result,List.of(new AliExpressDsFreightClient.DeliveryEvidence(0,"STANDARD","CN","CROSS_BORDER_ROUTE_OBSERVED")));
+        var b=new AliExpressDsFreightClient.Observation(request,result,List.of(new AliExpressDsFreightClient.DeliveryEvidence(0,"STANDARD","BR","SAME_COUNTRY_ROUTE_CANDIDATE")));
+        assertThat(AliExpressFreightProvinceComparison.of("COMPLETED","COMPARISON_COLLECTED",a,b).responseComparison()).isEqualTo("OBSERVED_DIFFERENCE");
+    }
+    @Test void serviceCodeWithNumericPrefixIsPreservedAsAnOpaqueIdentifier() {
+        server.expect(anything()).andRespond(withSuccess(body().replace("\"STANDARD\"","\"4PX_STANDARD\""),MediaType.APPLICATION_JSON));
+        var observation=client.queryObserved("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,"BR"));
+        assertThat(observation.deliveryOptions().get(0).serviceCode()).isEqualTo("4PX_STANDARD");server.verify();
     }
 }

@@ -15,7 +15,7 @@ public class AliExpressFreightDiagnosticService {
         this.tokens=tokens;this.client=client;this.products=products;this.normalizer=normalizer;
     }
     public record Option(String skuId, int availableStock) {}
-    public record Preparation(String productId, List<Option> variants) {}
+    public record Preparation(String productId, List<Option> variants, String storeCountryCode) {}
 
     public Preparation prepare(String id) {
         String productId=AliExpressProductInput.productId(id);
@@ -29,8 +29,10 @@ public class AliExpressFreightDiagnosticService {
         return normalizer.normalize(products.get(id,"BR","BRL","en",token),id,"BR");
     }
     private Preparation options(AliExpressProductPreview product) {
+        String storeCountry=product.store().get("store_country_code");
+        if(!Arrays.asList(Locale.getISOCountries()).contains(storeCountry)) storeCountry=null;
         return new Preparation(product.productId(),product.variants().stream()
-                .map(v -> new Option(v.skuId(),v.availableStock())).toList());
+                .map(v -> new Option(v.skuId(),v.availableStock())).toList(),storeCountry);
     }
     public AliExpressFreightDiagnosticResult run(AliExpressFreightDiagnosticRequest request) {
         var probe=prepareProbe(request);

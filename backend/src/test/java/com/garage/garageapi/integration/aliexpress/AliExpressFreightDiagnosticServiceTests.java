@@ -62,6 +62,7 @@ class AliExpressFreightDiagnosticServiceTests {
         product(Map.of("x:name","Ships From","x","China"),10);
         var prepared=service.prepare(ID);
         assertThat(prepared.variants()).containsExactly(new AliExpressFreightDiagnosticService.Option(SKU,10));
+        assertThat(prepared.storeCountryCode()).isEqualTo("CN");
         assertThat(prepared.toString()).doesNotContain("synthetic-token","store_country_code");
         verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();verifyNoInteractions(freight);
     }

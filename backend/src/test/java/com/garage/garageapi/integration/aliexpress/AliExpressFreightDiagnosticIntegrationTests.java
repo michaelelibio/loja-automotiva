@@ -43,12 +43,15 @@ class AliExpressFreightDiagnosticIntegrationTests {
                 .andExpect(jsonPath("$.executionStatus").value("NOT_EXECUTED"));
         when(tokens.existingAccessToken()).thenReturn("synthetic-token");
         var diagnostic=AliExpressFreightDiagnosticResult.failure(AliExpressFreightDiagnosticResult.Status.INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT");
-        var observed=new AliExpressDsFreightClient.Observation(new AliExpressDsFreightClient.RequestEvidence(java.util.List.of("shipToCountry"),"BR",null,true,true),diagnostic);
+        var observed=new AliExpressDsFreightClient.Observation(new AliExpressDsFreightClient.RequestEvidence(java.util.List.of("shipToCountry"),"BR",null,true,true),diagnostic,
+                java.util.List.of(new AliExpressDsFreightClient.DeliveryEvidence(0,"STANDARD","CN","CROSS_BORDER_ROUTE_OBSERVED")));
         when(client.queryObserved(eq("synthetic-token"),any())).thenReturn(observed);
         mvc.perform(post(path).contentType("application/json").content(BODY).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
                 .andExpect(jsonPath("$.executionStatus").value("COMPLETED"))
                 .andExpect(jsonPath("$.withProvince.result.safeCode").value("AMBIGUOUS_MONETARY_UNIT"))
+                .andExpect(jsonPath("$.countryOnly.deliveryOptions[0].shipFromCountry").value("CN"))
+                .andExpect(jsonPath("$.withProvince.deliveryOptions[0].serviceCode").value("STANDARD"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-token"))));
         verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();
         verify(client).queryObserved("synthetic-token",INPUT);

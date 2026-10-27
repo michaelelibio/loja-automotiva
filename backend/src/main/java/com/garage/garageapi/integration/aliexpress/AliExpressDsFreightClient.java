@@ -44,9 +44,14 @@ public class AliExpressDsFreightClient {
             boolean requestBodyWritten, boolean httpResponseReceived) {
         public RequestEvidence { queryDeliveryReqFields=List.copyOf(queryDeliveryReqFields); }
     }
-    public record Observation(RequestEvidence request, AliExpressFreightDiagnosticResult result) {}
+    public record DeliveryEvidence(int optionIndex, String serviceCode, String shipFromCountry, String routeEvidence) {}
+    public record Observation(RequestEvidence request, AliExpressFreightDiagnosticResult result, List<DeliveryEvidence> deliveryOptions) {
+        public Observation { deliveryOptions=List.copyOf(deliveryOptions); }
+        public Observation(RequestEvidence request,AliExpressFreightDiagnosticResult result) { this(request,result,List.of()); }
+    }
     private static final class Probe {
         List<String> fields=List.of();String country,province;boolean written,received;
+        List<DeliveryEvidence> delivery=List.of();
     }
     public Observation queryObserved(String token,Input input) {
         Probe probe=new Probe();
@@ -54,7 +59,7 @@ public class AliExpressDsFreightClient {
         if (probe.fields.contains("province")) result=new AliExpressFreightDiagnosticResult(result.status(),result.safeCode(),result.methods(),
                 result.limitations().stream().map(limit->limit.equals("COUNTRY_ONLY_BR_DIAGNOSTIC")
                         ?"COUNTRY_AND_PROVINCE_DIAGNOSTIC_NOT_ADDRESS_CONFIRMED":limit).toList(),result.monetaryStructure());
-        return new Observation(new RequestEvidence(probe.fields,probe.country,probe.province,probe.written,probe.received),result);
+        return new Observation(new RequestEvidence(probe.fields,probe.country,probe.province,probe.written,probe.received),result,probe.delivery);
     }
 
     public AliExpressFreightDiagnosticResult query(String token, Input input) {
@@ -104,11 +109,33 @@ public class AliExpressDsFreightClient {
                         final JsonNode parsed;
                         try { parsed=JSON.readTree(bytes); }
                         catch (Exception ignored) { return failure(INVALID_RESPONSE,"INVALID_JSON_RESPONSE"); }
+                        if(probe!=null) probe.delivery=deliveryEvidence(parsed,token);
                         return parse(parsed,token).withMonetaryStructure(monetaryStructure(parsed,token));
                     });
         } catch (Exception ignored) {
             return failure(COMMUNICATION_ERROR,"COMMUNICATION_FAILURE");
         }
+    }
+
+    /** Independent metadata projection: a monetary rejection must not hide an observed shipping origin.
+     * A same-country route is only a local-to-local candidate, not program membership or warehouse identity. */
+    private List<DeliveryEvidence> deliveryEvidence(JsonNode body,String token) {
+        JsonNode result=body.path("aliexpress_ds_freight_query_response").path("result");
+        if(result.isMissingNode()) result=body.path("result");
+        JsonNode entries=result.path("delivery_options");
+        if(!"true".equals(result.path("success").asText()) || !"200".equals(result.path("code").asText())
+                || !entries.isArray() || entries.size()>500) return List.of();
+        List<DeliveryEvidence> evidence=new ArrayList<>();
+        for(int i=0;i<entries.size();i++) {
+            JsonNode entry=entries.get(i);
+            String service=entry.path("code").isString()?entry.path("code").asText():null;
+            if(service==null || !service.matches("[A-Za-z0-9_.-]{1,120}") || sensitive(service,token)) service=null;
+            String origin=entry.path("ship_from_country").isString()?entry.path("ship_from_country").asText():null;
+            if(origin==null || !Arrays.asList(Locale.getISOCountries()).contains(origin) || sensitive(origin,token)) origin=null;
+            String route=origin==null?"ORIGIN_NOT_CONFIRMED":origin.equals("BR")?"SAME_COUNTRY_ROUTE_CANDIDATE":"CROSS_BORDER_ROUTE_OBSERVED";
+            evidence.add(new DeliveryEvidence(i,service,origin,route));
+        }
+        return evidence;
     }
 
     private AliExpressFreightDiagnosticResult parse(JsonNode body,String token) {
