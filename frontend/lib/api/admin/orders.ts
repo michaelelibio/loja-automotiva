@@ -70,3 +70,10 @@ async function aliExpressOrderRequest(id: number, send: boolean): Promise<AdminA
 
 export function getAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false); }
 export function sendAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, true); }
+
+export function assistedQuoteAction(id: number, action: string, data?: unknown): Promise<unknown> {
+  return request(endpoint+'/'+id+'/quote'+(action ? '/'+action : ''), {method:'POST',headers:{'Content-Type':'application/json'},...(data ? {body:JSON.stringify(data)} : {})});
+}
+export function getFulfillmentRecipient(id:number): Promise<{cpf:string;birthDate:string;phone:string}> {
+  return request(endpoint+'/'+id+'/recipient-for-fulfillment');
+}

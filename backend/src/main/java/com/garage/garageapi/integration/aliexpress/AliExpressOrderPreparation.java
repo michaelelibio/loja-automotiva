@@ -33,10 +33,16 @@ public class AliExpressOrderPreparation {
                 || !text(order.getStreet()) || !text(order.getNumber()) || !text(order.getNeighborhood()) || !text(order.getCity())
                 || !Set.of("AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO").contains(order.getState()))
             return "Endereço de entrega incompleto ou inválido.";
+        if (order.getAssistedQuote()!=null) {
+            try { order.requireAssistedDispatch(); }
+            catch (com.garage.garageapi.shared.exception.ResourceConflictException ex) { return ex.getMessage(); }
+            return "Use o encaminhamento manual da cotação assistida; criação via API depende do contrato validado.";
+        }
         var legs=order.getShippingLegs();
-        if (legs.size()!=1 || !"ALIEXPRESS".equals(legs.get(0).provider()) || !text(legs.get(0).name())
-                || !text(legs.get(0).code()) || !text(legs.get(0).originCountry()) || legs.get(0).amount()==null
-                || legs.get(0).amount().signum()<0 || !"BRL".equals(legs.get(0).currency()))
+        if (legs.isEmpty() || legs.stream().anyMatch(leg -> !"ALIEXPRESS".equals(leg.provider())
+                || !text(leg.name()) || !text(leg.code()) || !text(leg.originCountry()) || leg.amount()==null
+                || leg.amount().signum()<0 || !"BRL".equals(leg.currency()) || leg.supplierVariantIds()==null
+                || leg.supplierVariantIds().isEmpty()))
             return "Modalidade e custo de frete AliExpress ainda não foram confirmados para este pedido.";
         Set<String> skuIds=new HashSet<>();
         for (var item:order.getItems()) {
@@ -52,7 +58,8 @@ public class AliExpressOrderPreparation {
                 return "Identificadores originais da variante ausentes ou divergentes. Não é seguro criar a compra.";
             skuIds.add(item.getSupplierVariantId());
         }
-        if (legs.get(0).supplierVariantIds()==null || !skuIds.equals(new HashSet<>(legs.get(0).supplierVariantIds())))
+        List<String> quotedSkus=legs.stream().flatMap(leg->leg.supplierVariantIds().stream()).toList();
+        if (new HashSet<>(quotedSkus).size()!=quotedSkus.size() || !skuIds.equals(new HashSet<>(quotedSkus)))
             return "O frete confirmado não corresponde às variantes do pedido.";
         if (!enabled || !contractConfirmed) return "Criação real bloqueada até validar o contrato AliExpress, o endereço BR e a idempotência do app.";
         return null;
@@ -65,20 +72,39 @@ public class AliExpressOrderPreparation {
         for (var item:order.getItems()) {
             var variant=variants.findById(item.getProductVariantId()).orElseThrow();
             items.add(Map.of("product_id",item.getSupplierProductId(),"product_count",item.getQuantity(),
-                    "sku_attr",variant.getRawVariantKey(),"logistics_service_name",order.getShippingLegs().get(0).name()));
+                    "sku_attr",variant.getRawVariantKey(),"logistics_service_name",order.getShippingLegs().stream()
+                            .filter(leg->leg.supplierVariantIds().contains(item.getSupplierVariantId())).findFirst().orElseThrow().code()));
         }
-        return Map.of("out_order_id",outOrderId,"logistics_address",address,"product_items",items);
+        return Map.of("out_order_id",outOrderId,"logistics_address",address,"product_items",items,
+                "ds_extend_request",dsExtendRequest(order));
     }
     // Provider representation only: the persisted snapshot stays a LocalDate, never a formatted string.
     static Map<String,Object> logisticsAddress(Order order) {
         Map<String,Object> address=new LinkedHashMap<>();
-        address.put("country","BR");address.put("province",order.getState());address.put("city",order.getCity());
+        address.put("country","BR");address.put("province",provinceName(order.getState()));address.put("city",order.getCity());
         address.put("address",order.getStreet()+", "+order.getNumber());
         address.put("address2",order.getNeighborhood()+(text(order.getComplement()) ? " - "+order.getComplement() : ""));
         address.put("zip",order.getZipCode());address.put("contact_person",order.getRecipientName());address.put("full_name",order.getRecipientName());
-        address.put("cpf",order.getRecipientCpf());address.put("birth_date",order.getRecipientBirthDate().format(java.time.format.DateTimeFormatter.ofPattern("ddMMyyyy")));
+        address.put("cpf",order.getRecipientCpf());
         address.put("mobile_no",order.getRecipientPhone());address.put("phone_country","+55");address.put("locale","pt_BR");
         return address;
+    }
+    // Official placeorder snapshot: ds_extend_request.trade_extra_param.birthday, not logistics_address.birth_date.
+    static Map<String,Object> dsExtendRequest(Order order) {
+        return Map.of("trade_extra_param",Map.of("birthday",order.getRecipientBirthDate()
+                .format(java.time.format.DateTimeFormatter.ofPattern("ddMMyyyy"))));
+    }
+    private static String provinceName(String uf) {
+        return switch(uf) {
+            case "AC"->"Acre"; case "AL"->"Alagoas"; case "AP"->"Amapá"; case "AM"->"Amazonas";
+            case "BA"->"Bahia"; case "CE"->"Ceará"; case "DF"->"Distrito Federal"; case "ES"->"Espírito Santo";
+            case "GO"->"Goiás"; case "MA"->"Maranhão"; case "MT"->"Mato Grosso"; case "MS"->"Mato Grosso do Sul";
+            case "MG"->"Minas Gerais"; case "PA"->"Pará"; case "PB"->"Paraíba"; case "PR"->"Paraná";
+            case "PE"->"Pernambuco"; case "PI"->"Piauí"; case "RJ"->"Rio de Janeiro"; case "RN"->"Rio Grande do Norte";
+            case "RS"->"Rio Grande do Sul"; case "RO"->"Rondônia"; case "RR"->"Roraima"; case "SC"->"Santa Catarina";
+            case "SP"->"São Paulo"; case "SE"->"Sergipe"; case "TO"->"Tocantins";
+            default->throw new IllegalArgumentException("UF inválida");
+        };
     }
     private static boolean text(String value) { return value!=null && !value.isBlank(); }
 }

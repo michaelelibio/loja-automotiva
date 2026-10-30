@@ -14,7 +14,12 @@ public interface CheckoutProGateway {
 
     record PreferenceRequest(Long orderId, Long paymentId, BigDecimal total, String payerName,
                              String payerEmail, String idempotencyKey, List<Item> items,
-                             BigDecimal shippingCost, String shippingName) { }
+                             BigDecimal shippingCost, String shippingName, Instant expiresAt) {
+        public PreferenceRequest(Long orderId, Long paymentId, BigDecimal total, String payerName,
+                String payerEmail, String idempotencyKey, List<Item> items, BigDecimal shippingCost, String shippingName) {
+            this(orderId,paymentId,total,payerName,payerEmail,idempotencyKey,items,shippingCost,shippingName,null);
+        }
+    }
 
     record PreferenceResult(String preferenceId, String externalReference, String checkoutUrl) { }
 

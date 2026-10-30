@@ -68,6 +68,23 @@ class MercadoPagoCheckoutProGatewayTests {
         assertThat(result.paymentType()).isEqualTo("credit_card");
     }
 
+
+    @Test void assistedPreferenceUsesTheConfirmedQuoteExpiration() {
+        var builder=RestClient.builder().baseUrl("https://api.mercadopago.com");
+        var server=MockRestServiceServer.bindTo(builder).build();
+        var until=java.time.Instant.now().plusSeconds(3600).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        server.expect(requestTo("https://api.mercadopago.com/checkout/preferences"))
+            .andExpect(jsonPath("$.expires").value(true))
+            .andExpect(jsonPath("$.expiration_date_from").isNotEmpty())
+            .andExpect(request->{
+                var body=tools.jackson.databind.json.JsonMapper.builder().build().readTree(((org.springframework.mock.http.client.MockClientHttpRequest)request).getBodyAsString());
+                assertThat(java.time.Instant.parse(body.path("expiration_date_to").asText())).isEqualTo(until);
+            }).andRespond(withSuccess("{\"id\":\"TEST\",\"sandbox_init_point\":\"https://sandbox\"}",MediaType.APPLICATION_JSON));
+        var r=request();
+        gateway(builder,true).createPreference(new CheckoutProGateway.PreferenceRequest(r.orderId(),r.paymentId(),r.total(),r.payerName(),r.payerEmail(),r.idempotencyKey(),r.items(),r.shippingCost(),r.shippingName(),until));
+        server.verify();
+    }
+
     private MercadoPagoCheckoutProGateway gateway(RestClient.Builder builder, boolean sandbox) {
         return new MercadoPagoCheckoutProGateway(builder.build(), "TOKEN",
                 "https://shop.example/success", "https://shop.example/pending",

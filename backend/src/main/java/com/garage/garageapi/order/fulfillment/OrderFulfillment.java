@@ -49,6 +49,26 @@ public class OrderFulfillment {
         }
     }
 
+    @ElementCollection
+    @CollectionTable(name="manual_supplier_order_refs", joinColumns=@JoinColumn(name="fulfillment_id"))
+    @Column(name="supplier_order_id", nullable=false, unique=true, length=30)
+    private java.util.Set<String> manualSupplierRefs = new java.util.HashSet<>();
+
+    public void beginManualAliExpress() {
+        prepareAliExpress();
+        String token = beginAliExpress(Instant.now());
+        if (token == null) throw new com.garage.garageapi.shared.exception.ResourceConflictException("Encaminhamento já iniciado. Confira no fornecedor; não crie outro pedido.");
+        supplierStatus = "MANUAL_IN_PROGRESS";
+    }
+    public void finishManualAliExpress(java.util.List<String> ids) {
+        if (status == FulfillmentStatus.CREATED && getSupplierOrderIds().equals(ids)) return;
+        if (status != FulfillmentStatus.VERIFICATION_REQUIRED || !"MANUAL_IN_PROGRESS".equals(supplierStatus)
+                || ids == null || ids.isEmpty() || new java.util.HashSet<>(ids).size() != ids.size())
+            throw new com.garage.garageapi.shared.exception.ResourceConflictException("Inicie o encaminhamento manual uma única vez antes de registrar os IDs.");
+        manualSupplierRefs.addAll(ids);
+        finishAliExpress(processingToken,ids,false,Instant.now());
+    }
+
     public String beginAliExpress(Instant now) {
         if (!"ALIEXPRESS".equals(provider)) return null;
         String token = claim(now);

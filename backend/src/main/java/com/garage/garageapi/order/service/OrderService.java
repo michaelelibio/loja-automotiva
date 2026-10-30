@@ -68,6 +68,10 @@ public class OrderService {
     @Transactional
     public OrderResponse create(Jwt jwt, CreateOrderRequest request) {
         User user = userService.findCurrentUser(jwt);
+        if (request.requestKey() != null) {
+            var existing = orderRepository.findByRequestKeyAndUserId(request.requestKey(), user.getId());
+            if (existing.isPresent()) return OrderResponse.from(existing.get());
+        }
         Address address = addressRepository.findByIdAndUserId(request.addressId(), user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Endereço não encontrado: " + request.addressId()));
@@ -77,6 +81,11 @@ public class OrderService {
         List<Long> productIds = new ArrayList<>(requestedQuantities.keySet());
         List<Product> products = productRepository.findAllByIdInOrderByIdWithLock(productIds);
 
+        // Product locks serialize retries of the same cart, including requests that arrived before commit.
+        if (request.requestKey() != null) {
+            var existing = orderRepository.findByRequestKeyAndUserId(request.requestKey(), user.getId());
+            if (existing.isPresent()) return OrderResponse.from(existing.get());
+        }
         if (products.size() != productIds.size()) {
             Long missingId = productIds.stream()
                     .filter(id -> products.stream().noneMatch(product -> product.getId().equals(id)))
@@ -118,11 +127,18 @@ public class OrderService {
                 .map(snapshot -> shippingService.item(snapshot.product(), snapshot.variant(),
                         snapshot.quantity()))
                 .toList();
-        ShippingProvider.Option shipping = shippingService.select(address.getZipCode(),
-                shippingItems, request.shippingCode());
+        boolean assisted = aliExpressRequired && "ASSISTED_QUOTE".equals(request.shippingCode());
+        if (assisted && (request.requestKey() == null || snapshots.stream().anyMatch(line ->
+                !"ALIEXPRESS".equalsIgnoreCase(line.product().getSupplier()) || line.variant() == null || line.quantity()>1000)))
+            throw new ResourceConflictException("Solicite cotação com variantes AliExpress e chave de solicitação. Separe produtos de outros fornecedores.");
+        ShippingProvider.Option shipping = assisted
+                ? new ShippingProvider.Option("ASSISTED_QUOTE", "Frete aguardando cotação", ZERO_MONEY, 0,
+                    "ALIEXPRESS", null, "BRL", List.of())
+                : shippingService.select(address.getZipCode(), shippingItems, request.shippingCode());
 
         Order order = new Order(user, address, subtotal, shipping, orderExpiration);
         if(recipient!=null) order.snapshotRecipient(recipient);
+        if (assisted) order.requestAssistedQuote(request.requestKey());
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.variant(), snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
         orderRepository.saveAndFlush(order);

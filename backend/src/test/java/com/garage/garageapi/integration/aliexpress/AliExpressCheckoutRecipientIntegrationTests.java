@@ -69,8 +69,9 @@ class AliExpressCheckoutRecipientIntegrationTests {
         assertThat(saved.getRecipientBirthDate()).isEqualTo(LocalDate.of(2000,2,29));
         assertThat(saved.getRecipientPhone()).isEqualTo("47999999999");
         assertThat(saved.getStatus().name()).isEqualTo("PENDING_PAYMENT");assertThat(payments.count()).isZero();
-        assertThat(AliExpressOrderPreparation.logisticsAddress(saved)).containsEntry("birth_date","29022000")
+        assertThat(AliExpressOrderPreparation.logisticsAddress(saved)).containsEntry("province","Santa Catarina").doesNotContainKey("birth_date")
                 .containsEntry("cpf","52998224725").containsEntry("phone_country","+55").containsEntry("mobile_no","47999999999");
+        assertThat(AliExpressOrderPreparation.dsExtendRequest(saved)).containsEntry("trade_extra_param",Map.of("birthday","29022000"));
         var address=fixture.address();address.update("Casa","Outro Destinatário","89229040","Rua Alterada","999",null,"Centro","Joinville","SC");addresses.saveAndFlush(address);
         assertThat(orders.findById(saved.getId()).orElseThrow().getStreet()).isEqualTo("Rua Original");
         assertThat(orders.findById(saved.getId()).orElseThrow().getRecipientName()).isEqualTo("Cliente Teste");

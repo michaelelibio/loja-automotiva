@@ -68,11 +68,11 @@ class AliExpressFreightDiagnosticClientTests {
                     } catch(Exception exception) { throw new AssertionError(exception); }
                 }).andRespond(withSuccess(response("["+method("CAINIAO_STANDARD","\"1230\"","BRL")+","+method("EXPRESS","\"2539\"","USD")+"]"),MediaType.APPLICATION_JSON));
         var result=client.query("synthetic-token", input());
-        assertThat(result.status()).isEqualTo(SUCCESS);assertThat(result.methods()).hasSize(2);
-        assertThat(result.methods().get(0).amount()).isEqualByComparingTo("12.30");
-        assertThat(result.methods().get(1).amount()).isEqualByComparingTo("25.39");
-        assertThat(result.methods().get(1).currency()).isEqualTo("USD");
-        assertThat(result.methods().get(0).estimatedDeliveryTime()).isEqualTo("5-8days");
+        assertThat(result.status()).isEqualTo(MONEY_SCALE_UNCONFIRMED);assertThat(result.methods()).isEmpty();
+        assertThat(result.monetaryStructure()).anySatisfy(field->{
+            assertThat(field.path()).isEqualTo("shipping_fee_cent");assertThat(field.safeValue()).isEqualTo("1230");
+            assertThat(field.syntacticallyValidNumber()).isTrue();
+        });
         assertThat(result.limitations()).contains("APP_API_PERMISSION_NOT_PRECONFIRMED","DIAGNOSTIC_ONLY_CHECKOUT_BLOCKED");
         assertThat(output.getAll()).doesNotContain("synthetic-token","synthetic-secret","aeop_freight_calculate_result_for_buyer");
         server.verify();
@@ -93,7 +93,7 @@ class AliExpressFreightDiagnosticClientTests {
                 .replace("\"free_shipping\":false","\"free_shipping\":\"false\"");
         var parsed=tools.jackson.databind.json.JsonMapper.builder().build().readTree(body).path("aliexpress_ds_freight_query_response");
         server.expect(anything()).andRespond(withSuccess(parsed.toString(),MediaType.APPLICATION_JSON));
-        assertThat(client.query("synthetic-token",input()).status()).isEqualTo(SUCCESS);server.verify();
+        assertThat(client.query("synthetic-token",input()).status()).isEqualTo(MONEY_SCALE_UNCONFIRMED);server.verify();
     }
     @Test void nonBrazilianDestinationCannotTriggerNetwork() {
         assertThat(client.query("synthetic-token",new AliExpressFreightDiagnosticClient.Input("123","456",1,null)).safeCode()).isEqualTo("INVALID_TEST_INPUT");server.verify();
@@ -202,8 +202,11 @@ class AliExpressFreightDiagnosticClientTests {
     }
     @Test void exactCentsAndProviderOriginArePreserved() {
         server.expect(anything()).andRespond(withSuccess(response("["+method("STANDARD","\"9999999999999999\"","BRL")+"]"),MediaType.APPLICATION_JSON));
-        var result=client.query("synthetic-token",input());assertThat(result.methods().get(0).amount()).isEqualByComparingTo("99999999999999.99");
-        assertThat(result.methods().get(0).originCountry()).isEqualTo("BR");assertThat(result.methods().get(0).company()).isEqualTo("AliExpress Standard");server.verify();
+        var observation=client.queryObserved("synthetic-token",input());
+        assertThat(observation.result().status()).isEqualTo(MONEY_SCALE_UNCONFIRMED);
+        assertThat(observation.result().methods()).isEmpty();
+        assertThat(observation.deliveryOptions()).singleElement().satisfies(option->assertThat(option.shipFromCountry()).isEqualTo("BR"));
+        server.verify();
     }
     @Test void contradictoryFormattedAmountDoesNotCauseHundredfoldUnderstatement() {
         String entry=method("STANDARD","\"199\"","USD").replace("\"code\":", "\"shipping_fee_format\":\"US $199.00\",\"code\":");
@@ -214,7 +217,8 @@ class AliExpressFreightDiagnosticClientTests {
         String entry=method("STANDARD","\"0\"","BRL").replace("\"free_shipping\":false","\"free_shipping\":\"true\"");
         server.expect(anything()).andRespond(withSuccess(response("["+entry+"]"),MediaType.APPLICATION_JSON));
         var result=client.query("synthetic-token",input());assertThat(result.status()).isEqualTo(SUCCESS);
-        assertThat(result.methods().get(0).amount()).isEqualByComparingTo("0.00");server.verify();
+        assertThat(result.methods().get(0).amount()).isEqualByComparingTo("0.00");
+        assertThat(result.methods().get(0).amount().toPlainString()).isEqualTo("0.00");server.verify();
     }
     @Test void duplicateServiceCodesAreRejected() {
         String entry=method("STANDARD","\"1230\"","BRL");

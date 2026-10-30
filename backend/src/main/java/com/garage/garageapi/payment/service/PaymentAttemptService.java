@@ -11,6 +11,7 @@ import com.garage.garageapi.payment.repository.PaymentRepository;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -22,16 +23,20 @@ public class PaymentAttemptService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final CheckoutProGateway checkoutProGateway;
+    private final boolean paymentCreationEnabled;
 
     public PaymentAttemptService(PaymentRepository paymentRepository, OrderRepository orderRepository,
-                                 CheckoutProGateway checkoutProGateway) {
+                                 CheckoutProGateway checkoutProGateway,
+                                 @Value("${app.payment.creation-enabled:false}") boolean paymentCreationEnabled) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.checkoutProGateway = checkoutProGateway;
+        this.paymentCreationEnabled = paymentCreationEnabled;
     }
 
     @Transactional
     public PreparedAttempt prepare(Long userId, Long orderId) {
+        requirePaymentCreationEnabled();
         Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido não encontrado: " + orderId));
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
@@ -56,15 +61,21 @@ public class PaymentAttemptService {
         boolean completed = payment.getProviderPreferenceId() != null;
         return new PreparedAttempt(payment.getId(), order.getId(), order.getTotal(),
                 order.getUser().getName(), order.getUser().getEmail(), payment.getIdempotencyKey(),
-                items, order.getShippingCost(), order.getShippingName(), completed);
+                items, order.getShippingCost(), order.getShippingName(), completed,
+                order.getAssistedQuote()==null ? null : order.getExpiresAt());
     }
 
     @Transactional
     public Payment createCheckoutPreference(Long paymentId,
                                             CheckoutProGateway.PreferenceRequest request) {
+        requirePaymentCreationEnabled();
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
         com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(payment.getOrder());
+        if (payment.getOrder().getStatus() != OrderStatus.PENDING_PAYMENT
+                || !Instant.now().isBefore(payment.getOrder().getExpiresAt())
+                || request.total().compareTo(payment.getOrder().getTotal()) != 0)
+            throw new ResourceConflictException("Pedido alterado ou expirado antes da cobrança.");
         if (payment.getProviderPreferenceId() != null) return payment;
         CheckoutProGateway.PreferenceResult result = checkoutProGateway.createPreference(request);
         payment.applyCheckoutPreference(result.preferenceId(), result.externalReference(),
@@ -91,5 +102,11 @@ public class PaymentAttemptService {
     public record PreparedAttempt(Long paymentId, Long orderId, BigDecimal amount, String payerName,
                                   String payerEmail, String idempotencyKey,
                                   List<CheckoutProGateway.Item> items, BigDecimal shippingCost,
-                                  String shippingName, boolean completed) { }
+                                  String shippingName, boolean completed, Instant expiresAt) { }
+
+    private void requirePaymentCreationEnabled() {
+        if (!paymentCreationEnabled) {
+            throw new ResourceConflictException("Pagamentos temporariamente indisponíveis durante a validação da loja.");
+        }
+    }
 }

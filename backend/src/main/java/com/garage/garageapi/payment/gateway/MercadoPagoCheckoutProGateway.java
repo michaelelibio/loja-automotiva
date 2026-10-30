@@ -97,6 +97,14 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
         body.put("back_urls", Map.of("success", successUrl, "pending", pendingUrl,
                 "failure", failureUrl));
         body.put("auto_return", "approved");
+        if (request.expiresAt()!=null) {
+            if (!request.expiresAt().isAfter(Instant.now())) throw new PaymentProviderException("Cotação expirada");
+            body.put("expires", true);
+            body.put("expiration_date_from", java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+                    .format(Instant.now().atOffset(java.time.ZoneOffset.UTC)));
+            body.put("expiration_date_to", java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+                    .format(request.expiresAt().atOffset(java.time.ZoneOffset.UTC)));
+        }
         if (StringUtils.hasText(notificationUrl)) {
             body.put("notification_url", webhookNotificationUrl(notificationUrl));
         }

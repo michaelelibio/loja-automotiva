@@ -9,12 +9,13 @@ import java.time.Instant;
 public record AdminOrderSummaryResponse(
         Long id, OrderStatus status, BigDecimal subtotal, BigDecimal shippingCost, BigDecimal total,
         Instant createdAt, Instant updatedAt, Instant processingAt, Instant shippedAt,
-        Instant deliveredAt
+        Instant deliveredAt, com.garage.garageapi.order.quote.AssistedQuote.Summary quote
 ) {
     public static AdminOrderSummaryResponse from(Order order) {
         return new AdminOrderSummaryResponse(
                 order.getId(), order.getStatus(), order.getSubtotal(), order.getShippingCost(),
                 order.getTotal(), order.getCreatedAt(), order.getUpdatedAt(),
-                order.getProcessingAt(), order.getShippedAt(), order.getDeliveredAt());
+                order.getProcessingAt(), order.getShippedAt(), order.getDeliveredAt(),
+                order.getAssistedQuote()==null ? null : order.getAssistedQuote().summary());
     }
 }

@@ -156,24 +156,18 @@ public class AliExpressDsFreightClient {
             if (List.of("shipping_fee","amount","cent","currency_code").stream().anyMatch(entry::has))
                 return failure(INVALID_RESPONSE,"CONFLICTING_MONETARY_FIELDS");
             String cent=entry.path("shipping_fee_cent").asText();
-            // docId 1579 says cents, but its example contains "1.99" next to
-            // "US $1.99". Decimal values are ambiguous: never divide or guess.
-            if (cent.matches("[0-9]{1,16}\\.[0-9]+")) return failure(INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT");
+            // Decimal syntax is independent of the monetary scale contract.
+            if (!cent.matches("[0-9]{1,16}(?:\\.[0-9]{1,4})?"))
+                return failure(INVALID_RESPONSE,"INVALID_METHOD_DATA");
+            BigDecimal received = new BigDecimal(cent);
             String currency=entry.path("shipping_fee_currency").asText(),service=entry.path("code").asText();
             if (!service.matches("[A-Za-z0-9_.-]{1,120}") || sensitive(service,token))
                 return failure(INVALID_RESPONSE,"INVALID_DELIVERY_METHOD");
-            if (!cent.matches("[0-9]{1,16}") || !currency.matches("[A-Z]{3}"))
-                return failure(INVALID_RESPONSE,"INVALID_METHOD_DATA");
-            // The contract explicitly defines this field in cents. Never parse formatted fees.
-            BigDecimal value=new BigDecimal(cent).movePointLeft(2);
-            // Formatted text is never the source of an amount. If its simple
-            // decimal representation contradicts cents, report the conflict.
-            var formatted=java.util.regex.Pattern.compile("^(?:[A-Z]{1,3}\\s*)?[$€£]?\\s*([0-9]{1,16}\\.[0-9]{2})$")
-                    .matcher(entry.path("shipping_fee_format").asText());
-            if (formatted.matches() && value.compareTo(new BigDecimal(formatted.group(1)))!=0)
-                return failure(INVALID_RESPONSE,"AMBIGUOUS_MONETARY_UNIT");
+            if (!currency.matches("[A-Z]{3}")) return failure(INVALID_RESPONSE,"INVALID_METHOD_DATA");
+            // Neither decimal nor integer non-zero observations authorize guessing a scale.
+            BigDecimal value = received.signum()==0 ? BigDecimal.ZERO.setScale(2) : null;
             JsonNode free=entry.path("free_shipping");
-            if (!isBoolean(free) || ("true".equals(free.asText()) != (value.signum()==0)))
+            if (!isBoolean(free) || ("true".equals(free.asText()) != (received.signum()==0)))
                 return failure(INVALID_RESPONSE,"CONFLICTING_MONETARY_FIELDS");
             String origin=entry.path("ship_from_country").asText();
             if (!Arrays.asList(Locale.getISOCountries()).contains(origin)) origin=null;
@@ -183,6 +177,8 @@ public class AliExpressDsFreightClient {
             methods.add(new Method(service,value,currency,estimate,company,origin));
         }
         if (methods.stream().map(Method::serviceName).distinct().count()!=methods.size()) return failure(INVALID_RESPONSE,"DUPLICATE_SERVICE");
+        if (methods.stream().anyMatch(method -> method.amount()==null))
+            return failure(MONEY_SCALE_UNCONFIRMED,"AMBIGUOUS_MONETARY_UNIT");
         return result(SUCCESS,"CALL_SUCCEEDED",methods);
     }
 

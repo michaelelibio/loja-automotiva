@@ -7,6 +7,13 @@ export function MercadoPagoPayment({ orderId }: { orderId: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  if (process.env.NEXT_PUBLIC_PAYMENT_CREATION_ENABLED !== 'true') {
+    return <section className="order-detail-card payment-checkout-card" aria-labelledby="payment-title">
+      <h2 id="payment-title">Pagamento indisponível</h2>
+      <p>Recebemos seu aceite. Os pagamentos estão temporariamente indisponíveis durante a validação da loja. Nenhuma cobrança foi iniciada.</p>
+    </section>;
+  }
+
   async function proceed() {
     if (loading) return;
     setLoading(true);

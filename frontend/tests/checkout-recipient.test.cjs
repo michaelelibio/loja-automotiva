@@ -61,7 +61,7 @@ function checkout(ali, personal = recipient, freightError = null) {
   const states = [[address], 7, false, null, freightError ? [] : [{ code: 'TEST', name: 'Frete simulado', price: 10 }], 'TEST', false, freightError, 0, false, null, personal, {}];
   let index = 0, payload, calls = 0;
   const { CheckoutForm } = load('app/checkout/CheckoutForm.tsx', {
-    react: { ...React, useMemo: (fn) => fn(), useEffect() {}, useState(initial) { const current = index++; if (!(current in states)) states[current] = initial; return [states[current], (value) => { states[current] = value; }]; } },
+    react: { ...React, useMemo: (fn) => fn(), useRef: (initial) => ({current:initial}), useEffect() {}, useState(initial) { const current = index++; if (!(current in states)) states[current] = initial; return [states[current], (value) => { states[current] = value; }]; } },
     'next/link': (props) => React.createElement('a', props), 'next/navigation': { useRouter: () => ({ replace() {}, push() {} }) },
     '@/context/AuthContext': { useAuth: () => ({ isAuthenticated: true, isLoading: false }) },
     '@/context/CartContext': { useCart: () => ({ items: [{ productId: '1', variantId: '2', quantity: 1 }], isHydrated: true, clearCart() {}, reconcileItems() {} }) },
@@ -88,13 +88,14 @@ test('other suppliers keep the existing checkout and never send unnecessary pers
   assert.equal(h.calls(), 1); assert.ok(!('recipient' in h.payload()));
 });
 
-test('unconfirmed AliExpress freight blocks checkout and explains the unavailable purchase', async () => {
+test('unconfirmed AliExpress freight allows an assisted request without payment', async () => {
   const error = 'O frete dos produtos AliExpress ainda não pode ser confirmado.';
   const h = checkout(true, recipient, error);
-  assert.equal(find(h.tree, (node) => node.type === 'button' && node.props.type === 'submit').props.disabled, true);
-  assert.ok(find(h.tree, (node) => node.type === 'p' && node.props.children === error));
+  assert.equal(find(h.tree, (node) => node.type === 'button' && node.props.type === 'submit').props.disabled, false);
   await find(h.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
-  assert.equal(h.calls(), 0);
+  assert.equal(h.calls(), 1);
+  assert.equal(h.payload().shippingCode, 'ASSISTED_QUOTE');
+  assert.match(h.payload().requestKey, /^[a-f0-9-]{36}$/);
 });
 test('catalog normalization preserves only the server-provided recipient requirement boolean', () => {
   const { normalizeBackendProduct } = load('lib/products.ts');

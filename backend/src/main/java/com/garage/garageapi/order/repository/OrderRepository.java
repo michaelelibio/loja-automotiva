@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.Set;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
+    Optional<Order> findByRequestKeyAndUserId(String requestKey, Long userId);
     interface StatusCount {
         OrderStatus getStatus();
         long getQuantity();

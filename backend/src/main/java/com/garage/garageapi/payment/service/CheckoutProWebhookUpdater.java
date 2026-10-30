@@ -38,11 +38,17 @@ public class CheckoutProWebhookUpdater {
                 result.approvedAt(), result.paymentType(), result.paymentMethodId());
         if (result.status() == PaymentStatus.PAID) {
             Order order = payment.getOrder();
+            var quote = order.getAssistedQuote();
+            boolean refundRequired = quote!=null && !"REFUNDED".equals(quote.state())
+                    && (!"ACCEPTED".equals(quote.state()) || result.approvedAt()==null || quote.validUntil()==null
+                        || !result.approvedAt().isBefore(quote.validUntil())
+                        || order.getStatus()==OrderStatus.EXPIRED || order.getStatus()==OrderStatus.CANCELED);
             if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
                 order.markPaid();
                 emailNotificationService.afterCommit(order, OrderStatus.PAID);
                 fulfillmentNotificationService.afterCommit(order.getId());
             }
+            if (refundRequired) order.holdAssistedPaymentForRefund();
         }
     }
 

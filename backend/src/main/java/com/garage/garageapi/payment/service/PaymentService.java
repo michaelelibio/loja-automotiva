@@ -42,7 +42,7 @@ public class PaymentService {
                     new CheckoutProGateway.PreferenceRequest(attempt.orderId(), attempt.paymentId(),
                             attempt.amount(), attempt.payerName(), attempt.payerEmail(),
                             attempt.idempotencyKey(), attempt.items(), attempt.shippingCost(),
-                            attempt.shippingName());
+                            attempt.shippingName(), attempt.expiresAt());
             return PaymentResponse.from(attemptService.createCheckoutPreference(
                     attempt.paymentId(), checkoutRequest));
         } catch (PaymentProviderException exception) {

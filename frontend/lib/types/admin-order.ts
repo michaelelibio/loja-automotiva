@@ -1,3 +1,4 @@
+import type { QuoteSummary } from './order';
 export type AdminOrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED' | 'EXPIRED';
 export type AdminPaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELED' | 'FAILED';
 export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' | 'CREATED' | 'FAILED' | 'VERIFICATION_REQUIRED';
@@ -18,6 +19,7 @@ export type AdminOrderFulfillment = {
 };
 
 export type AdminOrderSummary = {
+  quote?: QuoteSummary | null;
   id: number; status: AdminOrderStatus; subtotal: number; shippingCost: number; total: number;
   createdAt: string; updatedAt: string; processingAt: string | null; shippedAt: string | null; deliveredAt: string | null;
 };
@@ -27,6 +29,7 @@ export type AdminOrderPage = {
 };
 
 export type AdminOrder = AdminOrderSummary & {
+  quote?: QuoteSummary | null;
   recipientData?: { required: boolean; complete: boolean; pendingFields: string[] };
   expiresAt: string | null;
   shippingCode: string;
