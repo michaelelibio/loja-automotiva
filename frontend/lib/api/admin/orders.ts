@@ -4,6 +4,10 @@ import type { AdminAliExpressOrder, AdminOrder, AdminOrderFulfillment, AdminOrde
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const endpoint = `${API_BASE}/api/admin/orders`;
 
+export function getAssistedFreightSuggestions(id: number): Promise<import('@/lib/admin/assisted-freight').AssistedFreightPreview> {
+  return request(`${endpoint}/${id}/quote/suggestions`, { method: 'POST' });
+}
+
 export class AdminOrderApiError extends Error {
   constructor(message: string, public readonly status: number) { super(message); this.name = 'AdminOrderApiError'; }
 }

@@ -59,3 +59,32 @@ test('controlled publication hides payment action by default and when explicitly
   else process.env.NEXT_PUBLIC_PAYMENT_CREATION_ENABLED=previous;
  }
 });
+test('freight observations prefill metadata but never reinterpret decimal money',()=>{
+ const helper=load('lib/admin/assisted-freight.ts');
+ const leg={code:'',name:'',originCountry:'',shippingBrl:'',estimatedDays:'',skuIds:['456']};
+ const option={optionIndex:0,code:'CAINIAO_STANDARD',name:'AliExpress Standard Shipping',originCountry:'CN',estimatedDays:25,receivedAmount:'24.00',formattedAmount:'24.00',currency:'BRL',documentedScale:'CONFLICT',monetaryConsistency:'MAJOR_MATCH',shippingBrl:null};
+ const filled=helper.prefillObservedLeg(leg,option);
+ assert.equal(filled.code,'CAINIAO_STANDARD');assert.equal(filled.originCountry,'CN');assert.equal(filled.estimatedDays,'25');assert.equal(filled.shippingBrl,'');
+ assert.equal(helper.prefillObservedLeg(leg,{...option,shippingBrl:0}).shippingBrl,'0');
+ assert.deepEqual(helper.prefillObservedLeg({...filled,shippingBrl:'30.00'},option),{...filled,shippingBrl:'30.00'});
+ assert.deepEqual(helper.prefillObservedLeg({...leg,code:'MANUAL'},option),{...leg,code:'MANUAL'});
+ assert.deepEqual(helper.prefillObservedLeg({...leg,skuIds:['456','789']},option),{...leg,skuIds:['456','789']});
+ const preview={reviewBefore:new Date(Date.now()+60000).toISOString(),lines:[{skuId:'456',options:[option]}]};
+ assert.deepEqual(helper.prefillUnambiguousLegs([leg],preview),[filled]);
+ assert.deepEqual(helper.prefillUnambiguousLegs([leg],{...preview,lines:[{skuId:'456',options:[option,{...option,code:'OTHER'}]}]}),[leg]);
+ assert.deepEqual(helper.prefillUnambiguousLegs([leg],{...preview,reviewBefore:'2000-01-01T00:00:00Z'}),[leg]);
+});
+
+test('suggestions use authenticated admin endpoint and only the internal order id',async()=>{
+ const calls=[];global.fetch=async(url,init)=>{calls.push({url,init});return Response.json({orderId:7,commercialAuthorized:false});};
+ const api=load('lib/api/admin/orders.ts',{'@/lib/auth/tokenStorage':{getToken:()=> 'test-token'}});
+ const result=await api.getAssistedFreightSuggestions(7);
+ assert.equal(result.commercialAuthorized,false);assert.equal(calls[0].init.method,'POST');
+ assert.ok(calls[0].url.endsWith('/api/admin/orders/7/quote/suggestions'));
+ assert.equal(calls[0].init.headers.Authorization,'Bearer test-token');assert.equal(calls[0].init.body,undefined);
+});
+
+test('empty freight remains an unknown total in the admin confirmation form',()=>{
+ const html=panel();assert.ok(html.includes('Consulta automática AliExpress'));assert.ok(html.includes('a confirmar'));
+ assert.ok(html.includes('Atualizar dados do AliExpress'));assert.ok(html.includes('disabled'));
+});

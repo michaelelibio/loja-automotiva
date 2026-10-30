@@ -11,7 +11,15 @@ import org.springframework.web.bind.annotation.*;
 public class AssistedQuoteController {
     private final AssistedQuoteService service;
     private final UserService users;
-    public AssistedQuoteController(AssistedQuoteService service,UserService users) {this.service=service;this.users=users;}
+    private final com.garage.garageapi.integration.aliexpress.AliExpressFreightService freight;
+    public AssistedQuoteController(AssistedQuoteService service,UserService users,
+            com.garage.garageapi.integration.aliexpress.AliExpressFreightService freight) {this.service=service;this.users=users;this.freight=freight;}
+    @PostMapping("/api/admin/orders/{id}/quote/suggestions")
+    public org.springframework.http.ResponseEntity<com.garage.garageapi.integration.aliexpress.AliExpressAssistedFreightPreview.Result> suggestions(@PathVariable Long id) {
+        // The database transaction finishes before any external request; no quote or payment is modified.
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+            .body(freight.previewAssisted(service.freightContext(id)));
+    }
     @GetMapping("/api/admin/orders/{id}/recipient-for-fulfillment")
     public org.springframework.http.ResponseEntity<AssistedQuoteService.Recipient> recipient(@PathVariable Long id) {
         return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(service.recipient(id));

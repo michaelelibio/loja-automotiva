@@ -18,9 +18,18 @@ public class AliExpressFreightService {
     public static final String UNAVAILABLE =
             "Aguarde a cotação confirmada, aceite o total e pague dentro da validade.";
     private final AliExpressFreightGateway gateway;
+    private final AliExpressAssistedFreightPreview assistedPreview;
 
     public AliExpressFreightService(AliExpressFreightGateway gateway) {
-        this.gateway=java.util.Objects.requireNonNull(gateway);
+        this(gateway,null);
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public AliExpressFreightService(AliExpressFreightGateway gateway,AliExpressAssistedFreightPreview assistedPreview) {
+        this.gateway=java.util.Objects.requireNonNull(gateway);this.assistedPreview=assistedPreview;
+    }
+
+    public AliExpressAssistedFreightPreview.Result previewAssisted(AliExpressAssistedFreightPreview.Context context) {
+        return assistedPreview.preview(context);
     }
 
     public List<ShippingProvider.Option> quote(ShippingProvider.Request request) {

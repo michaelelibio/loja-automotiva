@@ -1,0 +1,17 @@
+backend/ALIEXPRESS-ASSISTED-PREFILL.md
+backend/ALIEXPRESS-ASSISTED-PREFILL-EVIDENCE.json
+backend/ALIEXPRESS-PREFILL-RELEASE-FILES.txt
+backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressAssistedFreightPreview.java
+backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDsFreightClient.java
+backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressFreightService.java
+backend/src/main/java/com/garage/garageapi/order/quote/AssistedQuoteController.java
+backend/src/main/java/com/garage/garageapi/order/quote/AssistedQuoteService.java
+backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressAssistedFreightPreviewTests.java
+backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressFreightWiringTests.java
+backend/src/test/java/com/garage/garageapi/order/quote/AssistedFreightContextTests.java
+backend/src/test/java/com/garage/garageapi/order/quote/AssistedFreightSuggestionsHttpTests.java
+frontend/app/admin/pedidos/[id]/page.tsx
+frontend/components/admin/AssistedQuotePanel.tsx
+frontend/lib/admin/assisted-freight.ts
+frontend/lib/api/admin/orders.ts
+frontend/tests/assisted-quote.test.cjs

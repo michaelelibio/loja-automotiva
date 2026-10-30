@@ -45,13 +45,19 @@ public class AliExpressDsFreightClient {
         public RequestEvidence { queryDeliveryReqFields=List.copyOf(queryDeliveryReqFields); }
     }
     public record DeliveryEvidence(int optionIndex, String serviceCode, String shipFromCountry, String routeEvidence) {}
-    public record Observation(RequestEvidence request, AliExpressFreightDiagnosticResult result, List<DeliveryEvidence> deliveryOptions) {
-        public Observation { deliveryOptions=List.copyOf(deliveryOptions); }
+    public record ObservedOption(int optionIndex, String code, String name, String originCountry,
+            Integer estimatedDays, String receivedAmount, String formattedAmount, String currency,
+            String documentedScale, String monetaryConsistency, BigDecimal shippingBrl, Boolean ddpIncludesVatTax) {}
+    public record Observation(RequestEvidence request, AliExpressFreightDiagnosticResult result, List<DeliveryEvidence> deliveryOptions,
+            List<ObservedOption> options) {
+        public Observation { deliveryOptions=List.copyOf(deliveryOptions); options=List.copyOf(options); }
+        public Observation(RequestEvidence request,AliExpressFreightDiagnosticResult result,List<DeliveryEvidence> delivery) { this(request,result,delivery,List.of()); }
         public Observation(RequestEvidence request,AliExpressFreightDiagnosticResult result) { this(request,result,List.of()); }
     }
     private static final class Probe {
         List<String> fields=List.of();String country,province;boolean written,received;
         List<DeliveryEvidence> delivery=List.of();
+        List<ObservedOption> options=List.of();
     }
     public Observation queryObserved(String token,Input input) {
         Probe probe=new Probe();
@@ -59,7 +65,7 @@ public class AliExpressDsFreightClient {
         if (probe.fields.contains("province")) result=new AliExpressFreightDiagnosticResult(result.status(),result.safeCode(),result.methods(),
                 result.limitations().stream().map(limit->limit.equals("COUNTRY_ONLY_BR_DIAGNOSTIC")
                         ?"COUNTRY_AND_PROVINCE_DIAGNOSTIC_NOT_ADDRESS_CONFIRMED":limit).toList(),result.monetaryStructure());
-        return new Observation(new RequestEvidence(probe.fields,probe.country,probe.province,probe.written,probe.received),result,probe.delivery);
+        return new Observation(new RequestEvidence(probe.fields,probe.country,probe.province,probe.written,probe.received),result,probe.delivery,probe.options);
     }
 
     public AliExpressFreightDiagnosticResult query(String token, Input input) {
@@ -70,7 +76,7 @@ public class AliExpressDsFreightClient {
                 || input.skuId() == null || !input.skuId().matches("[0-9]{1,30}")
                 || input.quantity() < 1 || input.quantity() > 100
                 || !"BR".equals(input.destinationCountry())
-                || (input.province()!=null && !"Santa Catarina".equals(input.province())))
+                || (input.province()!=null && !BRAZILIAN_PROVINCES.containsValue(input.province())))
             return failure(PARAMETER_ERROR,"INVALID_TEST_INPUT");
         if (appKey.isBlank() || secret.isBlank() || appKey.contains("COLE_AQUI") || secret.contains("COLE_AQUI"))
             return failure(NOT_CONFIGURED,"APPLICATION_NOT_CONFIGURED");
@@ -109,7 +115,10 @@ public class AliExpressDsFreightClient {
                         final JsonNode parsed;
                         try { parsed=JSON.readTree(bytes); }
                         catch (Exception ignored) { return failure(INVALID_RESPONSE,"INVALID_JSON_RESPONSE"); }
-                        if(probe!=null) probe.delivery=deliveryEvidence(parsed,token);
+                        if(probe!=null) {
+                            probe.delivery=deliveryEvidence(parsed,token);
+                            probe.options=observedOptions(parsed,token,probe.delivery);
+                        }
                         return parse(parsed,token).withMonetaryStructure(monetaryStructure(parsed,token));
                     });
         } catch (Exception ignored) {
@@ -117,9 +126,58 @@ public class AliExpressDsFreightClient {
         }
     }
 
+    // Province names are documented inputs. No IBGE/territorial IDs, city or CEP mapping is inferred.
+    public static final Map<String,String> BRAZILIAN_PROVINCES=Map.ofEntries(
+        Map.entry("AC","Acre"),Map.entry("AL","Alagoas"),Map.entry("AP","Amapá"),Map.entry("AM","Amazonas"),
+        Map.entry("BA","Bahia"),Map.entry("CE","Ceará"),Map.entry("DF","Distrito Federal"),Map.entry("ES","Espírito Santo"),
+        Map.entry("GO","Goiás"),Map.entry("MA","Maranhão"),Map.entry("MT","Mato Grosso"),Map.entry("MS","Mato Grosso do Sul"),
+        Map.entry("MG","Minas Gerais"),Map.entry("PA","Pará"),Map.entry("PB","Paraíba"),Map.entry("PR","Paraná"),
+        Map.entry("PE","Pernambuco"),Map.entry("PI","Piauí"),Map.entry("RJ","Rio de Janeiro"),Map.entry("RN","Rio Grande do Norte"),
+        Map.entry("RS","Rio Grande do Sul"),Map.entry("RO","Rondônia"),Map.entry("RR","Roraima"),Map.entry("SC","Santa Catarina"),
+        Map.entry("SP","São Paulo"),Map.entry("SE","Sergipe"),Map.entry("TO","Tocantins"));
+
+    /** Useful metadata survives a monetary rejection; observed decimals are never guessed into BRL. */
+    private List<ObservedOption> observedOptions(JsonNode body,String token,List<DeliveryEvidence> delivery) {
+        if(delivery.isEmpty()) return List.of();
+        JsonNode result=body.path("aliexpress_ds_freight_query_response").path("result");
+        if(result.isMissingNode()) result=body.path("result");
+        List<MoneyField> money=monetaryStructure(body,token);
+        List<ObservedOption> options=new ArrayList<>();
+        for(var route:delivery) {
+            JsonNode entry=result.path("delivery_options").get(route.optionIndex());
+            String name=entry.path("company").asText();
+            if(!name.matches("[\\p{L}][\\p{L}0-9 ._()/ -]{0,119}") || name.matches(".*[0-9]{8,}.*") || sensitive(name,token)) name=null;
+            String received=null,formatted=null,currency=null,consistency="UNAVAILABLE";
+            for(var field:money) if(field.optionIndex()==route.optionIndex()) {
+                if(field.path().equals("shipping_fee_cent")) {received=field.safeValue();currency=field.currency();}
+                if(field.path().equals("shipping_fee_format")) {formatted=field.safeValue();consistency=field.comparison();}
+            }
+            BigDecimal normalized=null;
+            boolean conflicting=List.of("shipping_fee","amount","cent","currency_code","free_shipping_threshold").stream().anyMatch(entry::has);
+            if(route.serviceCode()!=null && !conflicting && received!=null && "BRL".equals(currency) && new BigDecimal(received).signum()==0
+                    && isBoolean(entry.path("free_shipping")) && "true".equals(entry.path("free_shipping").asText())
+                    && (!entry.has("shipping_fee_format") || formatted!=null && new BigDecimal(formatted).signum()==0)) normalized=BigDecimal.ZERO.setScale(2);
+            Integer days=null;
+            String minDays=entry.path("min_delivery_days").asText(),maxDays=entry.path("max_delivery_days").asText();
+            String estimate=minDays.matches("[0-9]{1,4}") && maxDays.matches("[0-9]{1,4}")?minDays+"-"+maxDays:null;
+            if(estimate!=null) {
+                var matcher=java.util.regex.Pattern.compile("([0-9]{1,4})(?:[-~]([0-9]{1,4}))?(?:days?|d)?").matcher(estimate);
+                if(matcher.matches()) {
+                    int min=Integer.parseInt(matcher.group(1)),max=Integer.parseInt(matcher.group(2)==null?matcher.group(1):matcher.group(2));
+                    if(min>0 && max>=min && max<=365) days=max;
+                }
+            }
+            options.add(new ObservedOption(route.optionIndex(),route.serviceCode(),name,route.shipFromCountry(),days,
+                received,formatted,currency,"CENT_1_100_DESCRIPTION_EXAMPLE_CONFLICT",conflicting?"CONFLICTING_FIELDS":consistency,normalized,
+                isBoolean(entry.path("ddpIncludeVATTax"))?Boolean.valueOf(entry.path("ddpIncludeVATTax").asText()):null));
+        }
+        return List.copyOf(options);
+    }
+
     /** Independent metadata projection: a monetary rejection must not hide an observed shipping origin.
      * A same-country route is only a local-to-local candidate, not program membership or warehouse identity. */
     private List<DeliveryEvidence> deliveryEvidence(JsonNode body,String token) {
+        if(body==null || !body.isObject() || body.path("error_response").isObject()) return List.of();
         JsonNode result=body.path("aliexpress_ds_freight_query_response").path("result");
         if(result.isMissingNode()) result=body.path("result");
         JsonNode entries=result.path("delivery_options");

@@ -55,7 +55,7 @@ export default function AdminOrderDetailPage() {
   return <><header className="admin-page-heading admin-detail-heading"><div><Link href="/admin/pedidos">← Pedidos</Link><p className="eyebrow">PEDIDO #{order.id}</p><h1>Detalhes do pedido</h1><p>Criado em {timestamp(order.createdAt)}</p></div><span className={`admin-status ${order.status.toLowerCase()}`}>{adminOrderStatusLabels[order.status]}</span></header>
     {feedback && <p className={`admin-action-feedback ${feedback.type}`} role={feedback.type === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
     <div className="admin-order-detail"><div className="admin-order-main">
-      {order.quote && <AssistedQuotePanel order={order} fulfillment={fulfillment} onUpdated={async()=>{
+      {order.quote && <AssistedQuotePanel key={order.id} order={order} fulfillment={fulfillment} onUpdated={async()=>{
         const [updated,delivery]=await Promise.all([getAdminOrder(id),getAdminOrderFulfillment(id)]);setOrder(updated);setFulfillment(delivery);
       }}/>}
       <section className="admin-card"><h2>Cliente e entrega</h2><div className="admin-customer"><div><span>Cliente</span><strong>{order.customer.name}</strong><a href={`mailto:${order.customer.email}`}>{order.customer.email}</a></div><address><strong>{address.recipientName}</strong><span>{address.street}, {address.number}</span>{address.complement && <span>{address.complement}</span>}<span>{address.neighborhood}</span><span>{address.city} — {address.state}</span><span>CEP {address.zipCode}</span></address></div></section>

@@ -113,6 +113,23 @@ public class AssistedQuoteService {
         return new Recipient(order.getRecipientCpf(),order.getRecipientBirthDate(),order.getRecipientPhone());
     }
     public AssistedQuote audit(Long id) { return locked(id).getAssistedQuote(); }
+    @Transactional(readOnly=true)
+    public com.garage.garageapi.integration.aliexpress.AliExpressAssistedFreightPreview.Context freightContext(Long id) {
+        Order order=orders.findById(id).orElseThrow(()->new ResourceNotFoundException("Pedido não encontrado."));
+        require(order.getAssistedQuote()!=null && "WAITING".equals(order.getAssistedQuote().state())
+                && order.getStatus()==OrderStatus.PENDING_PAYMENT && Instant.now().isBefore(order.getExpiresAt()),
+                "Pré-preenchimento disponível somente para cotação pendente e não expirada.");
+        var items=order.getItems().stream().map(item->{
+            require("ALIEXPRESS".equalsIgnoreCase(item.getSupplier()) && item.getSupplierProductId()!=null
+                    && item.getSupplierProductId().matches("[0-9]{1,18}") && item.getSupplierVariantId()!=null
+                    && item.getSupplierVariantId().matches("[0-9]{1,30}") && item.getQuantity()>0 && item.getQuantity()<=100,
+                    "Produto, SKU ou quantidade incompatível com a consulta AliExpress.");
+            return new com.garage.garageapi.integration.aliexpress.AliExpressAssistedFreightPreview.Item(
+                item.getSupplierProductId(),item.getSupplierVariantId(),item.getQuantity());
+        }).toList();
+        return new com.garage.garageapi.integration.aliexpress.AliExpressAssistedFreightPreview.Context(
+            id,order.getSubtotal(),order.getState(),items);
+    }
     private Order locked(Long id) { return orders.findByIdForLifecycleUpdate(id).orElseThrow(()->new ResourceNotFoundException("Pedido não encontrado.")); }
     private void requirePaid(Order order) {
         require((order.getStatus()==OrderStatus.PAID || order.getStatus()==OrderStatus.PROCESSING)
