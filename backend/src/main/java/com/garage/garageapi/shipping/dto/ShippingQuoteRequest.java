@@ -11,5 +11,5 @@ public record ShippingQuoteRequest(
         @NotBlank(message = "CEP é obrigatório")
         @Pattern(regexp = "^\\d{5}-?\\d{3}$", message = "CEP inválido") String zipCode,
         @NotEmpty(message = "cotação deve possuir ao menos um item")
-        List<@Valid ShippingQuoteItemRequest> items
+        @jakarta.validation.constraints.Size(max=100) List<@Valid ShippingQuoteItemRequest> items
 ) { }

@@ -11,6 +11,8 @@ import java.util.List;
 @Primary
 @Component
 public class CompositeShippingProvider implements ShippingProvider {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
     private final FixedShippingProvider localProvider;
     private final CjShippingProvider cjProvider;
     private final com.garage.garageapi.integration.aliexpress.AliExpressFreightService aliExpressFreight;
@@ -27,6 +29,7 @@ public class CompositeShippingProvider implements ShippingProvider {
         // Do this before contacting any provider, including in mixed carts.
         if (request.items().stream().anyMatch(item -> "ALIEXPRESS".equalsIgnoreCase(item.supplier())
                 && item.fulfillmentType() == FulfillmentType.DROPSHIPPING)) {
+            if(commercial!=null && commercial.available()) return List.of(commercial.evaluate(request).option());
             return aliExpressFreight.quote(request);
         }
         List<Item> local = request.items().stream()

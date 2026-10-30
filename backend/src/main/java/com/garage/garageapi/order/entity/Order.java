@@ -173,6 +173,22 @@ public class Order {
         assistedQuote = quote.withContextDigest(quoteContextDigest());
     }
     public void updateAssistedQuote(com.garage.garageapi.order.quote.AssistedQuote quote) { assistedQuote = quote; }
+    @JdbcTypeCode(SqlTypes.JSON) @Column(name="commercial_shipping",columnDefinition="jsonb")
+    private com.garage.garageapi.shipping.commercial.CommercialShippingSnapshot commercialShipping;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public com.garage.garageapi.shipping.commercial.CommercialShippingSnapshot getCommercialShipping(){return commercialShipping;}
+    public void agreeCommercialShipping(com.garage.garageapi.shipping.commercial.CommercialShippingSnapshot snapshot,String key){
+        if(commercialShipping!=null || assistedQuote!=null)throw new ResourceConflictException("Pedido já possui aceite.");
+        requestKey=key;
+        if(expiresAt.isAfter(snapshot.validUntil()))expiresAt=snapshot.validUntil();
+        commercialShipping=snapshot.bind(quoteContextDigest());
+    }
+    public void requireCommercialContextUnchanged(){
+        if(commercialShipping!=null && (!Instant.now().isBefore(commercialShipping.validUntil())
+                || !java.util.Objects.equals(commercialShipping.decisionCode(),shippingCode)
+                || !java.util.Objects.equals(commercialShipping.contextDigest(),quoteContextDigest())))
+            throw new ResourceConflictException("Tarifa expirada ou contexto alterado. Novo aceite necessário.");
+    }
     /** Canonical digest survives JSONB/NUMERIC round trips and binds the confirmed commercial snapshot. */
     private String quoteContextDigest() {
         var lines=items.stream().sorted(java.util.Comparator.comparing(OrderItem::getProductId)
@@ -200,6 +216,7 @@ public class Order {
             throw new ResourceConflictException("Endereço, itens, modalidade ou preço divergiram da cotação. Solicite uma nova cotação.");
     }
     public void requireAssistedDispatch() {
+        if(commercialShipping!=null)throw new ResourceConflictException("Encaminhamento de tarifa comercial exige reconferência manual e permanece bloqueado.");
         requireQuoteContextUnchanged();
         if (assistedQuote != null && (!"ACCEPTED".equals(assistedQuote.state())
                 || assistedQuote.dispatchCheckedAt() == null

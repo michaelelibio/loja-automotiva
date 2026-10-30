@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { Product } from '@/lib/products';
 import { useCart } from '@/context/CartContext';
 import { ProductVariantSelector } from './ProductVariantSelector';
+import { ImmediateFreightCalculator } from '@/components/ImmediateFreightCalculator';
 
 export function ProductPurchase({ product, available, selectedVariantId, onVariantChange }: {
   product: Product;
@@ -45,6 +46,8 @@ export function ProductPurchase({ product, available, selectedVariantId, onVaria
           Adicionar ao carrinho <span>↗</span>
         </button>
       </div>
+      {canAdd && <ImmediateFreightCalculator subtotal={product.price*quantity}
+        items={[{productId:Number(product.id),...(selectedVariantId?{variantId:Number(selectedVariantId)}:{}),quantity}]}/>}
       {added && <div className="purchase-feedback" role="status" aria-live="polite">
         <p><span aria-hidden="true">✓</span> Produto adicionado ao carrinho.</p>
         <div><Link href="/produtos">Continuar comprando <span aria-hidden="true">→</span></Link>

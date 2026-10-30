@@ -88,3 +88,51 @@ test('empty freight remains an unknown total in the admin confirmation form',()=
  const html=panel();assert.ok(html.includes('Consulta automática AliExpress'));assert.ok(html.includes('a confirmar'));
  assert.ok(html.includes('Atualizar dados do AliExpress'));assert.ok(html.includes('disabled'));
 });
+test('commercial freight administration covers all UFs without invented prices',()=>{
+ const {default:Page}=load('app/admin/fretes/page.tsx',{'next/link':props=>React.createElement('a',props),'@/lib/auth/tokenStorage':{getToken:()=>null},'@/components/admin/BulkFreightReview':{BulkFreightReview:()=>null}});
+ const html=renderToStaticMarkup(React.createElement(Page));
+ for(const uf of 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' '))assert.ok(html.includes('>'+uf+'</th>'));
+ assert.equal((html.match(/Sem evidência cadastrada/g)||[]).length,81);
+ assert.ok(html.includes('Salvar nova versão em rascunho'));assert.ok(!html.includes('R$ 24'));
+});
+
+test('product and cart calculator does not present unknown shipping as free',()=>{
+ const {ImmediateFreightCalculator}=load('components/ImmediateFreightCalculator.tsx',{'@/lib/api/shipping':{}});
+ const html=renderToStaticMarkup(React.createElement(ImmediateFreightCalculator,{items:[{productId:1,variantId:2,quantity:1}],subtotal:50}));
+ assert.ok(html.includes('CEP'));assert.ok(!html.includes('R$'));assert.ok(!html.includes('Grátis'));
+});
+
+test('national template creates 81 unknown inactive cells per actual scope without overwrites',()=>{
+ const helper=load('lib/admin/national-freight.ts');
+ const scope={category:'synthetic-category',supplierStoreId:'synthetic-store',originCountry:'CN'};
+ const doc=helper.prepareNational({reviewRows:[]},scope);
+ assert.equal(doc.reviewRows.length,81);assert.equal(new Set(doc.reviewRows.map(r=>r.rate.state)).size,27);
+ assert.ok(doc.reviewRows.every(r=>!r.approved&&r.rate.supplierFreightPerParcelBrl===null&&r.rate.customerFreightPerParcelBrl===null&&r.rate.evidence===null&&!r.rate.packagingVerified));
+ const marked={...doc,reviewRows:doc.reviewRows.map((r,i)=>i===0?{...r,rate:{...r.rate,customerFreightPerParcelBrl:'17.31'}}:r)};
+ const again=helper.prepareNational(marked,scope);assert.equal(again.reviewRows.length,81);assert.equal(again.reviewRows[0].rate.customerFreightPerParcelBrl,'17.31');
+ assert.equal(helper.prepareNational(again,{...scope,supplierStoreId:'another-synthetic-store'}).reviewRows.length,162);
+});
+
+test('national bulk price separates customer charges and clears approvals without inventing supplier costs',()=>{
+ const helper=load('lib/admin/national-freight.ts');let doc=helper.prepareNational({reviewRows:[]},{category:'test',supplierStoreId:'test',originCountry:'CN'});
+ doc.reviewRows[0].approved=true;const changed=helper.commercialPrice(doc,[0,1],'19.30');
+ assert.equal(changed.reviewRows[0].approved,false);assert.equal(changed.reviewRows[0].rate.customerFreightPerParcelBrl,'19.30');
+ assert.equal(changed.reviewRows[0].rate.supplierFreightPerParcelBrl,null);assert.equal(changed.reviewRows[2].rate.customerFreightPerParcelBrl,null);
+ assert.throws(()=>helper.commercialPrice(doc,[0],'-1'));assert.throws(()=>helper.commercialPrice(doc,[0],'1.001'));
+});
+
+test('national imports remove all approvals and reject duplicate or invalid UF selectors',()=>{
+ const helper=load('lib/admin/national-freight.ts');const doc=helper.prepareNational({reviewRows:[]},{category:'test',supplierStoreId:'test',originCountry:'CN'});
+ doc.reviewRows[0].approved=true;doc.rates=[{state:'SC'}];const imported=helper.importNational(JSON.stringify(doc));
+ assert.ok(imported.reviewRows.every(r=>!r.approved));assert.deepEqual(imported.rates,[]);
+ assert.throws(()=>helper.importNational(JSON.stringify({...doc,reviewRows:[doc.reviewRows[0],doc.reviewRows[0]]})));
+ assert.throws(()=>helper.importNational(JSON.stringify({...doc,reviewRows:[{rate:{...doc.reviewRows[0].rate,state:'XX'}}]})));
+ assert.throws(()=>helper.importNational('{}'));
+});
+
+test('national mass review exposes import, verification and explicit draft saving',()=>{
+ const {BulkFreightReview}=load('components/admin/BulkFreightReview.tsx',{'@/lib/auth/tokenStorage':{getToken:()=>null}});
+ const html=renderToStaticMarkup(React.createElement(BulkFreightReview,{versions:[],getBaseDocument:()=>({}),onSaved:async()=>{}}));
+ for(const label of ['Importar arquivo JSON','Preparar 27 UFs','Salvar revisão nacional como rascunho','Custos desconhecidos','Aprovar linhas filtradas'])assert.ok(html.includes(label),label);
+ assert.ok(!html.includes('Publicar automaticamente'));
+});

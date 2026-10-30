@@ -50,6 +50,7 @@ public class AliExpressFreightService {
 
     /** Covers unpaid legacy orders too; existing paid orders are never modified. */
     public static void requireConfirmedFreight(Order order) {
+        if(order.getCommercialShipping()!=null){order.requireCommercialContextUnchanged();return;}
         if (order.getItems().stream().anyMatch(item -> "ALIEXPRESS".equalsIgnoreCase(item.getSupplier())
                 && item.getFulfillmentType() != com.garage.garageapi.product.entity.FulfillmentType.LOCAL_STOCK)) {
             var quote = order.getAssistedQuote();

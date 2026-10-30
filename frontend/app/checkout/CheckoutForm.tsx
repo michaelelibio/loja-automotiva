@@ -37,6 +37,7 @@ export function CheckoutForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [recipient, setRecipient] = useState<AliExpressRecipientInput>(emptyRecipient);
   const [recipientErrors, setRecipientErrors] = useState<RecipientErrors>({});
+  const [resolvedQuoteKey,setResolvedQuoteKey]=useState('');
 
   useEffect(() => {
     if (!authLoading && !sessionError && !isAuthenticated) router.replace('/login');
@@ -70,13 +71,13 @@ export function CheckoutForm() {
   const requiresRecipient = cartProducts.some(({ product }) => product.requiresAliExpressRecipientData === true);
   const selectedShipping = shippingOptions.find((option) => option.code === selectedShippingCode) ?? null;
   const visualTotal = subtotal + (selectedShipping?.price ?? 0);
-  const quoteKey = selectedAddress && requestItems.length > 0 ? JSON.stringify({ addressId: selectedAddress.id, zipCode: selectedAddress.zipCode, items: requestItems }) : '';
+  const quoteKey = selectedAddress && requestItems.length > 0 ? JSON.stringify({ addressId: selectedAddress.id, address:selectedAddress, zipCode: selectedAddress.zipCode, items: requestItems }) : '';
 
   useEffect(() => {
     const controller = new AbortController();
+    requestKey.current=null;
     async function loadQuote() {
       setShippingOptions([]); setSelectedShippingCode(null); setShippingError(null);
-      if (requiresRecipient) { setShippingLoading(false); return; }
       if (!quoteKey) { setShippingLoading(false); return; }
       setShippingLoading(true);
       try {
@@ -98,7 +99,7 @@ export function CheckoutForm() {
         } else {
           setShippingError('Não foi possível calcular o frete. Confira o endereço e tente novamente.');
         }
-      } finally { if (!controller.signal.aborted) setShippingLoading(false); }
+      } finally { if (!controller.signal.aborted) {setShippingLoading(false);setResolvedQuoteKey(quoteKey);} }
     }
     void loadQuote();
     return () => controller.abort();
@@ -113,14 +114,15 @@ export function CheckoutForm() {
       setRecipientErrors(errors);
       if (Object.keys(errors).length) return setSubmitError('Confira os dados do destinatário destacados abaixo.');
     }
-    if (!requiresRecipient && !selectedShipping) return setSubmitError('Selecione uma opção de entrega válida.');
+    if (!selectedShipping && (!requiresRecipient || shippingOptions.length > 0)) return setSubmitError('Selecione uma opção de entrega válida.');
     setSubmitting(true);
     try {
       if (!requestKey.current) requestKey.current = crypto.randomUUID();
       const order = await createOrder({ addressId: selectedAddressId,
-        shippingCode: requiresRecipient ? 'ASSISTED_QUOTE' : selectedShipping!.code, items: requestItems,
+        shippingCode: selectedShipping?.code ?? 'ASSISTED_QUOTE', items: requestItems,
         ...(requiresRecipient ? { requestKey: requestKey.current } : {}),
-        ...(requiresRecipient ? { recipient } : {}) });
+        ...(requiresRecipient ? { recipient } : {}),
+        ...(selectedShipping?.code.startsWith('U_') && selectedAddress ? {expectedTotal:Math.round(visualTotal*100)/100,expectedAddress:{recipientName:selectedAddress.recipientName,zipCode:selectedAddress.zipCode,street:selectedAddress.street,number:selectedAddress.number,complement:selectedAddress.complement,neighborhood:selectedAddress.neighborhood,city:selectedAddress.city,state:selectedAddress.state}} : {}) });
       setRecipient(emptyRecipient); setRecipientErrors({});
       try { sessionStorage.setItem('garage-last-order', JSON.stringify(order)); } catch { /* detalhe também consulta a API */ }
       clearCart();
@@ -148,12 +150,12 @@ export function CheckoutForm() {
     </section>
     {requiresRecipient && <AliExpressRecipientFields value={recipient} onChange={(value) => { setRecipient(value); setRecipientErrors({}); }} errors={recipientErrors} disabled={submitting} />}
     <section className="checkout-fieldset"><h2>Entrega</h2>
-      {requiresRecipient && <p className="shipping-empty">Solicite a cotação para este endereço. Nossa equipe confirmará preço completo, impostos, frete e prazo no AliExpress. Você aceitará o total antes de pagar. Carrinhos com outros fornecedores devem ser separados.</p>}
+      {requiresRecipient && !selectedShipping && !shippingLoading && <p className="shipping-empty">Sem tarifa comercial válida? Solicite cotação assistida para este endereço. A equipe conferirá o preço completo antes do seu aceite. Carrinhos com outros fornecedores devem ser separados.</p>}
       {!selectedAddress && !addressesLoading && <p className="shipping-empty">Selecione um endereço para calcular o frete.</p>}
       {selectedAddress && requestItems.length === 0 && <p className="shipping-empty">Adicione produtos ao carrinho para calcular o frete.</p>}
       {shippingLoading && <div className="shipping-loading" role="status"><span aria-hidden="true" />Calculando frete...</div>}
       {!shippingLoading && shippingError && <div className="shipping-quote-error" role="alert"><p>{shippingError}</p><button type="button" onClick={() => setQuoteAttempt((value) => value + 1)}>Recalcular frete</button></div>}
       {!shippingLoading && !shippingError && shippingOptions.length > 0 && <div className="shipping-options">{shippingOptions.map((option) => <label className={`shipping-option ${selectedShippingCode === option.code ? 'selected' : ''}`} key={option.code}><div className="shipping-option-choice"><input type="radio" name="shipping" checked={selectedShippingCode === option.code} onChange={() => setSelectedShippingCode(option.code)} /><div><strong>{option.name}</strong><span>Estimativa: até {option.estimatedDays} {option.estimatedDays === 1 ? 'dia' : 'dias'}</span></div></div><strong>{currency.format(option.price)}</strong></label>)}</div>}
     </section>
-  </div><aside className="checkout-summary"><div className="summary-card"><p className="eyebrow">RESUMO DA COMPRA</p><h2>Seu pedido</h2><div className="summary-totals"><div><span>Produtos</span><strong>{currency.format(subtotal)}</strong></div><div><span>{selectedShipping?.name ?? 'Frete'}</span><strong>{selectedShipping ? currency.format(selectedShipping.price) : '—'}</strong></div><div className="summary-total"><span>Total</span><strong>{requiresRecipient ? 'A confirmar' : currency.format(visualTotal)}</strong></div></div><p className="summary-note">{requiresRecipient ? 'O total final será apresentado após a cotação da equipe. Você precisará aceitar antes de pagar.' : 'Esta é uma estimativa. Os valores definitivos serão confirmados pelo servidor ao criar o pedido.'}</p>{submitError && <p className="checkout-error" role="alert">{submitError}</p>}<button type="submit" className="checkout-button" disabled={submitting || requestItems.length === 0 || !selectedAddressId || (!requiresRecipient && (shippingLoading || !!shippingError || !selectedShipping))}>{submitting ? 'Registrando...' : requiresRecipient ? 'Solicitar cotação sem pagamento' : 'Finalizar pedido'}</button></div></aside></div></form></section>;
+  </div><aside className="checkout-summary"><div className="summary-card"><p className="eyebrow">RESUMO DA COMPRA</p><h2>Seu pedido</h2><div className="summary-totals"><div><span>Produtos</span><strong>{currency.format(subtotal)}</strong></div><div><span>{selectedShipping?.name ?? 'Frete'}</span><strong>{selectedShipping ? currency.format(selectedShipping.price) : '—'}</strong></div><div className="summary-total"><span>Total</span><strong>{selectedShipping ? currency.format(visualTotal) : 'A confirmar'}</strong></div></div><p className="summary-note">{requiresRecipient && !selectedShipping ? 'O total final será apresentado após a cotação da equipe. Você precisará aceitar antes de pagar.' : 'Esta é uma estimativa. Os valores definitivos serão confirmados pelo servidor ao criar o pedido.'}</p>{submitError && <p className="checkout-error" role="alert">{submitError}</p>}<button type="submit" className="checkout-button" disabled={submitting || resolvedQuoteKey!==quoteKey || requestItems.length === 0 || !selectedAddressId || shippingLoading || (!requiresRecipient && (!!shippingError || !selectedShipping))}>{submitting ? 'Registrando...' : requiresRecipient && !selectedShipping ? 'Solicitar cotação sem pagamento' : 'Confirmar pedido com total informado'}</button></div></aside></div></form></section>;
 }

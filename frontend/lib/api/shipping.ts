@@ -9,10 +9,9 @@ export class ShippingApiError extends Error {
 
 export async function quoteShipping(data: ShippingQuoteRequest, signal?: AbortSignal): Promise<ShippingQuoteResponse> {
   const token = tokenStorage.getToken();
-  if (!token) throw new ShippingApiError('Sessão não encontrada. Entre novamente.', 401);
   const response = await fetch(`${API_BASE}/api/shipping/quote`, {
     method: 'POST', signal,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   const text = await response.text();

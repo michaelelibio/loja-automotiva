@@ -58,7 +58,7 @@ function find(tree, predicate) {
   return null;
 }
 function checkout(ali, personal = recipient, freightError = null) {
-  const states = [[address], 7, false, null, freightError ? [] : [{ code: 'TEST', name: 'Frete simulado', price: 10 }], 'TEST', false, freightError, 0, false, null, personal, {}];
+  const states = [[address], 7, false, null, freightError ? [] : [{ code: ali ? 'U_SYNTHETIC' : 'TEST', name: 'Frete simulado', price: 10 }], ali ? 'U_SYNTHETIC' : 'TEST', false, freightError, 0, false, null, personal, {}, JSON.stringify({ addressId: 7, address, zipCode: address.zipCode, items: [{ productId: 1, variantId: 2, quantity: 1 }] })];
   let index = 0, payload, calls = 0;
   const { CheckoutForm } = load('app/checkout/CheckoutForm.tsx', {
     react: { ...React, useMemo: (fn) => fn(), useRef: (initial) => ({current:initial}), useEffect() {}, useState(initial) { const current = index++; if (!(current in states)) states[current] = initial; return [states[current], (value) => { states[current] = value; }]; } },
@@ -76,7 +76,7 @@ test('AliExpress checkout includes the three personal fields only after validati
   assert.ok(find(h.tree, (node) => node.type?.name === 'AliExpressRecipientFields'));
   await find(h.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(h.calls(), 1); assert.deepEqual(h.payload().recipient, recipient);
-  assert.equal(h.payload().addressId, 7); assert.ok(!('shippingAddress' in h.payload()));
+  assert.equal(h.payload().shippingCode, 'U_SYNTHETIC'); assert.equal(h.payload().expectedTotal, 60); assert.equal(h.payload().expectedAddress.street, address.street); assert.equal(h.payload().addressId, 7); assert.ok(!('shippingAddress' in h.payload()));
   const invalid = checkout(true, { ...recipient, cpf: '00000000000' });
   await find(invalid.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(invalid.calls(), 0);

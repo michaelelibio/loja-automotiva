@@ -20,6 +20,8 @@ import java.util.List;
 
 @Service
 public class PaymentAttemptService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final CheckoutProGateway checkoutProGateway;
@@ -46,6 +48,7 @@ public class PaymentAttemptService {
             throw new ResourceConflictException("Prazo para pagamento do pedido expirou");
         }
         com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(order);
+        if(order.getCommercialShipping()!=null) commercial.revalidate(order);
         Payment payment = paymentRepository
                 .findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(orderId, PaymentStatus.PENDING)
                 .orElseGet(() -> paymentRepository.saveAndFlush(
@@ -62,7 +65,7 @@ public class PaymentAttemptService {
         return new PreparedAttempt(payment.getId(), order.getId(), order.getTotal(),
                 order.getUser().getName(), order.getUser().getEmail(), payment.getIdempotencyKey(),
                 items, order.getShippingCost(), order.getShippingName(), completed,
-                order.getAssistedQuote()==null ? null : order.getExpiresAt());
+                order.getAssistedQuote()==null && order.getCommercialShipping()==null ? null : order.getExpiresAt());
     }
 
     @Transactional
@@ -72,6 +75,7 @@ public class PaymentAttemptService {
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
         com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(payment.getOrder());
+        if(payment.getOrder().getCommercialShipping()!=null) commercial.revalidate(payment.getOrder());
         if (payment.getOrder().getStatus() != OrderStatus.PENDING_PAYMENT
                 || !Instant.now().isBefore(payment.getOrder().getExpiresAt())
                 || request.total().compareTo(payment.getOrder().getTotal()) != 0)

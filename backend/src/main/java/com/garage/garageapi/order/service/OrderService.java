@@ -36,6 +36,8 @@ import java.util.TreeMap;
 
 @Service
 public class OrderService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
     private static final BigDecimal ZERO_MONEY = new BigDecimal("0.00");
 
     private final OrderRepository orderRepository;
@@ -131,7 +133,15 @@ public class OrderService {
         if (assisted && (request.requestKey() == null || snapshots.stream().anyMatch(line ->
                 !"ALIEXPRESS".equalsIgnoreCase(line.product().getSupplier()) || line.variant() == null || line.quantity()>1000)))
             throw new ResourceConflictException("Solicite cotação com variantes AliExpress e chave de solicitação. Separe produtos de outros fornecedores.");
-        ShippingProvider.Option shipping = assisted
+        boolean immediate=aliExpressRequired && request.shippingCode()!=null && request.shippingCode().startsWith("U_");
+        if(aliExpressRequired && !assisted && !immediate) throw new ResourceConflictException("Selecione uma tarifa comercial válida ou solicite cotação assistida.");
+        var decision=immediate?commercial.evaluate(new ShippingProvider.Request(address.getZipCode(),shippingItems)):null;
+        if(immediate && (request.requestKey()==null || !request.shippingCode().equals(decision.option().code())
+                || request.expectedTotal()==null || subtotal.add(decision.option().price()).compareTo(request.expectedTotal())!=0
+                || request.expectedAddress()==null || !request.expectedAddress().matches(address)
+                || !address.getState().equals(decision.snapshot().state())))
+            throw new ResourceConflictException("Endereço, itens, tarifa ou total divergiram. Confira os valores e confirme novamente.");
+        ShippingProvider.Option shipping = immediate ? decision.option() : assisted
                 ? new ShippingProvider.Option("ASSISTED_QUOTE", "Frete aguardando cotação", ZERO_MONEY, 0,
                     "ALIEXPRESS", null, "BRL", List.of())
                 : shippingService.select(address.getZipCode(), shippingItems, request.shippingCode());
@@ -142,6 +152,7 @@ public class OrderService {
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.variant(), snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
         orderRepository.saveAndFlush(order);
+        if(immediate) {order.agreeCommercialShipping(decision.snapshot(),request.requestKey());orderRepository.flush();}
         fulfillmentInitializer.initialize(order);
         products.stream().filter(Product::requiresLocalStock)
                 .forEach(product -> stockService.recordSale(product,

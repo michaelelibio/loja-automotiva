@@ -26,6 +26,8 @@ import java.util.TreeMap;
 
 @Service
 public class ShippingService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
     public static final String DEFAULT_OPTION_CODE = "STANDARD";
 
     private final ShippingProvider shippingProvider;
@@ -59,6 +61,11 @@ public class ShippingService {
 
     public ShippingProvider.Option select(String zipCode, List<ShippingProvider.Item> items,
                                           String requestedCode) {
+        if(requestedCode!=null && requestedCode.startsWith("U_")) {
+            var decision=commercial.evaluate(new ShippingProvider.Request(normalizeZipCode(zipCode),items));
+            if(!requestedCode.equals(decision.option().code())) throw new ResourceConflictException("Tarifa, itens ou preço mudaram. Confira o novo total e aceite novamente.");
+            return decision.option();
+        }
         List<ShippingProvider.Option> quoted = options(normalizeZipCode(zipCode), items);
         if (requestedCode == null || requestedCode.isBlank()) return quoted.get(0);
         String code = normalizeShippingCode(requestedCode);

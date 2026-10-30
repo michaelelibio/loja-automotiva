@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useProducts } from '@/lib/useProducts';
 import { products as fallbackProducts } from '@/data/products';
+import { ImmediateFreightCalculator } from '@/components/ImmediateFreightCalculator';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -22,6 +23,7 @@ export function CartView() {
     return product ? [{ ...item, product }] : [];
   });
   const total = cartProducts.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const freightItems=cartProducts.map(({product,variantId,quantity})=>({productId:Number(product.id),...(variantId?{variantId:Number(variantId)}:{}),quantity}));
 
   if (cartProducts.length === 0) {
     return <section className="cart-section empty-cart"><p className="eyebrow">Nada por aqui ainda</p><h2>Seu carrinho está vazio</h2><Link className="button button-light" href="/produtos">Continuar comprando <span>↗</span></Link></section>;
@@ -40,7 +42,7 @@ export function CartView() {
           </article>
         ))}
       </div>
-      <aside className="cart-summary"><div><span>Subtotal geral</span><strong>{currency.format(total)}</strong></div><Link className="add-cart-button" href="/checkout">Finalizar compra <span>↗</span></Link><Link className="text-link" href="/produtos">Continuar comprando <span>↗</span></Link></aside>
+      <aside className="cart-summary"><ImmediateFreightCalculator items={freightItems} subtotal={total}/><div><span>Subtotal geral</span><strong>{currency.format(total)}</strong></div><Link className="add-cart-button" href="/checkout">Finalizar compra <span>↗</span></Link><Link className="text-link" href="/produtos">Continuar comprando <span>↗</span></Link></aside>
     </section>
   );
 }

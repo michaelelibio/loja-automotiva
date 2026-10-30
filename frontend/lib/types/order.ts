@@ -2,7 +2,7 @@ export type OrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PROCESSING' | 'SHIPPED' 
 export type CreateOrderItemRequest = { productId: number; variantId?: number; quantity: number };
 export type QuoteSummary = { state: string; revision: number; validUntil: string | null; acceptedAt: string | null };
 export type CreateOrderRequest = { requestKey?: string; addressId: number; shippingCode: string; items: CreateOrderItemRequest[];
-  recipient?: { cpf: string; birthDate: string; phone: string } };
+  recipient?: { cpf: string; birthDate: string; phone: string }; expectedTotal?: number; expectedAddress?: ShippingAddress };
 export type OrderItem = { productId: number; productName: string; productSlug: string;
   productVariantId: number | null; variantName: string | null;
   fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING' | null;
