@@ -149,6 +149,8 @@ public class Order {
     private String requestKey;
 
     public com.garage.garageapi.order.quote.AssistedQuote getAssistedQuote() { return assistedQuote; }
+    public void identifyRequest(String key) { this.requestKey = java.util.Objects.requireNonNull(key); }
+
     public void requestAssistedQuote(String key) {
         if (assistedQuote != null) throw new ResourceConflictException("Cotação já solicitada.");
         requestKey = key;
@@ -272,6 +274,10 @@ public class Order {
     }
 
     public void addItem(OrderItem item) { items.add(item); }
+
+    public void limitExpiration(Instant deadline) {
+        if (deadline.isBefore(expiresAt)) expiresAt = deadline;
+    }
 
     @PrePersist
     void onCreate() {

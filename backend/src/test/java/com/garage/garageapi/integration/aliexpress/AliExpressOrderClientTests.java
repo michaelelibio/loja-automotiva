@@ -31,7 +31,9 @@ class AliExpressOrderClientTests {
                 var parts=pair.split("=",2);params.put(URLDecoder.decode(parts[0],StandardCharsets.UTF_8),URLDecoder.decode(parts[1],StandardCharsets.UTF_8));
             }
             assertThat(params).containsEntry("method","aliexpress.trade.buy.placeorder").containsEntry("session","synthetic-token");
-            assertThat(params.get("param_place_order_request4_open_api_d_t_o")).contains("INGARAGE-123");
+            assertThat(params.get("param_place_order_request4_open_api_d_t_o"))
+                    .contains("logistics_address","product_items","product_id","product_count")
+                    .doesNotContain("out_order_id","ds_extend_request","shipping_price");
             String signature=params.remove("sign");StringBuilder canonical=new StringBuilder();params.forEach((k,v)->canonical.append(k).append(v));
             try {
                 var mac=javax.crypto.Mac.getInstance("HmacSHA256");mac.init(new javax.crypto.spec.SecretKeySpec("synthetic-secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
@@ -61,5 +63,8 @@ class AliExpressOrderClientTests {
         var builder=RestClient.builder();var empty=MockRestServiceServer.bindTo(builder).build();
         assertThat(new AliExpressOrderClient(builder.build(),"key","secret",false).create(Map.of(),"token")).isEqualTo(AliExpressOrderClient.Result.unknown());empty.verify();
     }
-    private AliExpressOrderClient.Result query() {return client.create(Map.of("out_order_id","INGARAGE-123"),"synthetic-token");}
+    private AliExpressOrderClient.Result query() {
+        return client.create(Map.of("logistics_address",Map.of("country","BR","address","Rua Teste, 10"),
+                "product_items",List.of(Map.of("product_id",1005010661577657L,"product_count",1))),"synthetic-token");
+    }
 }

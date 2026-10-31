@@ -23,13 +23,30 @@ test('manual API calls use ADMIN token and never forward client payment, address
   const api = load('lib/api/admin/orders.ts', { '@/lib/auth/tokenStorage': { getToken: () => 'test-admin-token' } });
   const calls = [];
   global.fetch = async (url, init) => { calls.push({ url, init }); return Response.json(state); };
-  await api.getAdminAliExpressOrder(123); await api.sendAdminAliExpressOrder(123);
+  await api.getAdminAliExpressOrder(123); await api.sendAdminAliExpressOrder(123); await api.syncAdminAliExpressOrder(123);
   assert.ok(calls[0].url.endsWith('/api/admin/orders/123/aliexpress'));
   assert.ok(calls[1].url.endsWith('/api/admin/orders/123/aliexpress/send'));
   assert.equal(calls[1].init.method, 'POST'); assert.equal(calls[1].init.headers.Authorization, 'Bearer test-admin-token');
   assert.equal(calls[1].init.body, undefined);
+  assert.ok(calls[2].url.endsWith('/api/admin/orders/123/aliexpress/sync'));
+  assert.equal(calls[2].init.method, 'POST'); assert.equal(calls[2].init.body, undefined);
   global.fetch = async () => new Response('private-provider-response token-secret', { status: 500 });
   await assert.rejects(api.sendAdminAliExpressOrder(123), (error) => { assert.doesNotMatch(error.message, /private|secret/); return true; });
+});
+test('split supplier orders show every exact ID and independent verified status', () => {
+  const { AliExpressOrderState } = load('components/admin/AliExpressOrderAction.tsx', mocks);
+  const ids=['90000000000000001','90000000000000002','90000000000000003','90000000000000004'];
+  const parts=ids.map((orderId,i)=>({orderId,state:['AWAITING_MANUAL_PAYMENT','PAYMENT_CONFIRMED','AWAITING_SHIPMENT','SHIPPED'][i],verified:true,checkedAt:'2026-10-30T12:00:00Z'}));
+  const html=renderToStaticMarkup(React.createElement(AliExpressOrderState,{state:{...state,status:'CREATED',supplierOrderIds:ids,supplierSync:{checkedAt:'2026-10-30T12:00:00Z',inProgress:false,parts}}}));
+  for(const id of ids) assert.ok(html.includes(id));
+  for(const label of ['Aguardando pagamento manual','Pagamento ao fornecedor confirmado','Aguardando envio','Enviado']) assert.ok(html.includes(label));
+  assert.ok(html.includes('Consultado em'));assert.ok(!html.includes('Marcar como pago'));
+});
+test('failed lookup cannot visually confirm payment and old results are identified during sync', () => {
+  const { AliExpressOrderState } = load('components/admin/AliExpressOrderAction.tsx', mocks);
+  const html=renderToStaticMarkup(React.createElement(AliExpressOrderState,{state:{...state,status:'CREATED',supplierOrderIds:['123'],supplierSync:{checkedAt:'2026-10-30T12:00:00Z',inProgress:true,parts:[{orderId:'123',state:'PAYMENT_CONFIRMED',verified:false,checkedAt:'2026-10-30T12:00:00Z'}]}}}));
+  assert.ok(html.includes('Status desconhecido'));assert.ok(html.includes('desatualizados'));
+  assert.ok(!html.includes('Pagamento ao fornecedor confirmado'));
 });
 test('created, rejected and ambiguous states show persisted supplier status without claiming delivery', () => {
   const { AliExpressOrderState } = load('components/admin/AliExpressOrderAction.tsx', mocks);
@@ -46,7 +63,7 @@ function find(tree, predicate) {
   return null;
 }
 async function harness(initial, fails = false) {
-  const states = [], refs = []; let cursor, refCursor, first = true, calls = 0, resolve, reject, updated = 0;
+  const states = [], refs = []; let cursor, refCursor, first = true, calls = 0, resolve, reject, updated = 0, syncCalls = 0, resolveSync;
   const effects = [];
   const { AliExpressOrderAction } = load('components/admin/AliExpressOrderAction.tsx', { ...mocks,
     react: { ...React,
@@ -58,12 +75,26 @@ async function harness(initial, fails = false) {
       AdminOrderApiError: class extends Error {},
       getAdminAliExpressOrder: async () => calls && fails ? { ...initial, status: 'VERIFICATION_REQUIRED', canSend: false } : initial,
       sendAdminAliExpressOrder() { calls++; return new Promise((res, rej) => { resolve = res; reject = rej; }); },
+      syncAdminAliExpressOrder() { syncCalls++; return new Promise(res => { resolveSync = res; }); },
     },
   });
   function render() { cursor = 0; refCursor = 0; const tree = AliExpressOrderAction({ orderId: 123, onUpdated: () => updated++ }); if (first) { first = false; effects.forEach((effect) => effect()); } return tree; }
   render(); await Promise.resolve();
-  return { render, calls: () => calls, updated: () => updated, resolve: (value) => resolve(value), reject: () => reject(new Error('timeout')) };
+  return { render, calls: () => calls, updated: () => updated, resolve: (value) => resolve(value), reject: () => reject(new Error('timeout')),
+    syncCalls: () => syncCalls, resolveSync: value => resolveSync(value) };
 }
+
+test('supplier sync waits for backend proof, blocks duplicate clicks and never calls creation', async () => {
+  const h=await harness({...state,status:'CREATED',canSend:false,paymentConfirmed:false,supplierOrderIds:['123']});
+  const button=find(h.render(),node=>node.type==='button' && node.props.children==='Atualizar situação no AliExpress');
+  button.props.onClick();button.props.onClick();assert.equal(h.syncCalls(),1);assert.equal(h.calls(),0);
+  const before=find(h.render(),node=>node.type?.name==='AliExpressOrderState');
+  assert.equal(before.props.state.supplierSync,undefined);
+  h.resolveSync({...state,status:'CREATED',canSend:false,supplierOrderIds:['123'],supplierSync:{checkedAt:'2026-10-30T12:00:00Z',inProgress:false,parts:[{orderId:'123',state:'PAYMENT_CONFIRMED',verified:true,checkedAt:'2026-10-30T12:00:00Z'}]}});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.updated(),1);assert.equal(h.calls(),0);
+  assert.equal(find(h.render(),node=>node.type?.name==='AliExpressOrderState').props.state.supplierSync.parts[0].verified,true);
+});
 test('pending payments have no send button and missing prerequisites disable the paid action', async () => {
   const unpaid = await harness({ ...state, paymentConfirmed: false }); assert.equal(unpaid.render(), null);
   const blocked = await harness({ ...state, canSend: false, blockReason: 'CPF e frete não confirmados.' });

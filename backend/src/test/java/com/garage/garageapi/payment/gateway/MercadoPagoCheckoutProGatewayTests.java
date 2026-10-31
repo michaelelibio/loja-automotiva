@@ -15,6 +15,19 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class MercadoPagoCheckoutProGatewayTests {
+    @Test void liveModeComesOnlyFromAuthenticatedPaymentLookupAndMustBeBoolean() {
+        for(String value:new String[]{"true","false","null","\"true\"","0","absent"}) {
+            var builder=RestClient.builder().baseUrl("https://api.mercadopago.com");
+            var server=MockRestServiceServer.bindTo(builder).build();
+            String body="{\"id\":\"123\",\"status\":\"approved\""+("absent".equals(value)?"":",\"live_mode\":"+value)+"}";
+            server.expect(requestTo("https://api.mercadopago.com/v1/payments/123"))
+                    .andExpect(method(HttpMethod.GET)).andExpect(header("Authorization","Bearer synthetic-token"))
+                    .andRespond(withSuccess(body,MediaType.APPLICATION_JSON));
+            var gateway=new MercadoPagoCheckoutProGateway(builder.build(),"synthetic-token","","","","",false,false);
+            Boolean expected="true".equals(value)?Boolean.TRUE:"false".equals(value)?Boolean.FALSE:null;
+            assertThat(gateway.findPayment("123").liveMode()).isEqualTo(expected);server.verify();
+        }
+    }
     @Test
     void createsSandboxPreferenceWithItemsShippingAndConfiguredUrls() {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.mercadopago.com");

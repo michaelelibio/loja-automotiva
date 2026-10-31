@@ -23,8 +23,9 @@ public class AliExpressOrderClient {
     private final boolean enabled;
     @Autowired
     public AliExpressOrderClient(@Value("${aliexpress.app-key:}") String key,@Value("${aliexpress.app-secret:}") String secret,
-            @Value("${aliexpress.orders.enabled:false}") boolean enabled,@Value("${aliexpress.orders.contract-confirmed:false}") boolean confirmed) {
-        this(defaultClient(),key,secret,enabled && confirmed);
+            @Value("${aliexpress.orders.enabled:false}") boolean enabled,@Value("${aliexpress.orders.contract-confirmed:false}") boolean confirmed,
+            AliExpressPlaceOrderPermission permission) {
+        this(defaultClient(),key,secret,enabled && confirmed && permission.verified());
     }
     AliExpressOrderClient(RestClient client,String key,String secret,boolean enabled) {
         this.client=client;this.key=key;this.secret=secret;this.enabled=enabled;

@@ -3,11 +3,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { AdminOrderApiError, getAdminAliExpressOrder, sendAdminAliExpressOrder } from '@/lib/api/admin/orders';
+import { AdminOrderApiError, getAdminAliExpressOrder, sendAdminAliExpressOrder, syncAdminAliExpressOrder } from '@/lib/api/admin/orders';
 import type { AdminAliExpressOrder } from '@/lib/types/admin-order';
 
 export function AliExpressOrderState({ state }: { state: AdminAliExpressOrder }) {
-  if (state.status === 'CREATED') return <div role="status"><strong>Enviado ao fornecedor</strong><small>Aguardando pagamento manual ao fornecedor</small></div>;
+  if (state.status === 'CREATED') return <div role="status"><strong>Enviado ao fornecedor</strong>
+    {!state.supplierSync?.checkedAt && <small>Aguardando pagamento manual ao fornecedor — situação ainda não consultada</small>}
+    {state.supplierSync?.inProgress && <p>Consulta em andamento. Os resultados anteriores podem estar desatualizados.</p>}
+    <ul>{(state.supplierOrderIds ?? []).map(id => {
+      const part = state.supplierSync?.parts.find(item => item.orderId === id);
+      const labels: Record<string, string> = { AWAITING_MANUAL_PAYMENT: 'Aguardando pagamento manual',
+        PAYMENT_CONFIRMED: 'Pagamento ao fornecedor confirmado', AWAITING_SHIPMENT: 'Aguardando envio',
+        SHIPPED: 'Enviado', PARTIALLY_SHIPPED: 'Enviado parcialmente', FAILED: 'Falha ou cancelamento', UNKNOWN: 'Status desconhecido' };
+      return <li key={id}><strong>AliExpress #{id}</strong><span>{part?.verified ? labels[part.state] ?? 'Status desconhecido' : 'Status desconhecido — sem confirmação do fornecedor'}</span>
+        {part && <small>Consultado em {new Date(part.checkedAt).toLocaleString('pt-BR')}. {part.verified ? 'Confirmado por consulta AliExpress.' : 'Consulta não confirmou o estado; confira no AliExpress.'}</small>}</li>;
+    })}</ul><small>Pagamento ao AliExpress exclusivamente manual. Confira a situação atual no fornecedor antes de pagar.</small>
+  </div>;
   if (state.status === 'VERIFICATION_REQUIRED' || state.status === 'PROCESSING') return <p role="status">Verificação necessária. Reenvio bloqueado até reconciliação.</p>;
   if (state.status === 'FAILED') return <p role="alert">{state.lastError || 'O AliExpress recusou a criação do pedido.'}</p>;
   return null;
@@ -20,6 +31,7 @@ export function AliExpressOrderAction({ orderId, onUpdated }: { orderId: number;
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const busy = useRef(false); const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -44,11 +56,21 @@ export function AliExpressOrderAction({ orderId, onUpdated }: { orderId: number;
       try { setState(await getAdminAliExpressOrder(orderId)); onUpdated(); } catch { /* Keep the local uncertainty block. */ }
     } finally { busy.current = false; setSending(false); setConfirming(false); }
   }
+  async function sync() {
+    if (busy.current || syncing) return;
+    busy.current = true; setSyncing(true); setError(null);
+    try { setState(await syncAdminAliExpressOrder(orderId)); onUpdated(); }
+    catch (cause) {
+      setError('Não foi possível atualizar o fornecedor. Nenhum pagamento ou novo pedido foi realizado.');
+      if (cause instanceof AdminOrderApiError && cause.status === 401) { logout(); router.replace('/login'); }
+    } finally { busy.current = false; setSyncing(false); }
+  }
   if (error && !state) return <small role="alert">{error}</small>;
-  if (!state?.applicable || !state.paymentConfirmed) return null;
+  if (!state?.applicable || (!state.paymentConfirmed && state.status !== 'CREATED')) return null;
   const finished = state.status === 'CREATED' || state.status === 'VERIFICATION_REQUIRED' || state.status === 'PROCESSING';
   return <div className="admin-aliexpress-order-action">
     <AliExpressOrderState state={state} />
+    {state.status === 'CREATED' && <button type="button" disabled={syncing || sending} onClick={() => void sync()}>{syncing ? 'Consultando...' : 'Atualizar situação no AliExpress'}</button>}
     {!finished && <><button type="button" disabled={!state.canSend || sending || uncertain} onClick={() => setConfirming(true)}>Enviar ao AliExpress</button>{state.blockReason && <small>{state.blockReason}</small>}</>}
     {error && <small role="alert">{error}</small>}
     <dialog ref={dialog} className="admin-aliexpress-order-dialog" aria-labelledby={`ali-order-title-${orderId}`} onCancel={(event) => { if (busy.current) event.preventDefault(); else setConfirming(false); }}>

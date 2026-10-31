@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+@org.springframework.context.annotation.Profile("local-freight & !controlled & !production & !prod")
 @RestController
 public class AssistedQuoteController {
     private final AssistedQuoteService service;

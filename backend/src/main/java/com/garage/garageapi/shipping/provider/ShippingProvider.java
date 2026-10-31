@@ -9,7 +9,11 @@ public interface ShippingProvider {
 
     record Request(String zipCode, List<Item> items) { }
     record Item(Long productId, Long productVariantId, int quantity, BigDecimal unitPrice,
-                FulfillmentType fulfillmentType, String supplier, String supplierVariantId) {
+                FulfillmentType fulfillmentType, String supplier, String supplierVariantId, String supplierProductId) {
+        public Item(Long productId, Long productVariantId, int quantity, BigDecimal unitPrice,
+                    FulfillmentType fulfillmentType, String supplier, String supplierVariantId) {
+            this(productId, productVariantId, quantity, unitPrice, fulfillmentType, supplier, supplierVariantId, null);
+        }
         public Item(Long productId, int quantity, BigDecimal unitPrice) {
             this(productId, null, quantity, unitPrice, FulfillmentType.LOCAL_STOCK, null, null);
         }

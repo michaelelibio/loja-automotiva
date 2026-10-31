@@ -52,13 +52,13 @@ export function retryAdminOrderFulfillment(id: number): Promise<AdminOrderFulfil
   });
 }
 
-async function aliExpressOrderRequest(id: number, send: boolean): Promise<AdminAliExpressOrder> {
+async function aliExpressOrderRequest(id: number, send: boolean, sync = false): Promise<AdminAliExpressOrder> {
   const token = tokenStorage.getToken();
   if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
   let response: Response;
   try {
-    response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress${send ? '/send' : ''}`, {
-      method: send ? 'POST' : 'GET', cache: 'no-store', headers: { Authorization: `Bearer ${token}` },
+    response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress${sync ? '/sync' : send ? '/send' : ''}`, {
+      method: send || sync ? 'POST' : 'GET', cache: 'no-store', headers: { Authorization: `Bearer ${token}` },
     });
   } catch { throw new AdminOrderApiError('Não foi possível confirmar o resultado. Atualize o pedido antes de continuar.', 0); }
   if (!response.ok) throw new AdminOrderApiError(response.status === 409
@@ -74,6 +74,7 @@ async function aliExpressOrderRequest(id: number, send: boolean): Promise<AdminA
 
 export function getAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false); }
 export function sendAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, true); }
+export function syncAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false, true); }
 
 export function assistedQuoteAction(id: number, action: string, data?: unknown): Promise<unknown> {
   return request(endpoint+'/'+id+'/quote'+(action ? '/'+action : ''), {method:'POST',headers:{'Content-Type':'application/json'},...(data ? {body:JSON.stringify(data)} : {})});

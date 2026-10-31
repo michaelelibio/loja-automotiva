@@ -1,5 +1,10 @@
 HELP.md
 target/
+target-checkout-validation/
+.checkout-pg/
+test-clean-*.log
+test-operation-*.log
+init-clean-checkout.log
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

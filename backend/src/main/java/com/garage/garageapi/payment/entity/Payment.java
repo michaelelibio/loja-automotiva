@@ -73,6 +73,19 @@ public class Payment {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    @Column(name = "provider_live_mode")
+    private Boolean providerLiveMode;
+    @Column(name = "provider_verified_at")
+    private Instant providerVerifiedAt;
+
+    public Boolean getProviderLiveMode() { return providerLiveMode; }
+    public Instant getProviderVerifiedAt() { return providerVerifiedAt; }
+    /** Called only after validating the authenticated provider lookup and its order association. */
+    public void recordProviderEnvironment(Boolean liveMode, Instant checkedAt) {
+        providerLiveMode = liveMode;
+        providerVerifiedAt = checkedAt;
+    }
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

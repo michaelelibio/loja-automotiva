@@ -43,6 +43,11 @@ public class ShippingService {
 
     @Transactional(readOnly = true)
     public ShippingQuoteResponse quote(ShippingQuoteRequest request) {
+        return new ShippingQuoteResponse(options(normalizeZipCode(request.zipCode()), resolveItems(request)).stream()
+                .map(ShippingOptionResponse::from).toList());
+    }
+
+    public List<ShippingProvider.Item> resolveItems(ShippingQuoteRequest request) {
         Map<ItemKey, Integer> lines = aggregate(request.items());
         Map<Long, Integer> quantities = aggregateProducts(lines);
         List<Product> products = new ArrayList<>(productRepository.findAllById(quantities.keySet()));
@@ -55,8 +60,7 @@ public class ShippingService {
             ProductVariant variant = resolveVariant(product, entry.getKey().variantId());
             return item(product, variant, entry.getValue());
         }).toList();
-        return new ShippingQuoteResponse(options(normalizeZipCode(request.zipCode()), items).stream()
-                .map(ShippingOptionResponse::from).toList());
+        return items;
     }
 
     public ShippingProvider.Option select(String zipCode, List<ShippingProvider.Item> items,
@@ -84,7 +88,8 @@ public class ShippingService {
         return new ShippingProvider.Item(product.getId(), variant == null ? null : variant.getId(),
                 quantity, product.getPrice().setScale(2, RoundingMode.HALF_UP),
                 product.getFulfillmentType(), product.getSupplier(),
-                variant == null ? null : variant.getSupplierVariantId());
+                variant == null ? null : variant.getSupplierVariantId(),
+                variant == null ? null : variant.getSupplierProductId());
     }
 
     private List<ShippingProvider.Option> options(String zipCode, List<ShippingProvider.Item> items) {

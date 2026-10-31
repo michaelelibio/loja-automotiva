@@ -6,14 +6,19 @@ export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' |
 export type AdminAliExpressOrder = {
   orderId: number; applicable: boolean; paymentConfirmed: boolean; canSend: boolean;
   status: AdminFulfillmentStatus; blockReason: string | null;
-  supplierStatus: 'AWAITING_MANUAL_PAYMENT' | 'REJECTED' | 'UNKNOWN' | null;
+  supplierStatus: string | null;
   supplierOrderIds: string[]; lastError: string | null;
   submittedAt: string | null; createdExternallyAt: string | null;
+  supplierSync?: { startedAt: string; checkedAt: string | null; inProgress: boolean; parts: SupplierOrderPart[] } | null;
 };
+
+export type SupplierOrderPart = { orderId: string; state: string; orderStatus: string | null;
+  logisticsStatus: string | null; verified: boolean; checkedAt: string; failureCode: string | null };
 
 export type AdminOrderFulfillment = {
   orderId: number; status: AdminFulfillmentStatus; provider: string;
   supplierOrderId: string | null; supplierShipmentOrderId: string | null;
+  supplierOrderIds?: string[]; supplierStatus?: string | null;
   attemptCount: number; lastError: string | null; processingStartedAt: string | null;
   createdExternallyAt: string | null; updatedAt: string;
 };

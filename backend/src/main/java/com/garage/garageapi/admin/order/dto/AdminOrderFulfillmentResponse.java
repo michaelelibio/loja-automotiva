@@ -15,13 +15,16 @@ public record AdminOrderFulfillmentResponse(
         String lastError,
         Instant processingStartedAt,
         Instant createdExternallyAt,
-        Instant updatedAt
+        Instant updatedAt,
+        java.util.List<String> supplierOrderIds,
+        String supplierStatus
 ) {
     public static AdminOrderFulfillmentResponse from(OrderFulfillment fulfillment) {
         return new AdminOrderFulfillmentResponse(fulfillment.getOrder().getId(), fulfillment.getStatus(),
                 fulfillment.getProvider(), fulfillment.getSupplierOrderId(),
                 fulfillment.getSupplierShipmentOrderId(), fulfillment.getAttemptCount(),
                 fulfillment.getLastError(), fulfillment.getProcessingStartedAt(),
-                fulfillment.getCreatedExternallyAt(), fulfillment.getUpdatedAt());
+                fulfillment.getCreatedExternallyAt(), fulfillment.getUpdatedAt(),
+                fulfillment.getSupplierOrderIds(),fulfillment.getSupplierStatus());
     }
 }

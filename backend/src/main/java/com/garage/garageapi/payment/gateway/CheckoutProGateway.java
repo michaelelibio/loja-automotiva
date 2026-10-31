@@ -25,5 +25,12 @@ public interface CheckoutProGateway {
 
     record PaymentResult(String providerPaymentId, String externalReference, PaymentStatus status,
                          String statusDetail, BigDecimal transactionAmount, String currencyId,
-                         String paymentType, String paymentMethodId, Instant approvedAt) { }
+                         String paymentType, String paymentMethodId, Instant approvedAt, Boolean liveMode) {
+        public PaymentResult(String providerPaymentId, String externalReference, PaymentStatus status,
+                String statusDetail, BigDecimal transactionAmount, String currencyId,
+                String paymentType, String paymentMethodId, Instant approvedAt) {
+            this(providerPaymentId,externalReference,status,statusDetail,transactionAmount,currencyId,
+                    paymentType,paymentMethodId,approvedAt,null);
+        }
+    }
 }

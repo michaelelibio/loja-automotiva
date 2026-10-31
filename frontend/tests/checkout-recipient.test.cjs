@@ -58,7 +58,7 @@ function find(tree, predicate) {
   return null;
 }
 function checkout(ali, personal = recipient, freightError = null) {
-  const states = [[address], 7, false, null, freightError ? [] : [{ code: ali ? 'U_SYNTHETIC' : 'TEST', name: 'Frete simulado', price: 10 }], ali ? 'U_SYNTHETIC' : 'TEST', false, freightError, 0, false, null, personal, {}, JSON.stringify({ addressId: 7, address, zipCode: address.zipCode, items: [{ productId: 1, variantId: 2, quantity: 1 }] })];
+  const states = [[address], 7, false, null, freightError ? [] : [{ code: 'CATALOG_FREE', name: 'Entrega gr?tis', price: 0 }], 'CATALOG_FREE', false, freightError, 0, false, null, personal, {}, JSON.stringify({ addressId: 7, address, zipCode: address.zipCode, items: [{ productId: 1, variantId: 2, quantity: 1 }] })];
   let index = 0, payload, calls = 0;
   const { CheckoutForm } = load('app/checkout/CheckoutForm.tsx', {
     react: { ...React, useMemo: (fn) => fn(), useRef: (initial) => ({current:initial}), useEffect() {}, useState(initial) { const current = index++; if (!(current in states)) states[current] = initial; return [states[current], (value) => { states[current] = value; }]; } },
@@ -76,7 +76,7 @@ test('AliExpress checkout includes the three personal fields only after validati
   assert.ok(find(h.tree, (node) => node.type?.name === 'AliExpressRecipientFields'));
   await find(h.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(h.calls(), 1); assert.deepEqual(h.payload().recipient, recipient);
-  assert.equal(h.payload().shippingCode, 'U_SYNTHETIC'); assert.equal(h.payload().expectedTotal, 60); assert.equal(h.payload().expectedAddress.street, address.street); assert.equal(h.payload().addressId, 7); assert.ok(!('shippingAddress' in h.payload()));
+  assert.equal(h.payload().shippingCode, 'CATALOG_FREE'); assert.equal(h.payload().expectedTotal, 50); assert.equal(h.payload().expectedAddress.street, address.street); assert.equal(h.payload().addressId, 7); assert.ok(!('shippingAddress' in h.payload()));
   const invalid = checkout(true, { ...recipient, cpf: '00000000000' });
   await find(invalid.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(invalid.calls(), 0);
@@ -88,14 +88,50 @@ test('other suppliers keep the existing checkout and never send unnecessary pers
   assert.equal(h.calls(), 1); assert.ok(!('recipient' in h.payload()));
 });
 
-test('unconfirmed AliExpress freight allows an assisted request without payment', async () => {
+test('unconfirmed delivery blocks checkout without creating an assisted request', async () => {
   const error = 'O frete dos produtos AliExpress ainda não pode ser confirmado.';
   const h = checkout(true, recipient, error);
-  assert.equal(find(h.tree, (node) => node.type === 'button' && node.props.type === 'submit').props.disabled, false);
+  assert.equal(find(h.tree, (node) => node.type === 'button' && node.props.type === 'submit').props.disabled, true);
   await find(h.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
-  assert.equal(h.calls(), 1);
-  assert.equal(h.payload().shippingCode, 'ASSISTED_QUOTE');
-  assert.match(h.payload().requestKey, /^[a-f0-9-]{36}$/);
+  assert.equal(h.calls(), 0);
+  assert.equal(h.payload(), undefined);
+  const html = renderToStaticMarkup(h.tree);
+  assert.ok(html.includes('Finalizar pedido'));
+  assert.ok(!html.includes('Solicitar cotação'));
+  assert.ok(!html.includes('tarifa comercial'));
+});
+
+test('free delivery verification sends authenticated address and cart without calling freight calculation', async () => {
+  const original = global.fetch;
+  let request;
+  global.fetch = async (url, options) => {
+    request = { url, options };
+    return { ok: true, json: async () => ({ options: [{ code: 'CATALOG_FREE', price: 0 }] }) };
+  };
+  try {
+    const api = load('lib/api/shipping.ts', { '@/lib/auth/tokenStorage': { getToken: () => 'synthetic-token' } });
+    const cart = { zipCode: address.zipCode, items: [{ productId: 1, variantId: 2, quantity: 1 }] };
+    await api.checkFreeDelivery(7, cart);
+    assert.ok(request.url.endsWith('/api/orders/delivery-eligibility'));
+    assert.equal(request.options.headers.Authorization, 'Bearer synthetic-token');
+    assert.deepEqual(JSON.parse(request.options.body), { addressId: 7, cart });
+  } finally { global.fetch = original; }
+});
+
+test('eligibility errors never expose provider response bodies or personal values', async () => {
+  const original = global.fetch;
+  try {
+    const api = load('lib/api/shipping.ts', { '@/lib/auth/tokenStorage': { getToken: () => 'synthetic-token' } });
+    for (const status of [401, 409, 500]) {
+      global.fetch = async () => ({ ok: false, status, text: async () => 'synthetic-secret-52998224725' });
+      await assert.rejects(api.checkFreeDelivery(7, { zipCode: address.zipCode, items: [] }), error => {
+        assert.equal(error.status, status);
+        assert.ok(!error.message.includes('synthetic-secret'));
+        assert.ok(!error.message.includes('52998224725'));
+        return true;
+      });
+    }
+  } finally { global.fetch = original; }
 });
 test('catalog normalization preserves only the server-provided recipient requirement boolean', () => {
   const { normalizeBackendProduct } = load('lib/products.ts');

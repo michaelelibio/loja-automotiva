@@ -3,6 +3,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
 import java.util.List;
+@org.springframework.context.annotation.Profile("local-freight & !controlled & !production & !prod")
 @RestController @RequestMapping("/api/admin/shipping-tables") @PreAuthorize("hasRole('ADMIN')")
 public class CommercialFreightController {
     private final CommercialShippingService service;

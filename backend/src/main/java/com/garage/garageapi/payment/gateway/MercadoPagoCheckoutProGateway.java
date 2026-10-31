@@ -148,7 +148,8 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
                     mapStatus(text(response, "status")), text(response, "status_detail"),
                     decimal(response, "transaction_amount"), text(response, "currency_id"),
                     text(response, "payment_type_id"), text(response, "payment_method_id"),
-                    instant(response, "date_approved"));
+                    instant(response, "date_approved"), response.path("live_mode").isBoolean()
+                            ? response.path("live_mode").asBoolean() : null);
         } catch (RestClientResponseException exception) {
             throw new PaymentProviderException("Falha ao consultar pagamento Mercado Pago", exception);
         } catch (RestClientException exception) {

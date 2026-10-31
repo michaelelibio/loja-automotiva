@@ -40,6 +40,31 @@ public class OrderFulfillment {
     @Column(name = "supplier_status", length = 40)
     private String supplierStatus;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "supplier_sync", columnDefinition = "jsonb")
+    private com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot supplierSync;
+    public com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot getSupplierSync() { return supplierSync; }
+    public String beginSupplierSync(Instant now) {
+        if (!"ALIEXPRESS".equals(provider) || status!=FulfillmentStatus.CREATED || getSupplierOrderIds().isEmpty())
+            throw new com.garage.garageapi.shared.exception.ResourceConflictException("Não há pedido AliExpress confirmado para consultar.");
+        if (supplierSync!=null && supplierSync.token()!=null && supplierSync.startedAt().isAfter(now.minusSeconds(120)))
+            throw new com.garage.garageapi.shared.exception.ResourceConflictException("Consulta do fornecedor em andamento.");
+        String token=UUID.randomUUID().toString();
+        supplierSync=new com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot(token,now,
+                supplierSync==null ? null : supplierSync.checkedAt(),supplierSync==null ? java.util.List.of() : supplierSync.parts());
+        return token;
+    }
+    public void finishSupplierSync(String token, java.util.List<String> ids,
+            java.util.List<com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot.Part> parts, Instant now) {
+        if (supplierSync==null || !java.util.Objects.equals(token,supplierSync.token()) || !getSupplierOrderIds().equals(ids)) return;
+        if (!parts.stream().map(com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot.Part::orderId).toList().equals(ids))
+            throw new IllegalArgumentException("Resultado não corresponde aos pedidos consultados.");
+        supplierSync=new com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot(null,supplierSync.startedAt(),now,java.util.List.copyOf(parts));
+        var states=parts.stream().map(com.garage.garageapi.integration.aliexpress.AliExpressSupplierSnapshot.Part::state).distinct().toList();
+        supplierStatus=states.size()==1 ? states.get(0) : "MIXED";
+        updatedAt=now;
+    }
+
     public java.util.List<String> getSupplierOrderIds() { return supplierOrderIds == null ? java.util.List.of() : java.util.List.copyOf(supplierOrderIds); }
     public String getSupplierStatus() { return supplierStatus; }
 

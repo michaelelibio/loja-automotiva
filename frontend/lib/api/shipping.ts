@@ -24,3 +24,13 @@ export async function quoteShipping(data: ShippingQuoteRequest, signal?: AbortSi
   }
   return result as ShippingQuoteResponse;
 }
+
+export async function checkFreeDelivery(addressId: number, data: ShippingQuoteRequest, signal?: AbortSignal): Promise<ShippingQuoteResponse> {
+  const token = tokenStorage.getToken();
+  const response = await fetch(`${API_BASE}/api/orders/delivery-eligibility`, {
+    method: 'POST', signal, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addressId, cart: data }),
+  });
+  if (!response.ok) throw new ShippingApiError('Não foi possível validar os produtos e o endereço do pedido.', response.status);
+  return response.json();
+}

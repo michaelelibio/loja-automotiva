@@ -22,6 +22,10 @@ import java.util.List;
 public class PaymentAttemptService {
     @org.springframework.beans.factory.annotation.Autowired
     private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery freeDelivery;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.core.env.Environment environment;
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final CheckoutProGateway checkoutProGateway;
@@ -47,8 +51,7 @@ public class PaymentAttemptService {
         if (!Instant.now().isBefore(order.getExpiresAt())) {
             throw new ResourceConflictException("Prazo para pagamento do pedido expirou");
         }
-        com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(order);
-        if(order.getCommercialShipping()!=null) commercial.revalidate(order);
+        validateDelivery(order);
         Payment payment = paymentRepository
                 .findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(orderId, PaymentStatus.PENDING)
                 .orElseGet(() -> paymentRepository.saveAndFlush(
@@ -65,7 +68,8 @@ public class PaymentAttemptService {
         return new PreparedAttempt(payment.getId(), order.getId(), order.getTotal(),
                 order.getUser().getName(), order.getUser().getEmail(), payment.getIdempotencyKey(),
                 items, order.getShippingCost(), order.getShippingName(), completed,
-                order.getAssistedQuote()==null && order.getCommercialShipping()==null ? null : order.getExpiresAt());
+                order.getAssistedQuote()==null && order.getCommercialShipping()==null
+                        && !com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.supports(order.getShippingCode()) ? null : order.getExpiresAt());
     }
 
     @Transactional
@@ -74,8 +78,7 @@ public class PaymentAttemptService {
         requirePaymentCreationEnabled();
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
-        com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(payment.getOrder());
-        if(payment.getOrder().getCommercialShipping()!=null) commercial.revalidate(payment.getOrder());
+        validateDelivery(payment.getOrder());
         if (payment.getOrder().getStatus() != OrderStatus.PENDING_PAYMENT
                 || !Instant.now().isBefore(payment.getOrder().getExpiresAt())
                 || request.total().compareTo(payment.getOrder().getTotal()) != 0)
@@ -111,6 +114,17 @@ public class PaymentAttemptService {
     private void requirePaymentCreationEnabled() {
         if (!paymentCreationEnabled) {
             throw new ResourceConflictException("Pagamentos temporariamente indisponíveis durante a validação da loja.");
+        }
+    }
+    private void validateDelivery(Order order) {
+        if (com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.supports(order.getShippingCode())) {
+            freeDelivery.validateSnapshot(order);
+        } else {
+            if (environment != null && !environment.acceptsProfiles(org.springframework.core.env.Profiles.of(
+                    "local-freight & !controlled & !production & !prod")))
+                throw new ResourceConflictException("Pagamento indisponível: este pedido não possui entrega grátis comprovada.");
+            com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(order);
+            if (order.getCommercialShipping()!=null) commercial.revalidate(order);
         }
     }
 }

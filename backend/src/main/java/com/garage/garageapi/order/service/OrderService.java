@@ -37,7 +37,9 @@ import java.util.TreeMap;
 @Service
 public class OrderService {
     @org.springframework.beans.factory.annotation.Autowired
-    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
+    private com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery freeDelivery;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LegacyOrderCheckout legacyLocalCheckout;
     private static final BigDecimal ZERO_MONEY = new BigDecimal("0.00");
 
     private final OrderRepository orderRepository;
@@ -69,6 +71,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse create(Jwt jwt, CreateOrderRequest request) {
+        if (legacyLocalCheckout != null) return legacyLocalCheckout.create(jwt, request);
         User user = userService.findCurrentUser(jwt);
         if (request.requestKey() != null) {
             var existing = orderRepository.findByRequestKeyAndUserId(request.requestKey(), user.getId());
@@ -114,6 +117,12 @@ public class OrderService {
         for (Map.Entry<PurchaseKey, Integer> entry : requestedLines.entrySet()) {
             Product product = productsById.get(entry.getKey().productId());
             ProductVariant variant = resolveVariant(product, entry.getKey().variantId());
+            if (variant == null || !"ALIEXPRESS".equalsIgnoreCase(variant.getSupplier())
+                    || !java.util.Objects.equals(product.getSupplierProductId(), variant.getSupplierProductId())
+                    || variant.getRawVariantKey() == null || variant.getRawVariantKey().isBlank()
+                    || variant.getSupplierStockQuantity() == null || variant.getSupplierStockQuantity() < entry.getValue()
+                    || product.getPrice() == null || product.getPrice().signum() <= 0)
+                throw new ResourceConflictException("Produto, variante ou estoque indisponível para compra.");
             BigDecimal unitPrice = money(product.getPrice());
             BigDecimal itemSubtotal = money(unitPrice.multiply(BigDecimal.valueOf(entry.getValue())));
             snapshots.add(new ItemSnapshot(product, variant, entry.getValue(), unitPrice, itemSubtotal));
@@ -129,30 +138,19 @@ public class OrderService {
                 .map(snapshot -> shippingService.item(snapshot.product(), snapshot.variant(),
                         snapshot.quantity()))
                 .toList();
-        boolean assisted = aliExpressRequired && "ASSISTED_QUOTE".equals(request.shippingCode());
-        if (assisted && (request.requestKey() == null || snapshots.stream().anyMatch(line ->
-                !"ALIEXPRESS".equalsIgnoreCase(line.product().getSupplier()) || line.variant() == null || line.quantity()>1000)))
-            throw new ResourceConflictException("Solicite cotação com variantes AliExpress e chave de solicitação. Separe produtos de outros fornecedores.");
-        boolean immediate=aliExpressRequired && request.shippingCode()!=null && request.shippingCode().startsWith("U_");
-        if(aliExpressRequired && !assisted && !immediate) throw new ResourceConflictException("Selecione uma tarifa comercial válida ou solicite cotação assistida.");
-        var decision=immediate?commercial.evaluate(new ShippingProvider.Request(address.getZipCode(),shippingItems)):null;
-        if(immediate && (request.requestKey()==null || !request.shippingCode().equals(decision.option().code())
-                || request.expectedTotal()==null || subtotal.add(decision.option().price()).compareTo(request.expectedTotal())!=0
-                || request.expectedAddress()==null || !request.expectedAddress().matches(address)
-                || !address.getState().equals(decision.snapshot().state())))
-            throw new ResourceConflictException("Endereço, itens, tarifa ou total divergiram. Confira os valores e confirme novamente.");
-        ShippingProvider.Option shipping = immediate ? decision.option() : assisted
-                ? new ShippingProvider.Option("ASSISTED_QUOTE", "Frete aguardando cotação", ZERO_MONEY, 0,
-                    "ALIEXPRESS", null, "BRL", List.of())
-                : shippingService.select(address.getZipCode(), shippingItems, request.shippingCode());
+        var shipping = freeDelivery.select(shippingItems);
+        if (!com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.CODE.equals(request.shippingCode()) || request.requestKey() == null
+                || request.expectedTotal() == null || subtotal.compareTo(request.expectedTotal()) != 0
+                || request.expectedAddress() == null || !request.expectedAddress().matches(address))
+            throw new ResourceConflictException("Confira o endereço, os produtos e o total antes de finalizar.");
 
         Order order = new Order(user, address, subtotal, shipping, orderExpiration);
         if(recipient!=null) order.snapshotRecipient(recipient);
-        if (assisted) order.requestAssistedQuote(request.requestKey());
+        order.identifyRequest(request.requestKey());
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.variant(), snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
         orderRepository.saveAndFlush(order);
-        if(immediate) {order.agreeCommercialShipping(decision.snapshot(),request.requestKey());orderRepository.flush();}
+
         fulfillmentInitializer.initialize(order);
         products.stream().filter(Product::requiresLocalStock)
                 .forEach(product -> stockService.recordSale(product,

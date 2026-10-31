@@ -34,7 +34,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties={"aliexpress.orders.enabled=true","aliexpress.orders.contract-confirmed=true"})
+@SpringBootTest(properties={"aliexpress.orders.enabled=true","aliexpress.orders.contract-confirmed=true",
+        "aliexpress.orders.sync-enabled=true","aliexpress.orders.sync-contract-confirmed=true"})
 @AutoConfigureMockMvc
 class AliExpressOrderIntegrationTests {
     @Autowired AliExpressOrderService service;
@@ -49,11 +50,18 @@ class AliExpressOrderIntegrationTests {
     @Autowired AddressRepository addresses;
     @Autowired MockMvc mvc;
     @MockitoSpyBean OrderFulfillmentInitializer initializer;
+    @MockitoBean AliExpressPlaceOrderPermission permission;
     @MockitoBean AliExpressOrderClient client;
+    @MockitoBean AliExpressOrderQueryClient queryClient;
+    @MockitoBean AliExpressOrderQueryPermission queryPermission;
+    @Autowired AliExpressOrderSyncService syncService;
     @MockitoBean AliExpressTokenService tokens;
 
     @BeforeEach void clean() {
         reset(client,tokens,initializer,fulfillments);
+        reset(queryClient,queryPermission);
+        when(queryPermission.verified()).thenReturn(true);
+        when(permission.verified()).thenReturn(true);
         fulfillments.deleteAll();payments.deleteAll();orders.deleteAll();media.deleteAll();variants.deleteAll();products.deleteAll();addresses.deleteAll();users.deleteAll();
         when(tokens.accessToken()).thenReturn("synthetic-token-never-log");
         when(client.create(anyMap(),anyString())).thenReturn(new AliExpressOrderClient.Result(List.of("900000000000001","900000000000002"),false));
@@ -81,7 +89,7 @@ class AliExpressOrderIntegrationTests {
                 .andExpect(jsonPath("$.supplierOrderIds.length()").value(2));
         var state=service.view(order.getId());assertThat(state.canSend()).isFalse();
         mvc.perform(post(path(order)).with(admin())).andExpect(status().isOk());
-        verify(client,times(1)).create(argThat(payload -> ("INGARAGE-"+order.getId()).equals(payload.get("out_order_id"))),anyString());
+        verify(client,times(1)).create(argThat(payload -> payload.keySet().equals(Set.of("logistics_address","product_items"))),anyString());
         var saved=orders.findById(order.getId()).orElseThrow();
         assertThat(saved.getStatus()).isEqualTo(OrderStatus.PROCESSING);
         assertThat(saved.getProcessingAt()).isNotNull();assertThat(saved.getShippedAt()).isNull();assertThat(saved.getDeliveredAt()).isNull();
@@ -109,7 +117,7 @@ class AliExpressOrderIntegrationTests {
         assertThat(service.send(order.getId()).status()).isEqualTo(FulfillmentStatus.FAILED);
         assertThat(service.view(order.getId()).canSend()).isTrue();
         service.send(order.getId());
-        verify(client,times(2)).create(argThat(payload -> ("INGARAGE-"+order.getId()).equals(payload.get("out_order_id"))),anyString());
+        verify(client,times(2)).create(argThat(payload -> payload.keySet().equals(Set.of("logistics_address","product_items"))),anyString());
     }
     @Test void concurrentRequestsCreateAtMostOneSupplierPurchase() throws Exception {
         var order=fixture(true,true,"ALIEXPRESS");
@@ -208,6 +216,73 @@ class AliExpressOrderIntegrationTests {
         });
     }
     @Autowired org.springframework.transaction.PlatformTransactionManager manager;
+    @ParameterizedTest @ValueSource(strings={"sandbox","unknown","unverified"})
+    void nonProductionPaymentNeverTouchesSupplierOrCredentials(String kind) {
+        var order=fixture(true,true,"ALIEXPRESS");
+        var payment=payments.findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(order.getId(),PaymentStatus.PAID).orElseThrow();
+        payment.recordProviderEnvironment("sandbox".equals(kind) ? Boolean.FALSE : "unknown".equals(kind) ? null : Boolean.TRUE,
+                "unverified".equals(kind) ? null : Instant.now());
+        payments.saveAndFlush(payment);
+        assertThat(service.view(order.getId()).paymentConfirmed()).isFalse();
+        assertThatThrownBy(()->service.send(order.getId())).isInstanceOf(com.garage.garageapi.shared.exception.ResourceConflictException.class);
+        verifyNoInteractions(tokens,client,queryClient);
+    }
+    @Test void splitOrdersSynchronizeIndividuallyWithoutPayingOrRecreatingOrders() throws Exception {
+        var order=fixture(true,true,"ALIEXPRESS");service.send(order.getId());
+        when(queryClient.query(eq("900000000000001"),anyString())).thenReturn(AliExpressSupplierSnapshot.classify("900000000000001","PLACE_ORDER_SUCCESS",null));
+        when(queryClient.query(eq("900000000000002"),anyString())).thenReturn(AliExpressSupplierSnapshot.classify("900000000000002","WAIT_SELLER_SEND_GOODS",null));
+        var state=syncService.sync(order.getId());
+        assertThat(state.supplierStatus()).isEqualTo("MIXED");
+        assertThat(state.supplierSync().parts()).extracting(AliExpressSupplierSnapshot.Part::state)
+                .containsExactly("AWAITING_MANUAL_PAYMENT","AWAITING_SHIPMENT");
+        assertThat(state.supplierSync().parts()).allMatch(AliExpressSupplierSnapshot.Part::verified);
+        assertThat(state.supplierOrderIds()).containsExactly("900000000000001","900000000000002");
+        mvc.perform(get("/api/admin/orders/"+order.getId()+"/fulfillment").with(admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.supplierOrderIds.length()").value(2));
+        service.send(order.getId());verify(client,times(1)).create(anyMap(),anyString());
+        assertThat(fulfillments.findByOrderId(order.getId()).orElseThrow().getAttemptCount()).isEqualTo(1);
+    }
+    @Test void failedOrUnknownLookupNeverClaimsSupplierPaymentAndDoesNotUnlockResend() {
+        var order=fixture(true,true,"ALIEXPRESS");service.send(order.getId());
+        when(queryClient.query(anyString(),anyString())).thenThrow(new RuntimeException("synthetic-private-token"));
+        var state=syncService.sync(order.getId());
+        assertThat(state.supplierSync().parts()).allMatch(p->!p.verified() && "UNKNOWN".equals(p.state()));
+        assertThat(state.supplierSync().toString()).doesNotContain("synthetic-private-token");
+        assertThat(state.status()).isEqualTo(FulfillmentStatus.CREATED);
+        service.send(order.getId());verify(client,times(1)).create(anyMap(),anyString());
+    }
+    @Test void syncPermissionAndAdminAuthorizationAreIndependentFromCreation() throws Exception {
+        var order=fixture(true,true,"ALIEXPRESS");
+        mvc.perform(post("/api/admin/orders/"+order.getId()+"/aliexpress/sync")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/admin/orders/"+order.getId()+"/aliexpress/sync").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                .andExpect(status().isForbidden());
+        when(queryPermission.verified()).thenReturn(false);
+        assertThatThrownBy(()->syncService.sync(order.getId())).isInstanceOf(com.garage.garageapi.shared.exception.ResourceConflictException.class);
+        verifyNoInteractions(client,tokens,queryClient);
+    }
+    @Test void concurrentSyncUsesOneClaimAndNeverCreatesAnotherSupplierOrder() throws Exception {
+        var order=fixture(true,true,"ALIEXPRESS");service.send(order.getId());
+        var entered=new CountDownLatch(1);var release=new CountDownLatch(1);
+        when(queryClient.query(anyString(),anyString())).thenAnswer(inv->{entered.countDown();release.await(10,TimeUnit.SECONDS);
+            return AliExpressSupplierSnapshot.classify(inv.getArgument(0),"RISK_CONTROL",null);});
+        var pool=Executors.newFixedThreadPool(2);
+        try {
+            var first=pool.submit(()->syncService.sync(order.getId()));assertThat(entered.await(10,TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(()->syncService.sync(order.getId())).isInstanceOf(com.garage.garageapi.shared.exception.ResourceConflictException.class);
+            release.countDown();first.get(10,TimeUnit.SECONDS);
+            verify(queryClient,times(2)).query(anyString(),anyString());verify(client,times(1)).create(anyMap(),anyString());
+        } finally {release.countDown();pool.shutdownNow();}
+    }
+    @Test void staleSyncCompletionCannotOverwriteNewerObservation() {
+        var order=fixture(true,true,"ALIEXPRESS");service.send(order.getId());
+        var row=fulfillments.findByOrderId(order.getId()).orElseThrow();
+        String old=row.beginSupplierSync(Instant.now().minusSeconds(121));String current=row.beginSupplierSync(Instant.now());
+        var fresh=row.getSupplierOrderIds().stream().map(id->AliExpressSupplierSnapshot.classify(id,"WAIT_BUYER_ACCEPT_GOODS",null)).toList();
+        row.finishSupplierSync(current,row.getSupplierOrderIds(),fresh,Instant.now());
+        var stale=row.getSupplierOrderIds().stream().map(id->AliExpressSupplierSnapshot.classify(id,"PLACE_ORDER_SUCCESS",null)).toList();
+        row.finishSupplierSync(old,row.getSupplierOrderIds(),stale,Instant.now());
+        assertThat(row.getSupplierStatus()).isEqualTo("SHIPPED");
+    }
     private Order fixture(boolean paid,boolean complete,String supplier) {
         var user=users.save(User.local("Cliente Teste","ali-order@example.test","hash"));
         var address=addresses.save(new Address(user,"Casa","Cliente Teste","89229040","Rua Teste","10",null,"Centro","Joinville","SC",true));
@@ -222,7 +297,7 @@ class AliExpressOrderIntegrationTests {
         if(complete) {ReflectionTestUtils.setField(order,"recipientCpf","52998224725");ReflectionTestUtils.setField(order,"recipientBirthDate",LocalDate.of(1990,1,1));ReflectionTestUtils.setField(order,"recipientPhone","47999999999");}
         if(paid) order.markPaid();orders.saveAndFlush(order);initializer.initialize(order);
         var payment=new Payment(order,PaymentMethod.MERCADO_PAGO);
-        if(paid) payment.synchronizeCheckoutPayment("synthetic-payment",PaymentStatus.PAID,Instant.now(),"pix","pix");
+        if(paid) {payment.synchronizeCheckoutPayment("synthetic-payment",PaymentStatus.PAID,Instant.now(),"pix","pix");payment.recordProviderEnvironment(true,Instant.now());}
         payments.saveAndFlush(payment);return order;
     }
     private String path(Order order) {return "/api/admin/orders/"+order.getId()+"/aliexpress/send";}

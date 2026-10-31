@@ -34,6 +34,7 @@ public class CheckoutProWebhookUpdater {
                 .orElse(null);
         if (payment == null || !matches(payment, notifiedPaymentId, result)) return;
 
+        payment.recordProviderEnvironment(result.liveMode(), java.time.Instant.now());
         payment.synchronizeCheckoutPayment(result.providerPaymentId(), result.status(),
                 result.approvedAt(), result.paymentType(), result.paymentMethodId());
         if (result.status() == PaymentStatus.PAID) {

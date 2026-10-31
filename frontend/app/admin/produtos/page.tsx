@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { AdminProductImage } from '@/components/admin/AdminProductImage';
 import { ProductActiveDialog } from '@/components/admin/ProductActiveDialog';
 import { AliExpressProductPreview } from '@/components/admin/AliExpressProductPreview';
-import { AliExpressFreightDiagnostic } from '@/components/admin/AliExpressFreightDiagnostic';
 import { useAuth } from '@/context/AuthContext';
 import { productMargin } from '@/lib/admin/product-finance';
 import { AdminProductApiError, getAdminProducts, setAdminProductActive } from '@/lib/api/admin/products';
@@ -70,7 +69,8 @@ export default function AdminProductsPage() {
   return <>
     <header className="admin-page-heading admin-products-heading"><div><p className="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p>{result ? `${result.totalElements} produto${result.totalElements === 1 ? '' : 's'} encontrado${result.totalElements === 1 ? '' : 's'}` : 'Gerencie o catálogo da inGarage.'}</p></div><div className="admin-products-heading-actions"><Link className="secondary" href="/admin/produtos/importar">Importar da CJ</Link><Link href="/admin/produtos/novo">Novo produto</Link></div></header>
     <AliExpressProductPreview onImported={() => { setLoading(true); setError(null); setRequestKey((value) => value + 1); }} />
-    <AliExpressFreightDiagnostic products={result?.content ?? []} />
+    <p className="admin-muted">Ative somente os produtos AliExpress selecionados pela equipe para venda com entrega grátis. Desative os produtos que não devem ficar disponíveis para compra.</p>
+
     {feedback && <p className="admin-action-feedback" role="status">{feedback}</p>}
     <section className="admin-products-panel">
       <form className="admin-products-toolbar" onSubmit={applyFilters}>

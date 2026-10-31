@@ -8,7 +8,7 @@ import { Header } from '@/components/Header';
 import { OrderStatusBadge, formatOrderDate } from '@/components/OrdersPanel';
 import { MercadoPagoPayment } from '@/components/MercadoPagoPayment';
 import { useAuth } from '@/context/AuthContext';
-import { acceptOrderQuote, getOrder } from '@/lib/api/orders';
+import { getOrder } from '@/lib/api/orders';
 import type { Order, OrderStatus } from '@/lib/types/order';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -28,9 +28,6 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, sessionError } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
-  const [quoteExpired, setQuoteExpired] = useState(false);
-  const [accepting, setAccepting] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const orderId = Number(params.id);
@@ -50,12 +47,7 @@ export default function OrderDetailPage() {
     return () => { active = false; };
   }, [authLoading, sessionError, isAuthenticated, orderId]);
 
-  const quoteValidUntil = order?.quote?.validUntil;
-  useEffect(() => {
-    if (!quoteValidUntil) return;
-    const timer = setInterval(() => setQuoteExpired(Date.now() >= Date.parse(quoteValidUntil)), 1000);
-    return () => clearInterval(timer);
-  }, [quoteValidUntil]);
+
 
   if (!Number.isSafeInteger(orderId)) {
     return <main><Header /><div className="account-route-state"><p>Pedido inválido.</p><Link href="/conta/pedidos">Voltar aos pedidos</Link></div><Footer /></main>;
@@ -84,21 +76,8 @@ export default function OrderDetailPage() {
           <h2>{order.quote?.state === 'WAITING' ? 'Aguardando cotação' : order.quote?.state === 'CONFIRMED' ? 'Aguardando seu aceite' : currentStatus.title}</h2>
           <p>{order.quote?.state === 'WAITING' || order.quote?.state === 'CONFIRMED' ? 'Confira a cotação abaixo antes de pagar.' : currentStatus.description}</p>
         </section>
-        {order.quote && <section className="order-detail-card">
-          <h2>Cotação AliExpress</h2>
-          <p>{({ WAITING:'Aguardando conferência do preço completo e frete para seu endereço. Nenhuma cobrança foi liberada.', CONFIRMED:'Total confirmado. Confira as remessas e aceite antes de pagar.', ACCEPTED:'Total aceito. Pague dentro da validade informada.', REFUND_REQUIRED:'Identificamos mudança de custo. O envio está bloqueado e nossa equipe providenciará o cancelamento e reembolso integral.', REFUNDED:'Reembolso integral registrado e pedido cancelado.' } as Record<string,string>)[order.quote.state]}</p>
-          {order.quote.validUntil && <p>Validade: {formatOrderDate(order.quote.validUntil)}</p>}
-          {order.shipping.legs.map((leg,index)=><p key={index}>Remessa {index+1}: {leg.name} — {currency.format(leg.priceBrl)} — até {leg.estimatedDays} dias</p>)}
-          {order.quote.state === 'CONFIRMED' && <button disabled={accepting || !order.quote.validUntil || quoteExpired} onClick={async()=>{
-            setAccepting(true);setQuoteError(null);
-            try {setOrder(await acceptOrderQuote(order.id,order.quote!.revision,order.total));}
-            catch(cause){setQuoteError(cause instanceof Error ? cause.message : 'Não foi possível aceitar.');}
-            finally{setAccepting(false);}
-          }}>Aceitar total de {currency.format(order.total)}</button>}
-          {quoteExpired && order.status === 'PENDING_PAYMENT' && <p role="alert">Cotação expirada. Solicite um novo pedido para reconfirmar o total.</p>}
-          {quoteError && <p role="alert">{quoteError}</p>}
-        </section>}
-        {order.status === 'PENDING_PAYMENT' && (!order.quote || (order.quote.state === 'ACCEPTED' && !quoteExpired)) && <MercadoPagoPayment orderId={order.id} />}
+        {order.quote && <section className="order-detail-card"><h2>Pedido histórico</h2><p>Novas cotações estão indisponíveis. Entre em contato para acompanhar este pedido.</p></section>}
+        {order.status === 'PENDING_PAYMENT' && !order.quote && <MercadoPagoPayment orderId={order.id} />}
         <section className="order-detail-card order-items-card">
           <h2>Itens</h2>
           <div className="order-detail-items">
@@ -127,7 +106,7 @@ export default function OrderDetailPage() {
         <section className="order-detail-card order-shipping-card">
           <p className="eyebrow">ENTREGA</p><h2>{order.shipping.name}</h2>
           <div><span>Valor do frete</span><strong>{order.quote?.state === 'WAITING' ? 'A confirmar' : currency.format(order.shipping.price)}</strong></div>
-          {order.quote?.state === 'WAITING' ? <p>Prazo a confirmar.</p> : <p>Prazo estimado: até {order.shipping.estimatedDays} {order.shipping.estimatedDays === 1 ? 'dia' : 'dias'}.</p>}
+          {order.quote?.state === 'WAITING' || order.shipping.estimatedDays <= 0 ? <p>Prazo a confirmar.</p> : <p>Prazo estimado: até {order.shipping.estimatedDays} {order.shipping.estimatedDays === 1 ? 'dia' : 'dias'}.</p>}
         </section>
       </div>
       <aside className="order-totals">

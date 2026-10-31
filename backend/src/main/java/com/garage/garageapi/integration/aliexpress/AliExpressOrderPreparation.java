@@ -10,6 +10,10 @@ import java.util.*;
 
 @Component
 public class AliExpressOrderPreparation {
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AliExpressPlaceOrderPermission permission;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery freeDelivery;
     private final ProductVariantRepository variants;
     private final boolean enabled, contractConfirmed;
     public AliExpressOrderPreparation(ProductVariantRepository variants,
@@ -39,7 +43,8 @@ public class AliExpressOrderPreparation {
             return "Use o encaminhamento manual da cotação assistida; criação via API depende do contrato validado.";
         }
         var legs=order.getShippingLegs();
-        if (legs.isEmpty() || legs.stream().anyMatch(leg -> !"ALIEXPRESS".equals(leg.provider())
+        boolean catalogFree=com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.CODE.equals(order.getShippingCode());
+        if ((!catalogFree && legs.isEmpty()) || legs.stream().anyMatch(leg -> !"ALIEXPRESS".equals(leg.provider())
                 || !text(leg.name()) || !text(leg.code()) || !text(leg.originCountry()) || leg.amount()==null
                 || leg.amount().signum()<0 || !"BRL".equals(leg.currency()) || leg.supplierVariantIds()==null
                 || leg.supplierVariantIds().isEmpty()))
@@ -59,9 +64,16 @@ public class AliExpressOrderPreparation {
             skuIds.add(item.getSupplierVariantId());
         }
         List<String> quotedSkus=legs.stream().flatMap(leg->leg.supplierVariantIds().stream()).toList();
-        if (new HashSet<>(quotedSkus).size()!=quotedSkus.size() || !skuIds.equals(new HashSet<>(quotedSkus)))
+        if (!catalogFree && (new HashSet<>(quotedSkus).size()!=quotedSkus.size() || !skuIds.equals(new HashSet<>(quotedSkus))))
             return "O frete confirmado não corresponde às variantes do pedido.";
+        if (com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.supports(order.getShippingCode())) {
+            try {
+                if (freeDelivery == null) return "Entrega grátis não confirmada.";
+                freeDelivery.validateSnapshot(order);
+            } catch (com.garage.garageapi.shared.exception.ResourceConflictException ex) { return ex.getMessage(); }
+        }
         if (!enabled || !contractConfirmed) return "Criação real bloqueada até validar o contrato AliExpress, o endereço BR e a idempotência do app.";
+        if (permission == null || !permission.verified()) return "Autorização efetiva do método placeorder não verificada. Criação real bloqueada.";
         return null;
     }
     public Map<String,Object> payload(Order order,String outOrderId) {
@@ -71,12 +83,14 @@ public class AliExpressOrderPreparation {
         List<Map<String,Object>> items=new ArrayList<>();
         for (var item:order.getItems()) {
             var variant=variants.findById(item.getProductVariantId()).orElseThrow();
-            items.add(Map.of("product_id",item.getSupplierProductId(),"product_count",item.getQuantity(),
-                    "sku_attr",variant.getRawVariantKey(),"logistics_service_name",order.getShippingLegs().stream()
-                            .filter(leg->leg.supplierVariantIds().contains(item.getSupplierVariantId())).findFirst().orElseThrow().code()));
+            Map<String,Object> line=new LinkedHashMap<>();
+            line.put("product_id",new java.math.BigInteger(item.getSupplierProductId()));line.put("product_count",item.getQuantity());
+            line.put("sku_attr",variant.getRawVariantKey());
+            order.getShippingLegs().stream().filter(leg->leg.supplierVariantIds().contains(item.getSupplierVariantId()))
+                    .findFirst().ifPresent(leg->line.put("logistics_service_name",leg.code()));
+            items.add(line);
         }
-        return Map.of("out_order_id",outOrderId,"logistics_address",address,"product_items",items,
-                "ds_extend_request",dsExtendRequest(order));
+        return Map.of("logistics_address",address,"product_items",items);
     }
     // Provider representation only: the persisted snapshot stays a LocalDate, never a formatted string.
     static Map<String,Object> logisticsAddress(Order order) {
@@ -89,7 +103,7 @@ public class AliExpressOrderPreparation {
         address.put("mobile_no",order.getRecipientPhone());address.put("phone_country","+55");address.put("locale","pt_BR");
         return address;
     }
-    // Official placeorder snapshot: ds_extend_request.trade_extra_param.birthday, not logistics_address.birth_date.
+    // Historical helper only. This unverified extension is excluded from the placeorder payload.
     static Map<String,Object> dsExtendRequest(Order order) {
         return Map.of("trade_extra_param",Map.of("birthday",order.getRecipientBirthDate()
                 .format(java.time.format.DateTimeFormatter.ofPattern("ddMMyyyy"))));

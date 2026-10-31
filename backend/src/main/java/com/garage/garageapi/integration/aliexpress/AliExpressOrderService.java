@@ -68,10 +68,12 @@ public class AliExpressOrderService {
         var fulfillment=fulfillments.findByOrderId(id).filter(f->"ALIEXPRESS".equals(f.getProvider())).orElse(null);
         FulfillmentStatus status=fulfillment==null ? FulfillmentStatus.PENDING : fulfillment.getStatus();
         boolean paid=payments.findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(id,PaymentStatus.PAID)
-                .filter(p->p.getPaidAt()!=null && p.getProviderPaymentId()!=null && !p.getProviderPaymentId().isBlank()).isPresent();
+                .filter(p->p.getMethod()==com.garage.garageapi.payment.entity.PaymentMethod.MERCADO_PAGO
+                        && Boolean.TRUE.equals(p.getProviderLiveMode()) && p.getProviderVerifiedAt()!=null
+                        && p.getPaidAt()!=null && p.getProviderPaymentId()!=null && !p.getProviderPaymentId().isBlank()).isPresent();
         String reason=!applicable ? "Este pedido não contém itens AliExpress."
                 : !paid || (order.getStatus()!=OrderStatus.PAID && order.getStatus()!=OrderStatus.PROCESSING) ? "Aguardando pagamento confirmado pelo backend."
-                : status==FulfillmentStatus.CREATED ? "Enviado ao fornecedor. Aguardando pagamento manual ao fornecedor."
+                : status==FulfillmentStatus.CREATED ? "Pedido vinculado ao fornecedor. Consulte a situacao de cada ID antes do pagamento manual."
                 : status==FulfillmentStatus.VERIFICATION_REQUIRED || status==FulfillmentStatus.PROCESSING ? "Verificação necessária. Reenvio bloqueado até reconciliação."
                 : preparation.blockedReason(order);
         // A legacy or different supplier fulfillment must never be overwritten automatically.
@@ -84,9 +86,11 @@ public class AliExpressOrderService {
                 fulfillment==null ? List.of() : fulfillment.getSupplierOrderIds(),
                 fulfillment==null ? null : fulfillment.getLastError(),
                 fulfillment==null ? null : fulfillment.getProcessingStartedAt(),
-                fulfillment==null ? null : fulfillment.getCreatedExternallyAt());
+                fulfillment==null ? null : fulfillment.getCreatedExternallyAt(),
+                fulfillment==null || fulfillment.getSupplierSync()==null ? null : fulfillment.getSupplierSync().view());
     }
     private record Claim(String token,Map<String,Object> payload) { }
     public record View(Long orderId,boolean applicable,boolean paymentConfirmed,boolean canSend,FulfillmentStatus status,
-            String blockReason,String supplierStatus,List<String> supplierOrderIds,String lastError,Instant submittedAt,Instant createdExternallyAt) { }
+            String blockReason,String supplierStatus,List<String> supplierOrderIds,String lastError,Instant submittedAt,Instant createdExternallyAt,
+            AliExpressSupplierSnapshot.View supplierSync) { }
 }

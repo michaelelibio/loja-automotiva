@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 
+@org.springframework.context.annotation.Profile("local-freight & !controlled & !production & !prod")
 @RestController
 @RequestMapping("/api/admin/integrations/aliexpress")
 @PreAuthorize("hasRole('ADMIN')")

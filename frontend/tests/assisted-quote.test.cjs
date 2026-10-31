@@ -88,12 +88,9 @@ test('empty freight remains an unknown total in the admin confirmation form',()=
  const html=panel();assert.ok(html.includes('Consulta automática AliExpress'));assert.ok(html.includes('a confirmar'));
  assert.ok(html.includes('Atualizar dados do AliExpress'));assert.ok(html.includes('disabled'));
 });
-test('commercial freight administration covers all UFs without invented prices',()=>{
- const {default:Page}=load('app/admin/fretes/page.tsx',{'next/link':props=>React.createElement('a',props),'@/lib/auth/tokenStorage':{getToken:()=>null},'@/components/admin/BulkFreightReview':{BulkFreightReview:()=>null}});
- const html=renderToStaticMarkup(React.createElement(Page));
- for(const uf of 'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' '))assert.ok(html.includes('>'+uf+'</th>'));
- assert.equal((html.match(/Sem evidência cadastrada/g)||[]).length,81);
- assert.ok(html.includes('Salvar nova versão em rascunho'));assert.ok(!html.includes('R$ 24'));
+test('commercial freight administration is unavailable in production',()=>{
+ const {default:Page}=load('app/admin/fretes/page.tsx',{'next/navigation':{notFound(){throw new Error('404');}}});
+ assert.throws(()=>renderToStaticMarkup(React.createElement(Page)),/404/);
 });
 
 test('product and cart calculator does not present unknown shipping as free',()=>{
