@@ -82,3 +82,24 @@ export function assistedQuoteAction(id: number, action: string, data?: unknown):
 export function getFulfillmentRecipient(id:number): Promise<{cpf:string;birthDate:string;phone:string}> {
   return request(endpoint+'/'+id+'/recipient-for-fulfillment');
 }
+
+export interface AdminAliExpressTest {
+  orderId: number; testOrder: boolean; simulatedPaymentAt: string | null; simulatedPaymentBy: string | null;
+  simulatedSupplierAt: string | null; simulatedSupplierId: string | null; simulatedSupplierBy: string | null;
+  canCreateReal: boolean; realBlockers: string[];
+  fixture: { id: string; digest: string; authorizationReference: string; productId: string; skuId: string;
+    quantity: number; deliveryService: string; currency: string; productCost: number; shippingCost: number;
+    taxCost: number; totalCost: number; city: string } | null;
+  realStatus: string | null; idempotencyKey: string | null; submittedAt: string | null; createdAt: string | null;
+  submittedBy: string | null; supplierOrderIds: string[]; submittedFixtureDigest: string | null;
+}
+
+export function getAdminAliExpressTest(id: number): Promise<AdminAliExpressTest> {
+  return request(`${endpoint}/${id}/aliexpress-tests`);
+}
+export function runAdminAliExpressTest(id: number, action: 'simulate-payment' | 'simulate-supplier' | 'create-real', confirmation?: {
+  phrase: string; idempotencyKey: string; fixtureDigest: string;
+}): Promise<AdminAliExpressTest> {
+  return request(`${endpoint}/${id}/aliexpress-tests/${action}`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, ...(confirmation ? { body: JSON.stringify(confirmation) } : {}) });
+}

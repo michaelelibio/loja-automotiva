@@ -38,15 +38,30 @@ public final class CommercialFreightPolicy {
             @Min(1) @Max(365) int estimatedDays,@NotNull @Valid Evidence evidence) {}
     /** Planning rows are never read by checkout; only explicitly approved, validated rates are materialized. */
     public record ReviewRow(@NotNull Rate rate, boolean approved) {}
+    /** Merchant risk acceptance, not supplier evidence. One eligible SMALL unit per order. */
+    public record ProvisionalPolicy(@NotEmpty @Size(max=500) List<@NotNull Long> eligibleVariantIds,
+            boolean singleSmallUnitParcelConfirmed,@NotNull Instant validUntil,
+            @NotNull @DecimalMin("24.01") @Digits(integer=8,fraction=2) BigDecimal maximumOrderTotalBrl,
+            @Min(1) @Max(10000) int maximumOpenOrders,
+            @NotNull @DecimalMin("24.01") @Digits(integer=10,fraction=2) BigDecimal maximumOpenSalesBrl) {
+        public ProvisionalPolicy {eligibleVariantIds=eligibleVariantIds==null?null:List.copyOf(eligibleVariantIds);}
+        @com.fasterxml.jackson.annotation.JsonProperty(access=com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY) public BigDecimal customerFreightBrl(){return new BigDecimal("24.00");}
+        @com.fasterxml.jackson.annotation.JsonProperty(access=com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY) public List<NationalCell> nationalRates(){
+            return new TreeSet<>(com.garage.garageapi.integration.aliexpress.AliExpressDsFreightClient.BRAZILIAN_PROVINCES.keySet()).stream()
+                .flatMap(uf->Arrays.stream(ParcelSize.values()).map(size->new NationalCell(uf,size,size==ParcelSize.SMALL?customerFreightBrl():null,size==ParcelSize.SMALL?"PROVISIONAL_ELIGIBLE_ONLY":"DRAFT_INACTIVE"))).toList();
+        }
+    }
+    public record NationalCell(String state,ParcelSize size,BigDecimal customerFreightBrl,String status){}
     public record Document(@NotNull @DecimalMin("0.01") @DecimalMax("99.00") BigDecimal costReservePercent,
             @NotNull @DecimalMin("0.00") @DecimalMax("99.00") BigDecimal paymentFeePercent,
             @NotNull @DecimalMin("0.00") @Digits(integer=8,fraction=2) BigDecimal paymentFixedFeeBrl,
             @NotNull @DecimalMin("0.01") @DecimalMax("99.00") BigDecimal minimumNetMarginPercent,
             @NotNull @DecimalMin("0.00") BigDecimal minimumNetProfitBrl,@NotNull @Valid Evidence paymentFeeEvidence,
             @NotEmpty @Size(max=500) List<@NotNull @Valid Profile> profiles,@NotEmpty @Size(max=2000) List<@NotNull @Valid Rate> rates,
-            List<ReviewRow> reviewRows) {
+            List<ReviewRow> reviewRows,ProvisionalPolicy provisional) {
         public Document {profiles=profiles==null?null:List.copyOf(profiles);rates=rates==null?null:List.copyOf(rates);reviewRows=reviewRows==null?List.of():List.copyOf(reviewRows);}
-        public Document(BigDecimal reserve,BigDecimal fee,BigDecimal fixed,BigDecimal margin,BigDecimal profit,Evidence evidence,List<Profile> profiles,List<Rate> rates){this(reserve,fee,fixed,margin,profit,evidence,profiles,rates,List.of());}
+        public Document(BigDecimal reserve,BigDecimal fee,BigDecimal fixed,BigDecimal margin,BigDecimal profit,Evidence evidence,List<Profile> profiles,List<Rate> rates){this(reserve,fee,fixed,margin,profit,evidence,profiles,rates,List.of(),null);}
+        public Document(BigDecimal reserve,BigDecimal fee,BigDecimal fixed,BigDecimal margin,BigDecimal profit,Evidence evidence,List<Profile> profiles,List<Rate> rates,List<ReviewRow> rows){this(reserve,fee,fixed,margin,profit,evidence,profiles,rates,rows,null);}
     }
     public static BigDecimal money(BigDecimal n){return n.setScale(2,RoundingMode.HALF_UP);}
     public static void require(boolean ok,String message){if(!ok)throw new ResourceConflictException(message+" Solicite cotação assistida.");}

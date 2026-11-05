@@ -118,3 +118,73 @@ test('browser timeout fetches persisted state and never enables a second purchas
   assert.equal(h.calls(), 1);
   assert.equal(find(h.render(), (node) => node.type === 'button' && node.props.children === 'Enviar ao AliExpress'), null);
 });
+
+const testState = { orderId: 123, testOrder: true, simulatedPaymentAt: null, simulatedPaymentBy: null,
+  simulatedSupplierAt: null, simulatedSupplierId: null, simulatedSupplierBy: null,
+  canCreateReal: false, realBlockers: ['Permissão placeorder não comprovada.'], fixture: null,
+  realStatus: null, idempotencyKey: null, submittedAt: null, createdAt: null, submittedBy: null, supplierOrderIds: [] };
+
+test('test endpoints isolate simulated actions and send only explicit confirmation for real action', async () => {
+  const api = load('lib/api/admin/orders.ts', { '@/lib/auth/tokenStorage': { getToken: () => 'test-admin-token' } });
+  const calls = [];
+  global.fetch = async (url, init) => { calls.push({ url, init }); return Response.json(testState); };
+  await api.runAdminAliExpressTest(123, 'simulate-payment');
+  await api.runAdminAliExpressTest(123, 'simulate-supplier');
+  const confirmation = { phrase: 'explicit', idempotencyKey: 'own-fixture', fixtureDigest: 'digest' };
+  await api.runAdminAliExpressTest(123, 'create-real', confirmation);
+  assert.ok(calls[0].url.endsWith('/aliexpress-tests/simulate-payment'));
+  assert.ok(calls[1].url.endsWith('/aliexpress-tests/simulate-supplier'));
+  assert.equal(calls[0].init.body, undefined); assert.equal(calls[1].init.body, undefined);
+  assert.equal(calls[2].init.headers.Authorization, 'Bearer test-admin-token');
+  assert.deepEqual(JSON.parse(calls[2].init.body), confirmation);
+});
+
+async function testHarness(initial) {
+  const states = [], refs = [], effects = [], calls = []; let cursor, refCursor, first = true, resolve, reject;
+  const { AliExpressTestActions } = load('components/admin/AliExpressTestActions.tsx', {
+    react: { ...React,
+      useState(value) { const i = cursor++; if (!(i in states)) states[i] = value; return [states[i], next => { states[i] = next; }]; },
+      useRef(value) { const i = refCursor++; return refs[i] ??= { current: value }; },
+      useEffect(effect) { if (first) effects.push(effect); },
+    },
+    '@/lib/api/admin/orders': { AdminOrderApiError: class extends Error {},
+      getAdminAliExpressTest: async () => initial,
+      runAdminAliExpressTest(id, action, confirmation) { calls.push({ id, action, confirmation }); return new Promise((res, rej) => { resolve = res; reject = rej; }); },
+    },
+  });
+  function render() { cursor = 0; refCursor = 0; const tree = AliExpressTestActions({ orderId: 123 }); if (first) { first = false; effects.forEach(effect => effect()); } return tree; }
+  render(); await Promise.resolve();
+  return { render, calls, resolve: value => resolve(value), reject: () => reject(new Error('timeout')) };
+}
+const button = (tree, label) => find(tree, node => node.type === 'button' && node.props.children === label);
+
+test('only identified test orders show test actions and real action is blocked by backend readiness', async () => {
+  const unmarked = await testHarness({ ...testState, testOrder: false }); assert.equal(unmarked.render(), null);
+  const h = await testHarness(testState);
+  assert.equal(button(h.render(), 'Simular pagamento').props.disabled, false);
+  assert.equal(button(h.render(), 'Executar AliExpress simulado').props.disabled, true);
+  assert.equal(button(h.render(), 'Criar pedido real de teste no AliExpress').props.disabled, true);
+  button(h.render(), 'Simular pagamento').props.onClick();
+  button(h.render(), 'Simular pagamento').props.onClick();
+  assert.equal(h.calls.length, 1); assert.equal(h.calls[0].action, 'simulate-payment');
+  h.resolve({ ...testState, simulatedPaymentAt: '2026-11-04T12:00:00Z', simulatedPaymentBy: 'admin' });
+  await new Promise(res => setImmediate(res));
+  assert.equal(button(h.render(), 'Executar AliExpress simulado').props.disabled, false);
+  assert.equal(button(h.render(), 'Criar pedido real de teste no AliExpress').props.disabled, true);
+});
+
+test('real test requires phrase and fixture binding and a browser timeout blocks repeated purchase', async () => {
+  const h = await testHarness({ ...testState, canCreateReal: true, realBlockers: [], fixture: {
+    id: 'owned-fixture', digest: 'fixture-digest', authorizationReference: 'owned-test-data',
+  } });
+  button(h.render(), 'Criar pedido real de teste no AliExpress').props.onClick();
+  assert.equal(h.calls.length, 0);
+  assert.equal(button(h.render(), 'Confirmar criação real não paga').props.disabled, true);
+  find(h.render(), node => node.type === 'input').props.onChange({ target: { value: 'CRIAR PEDIDO REAL DE TESTE NÃO PAGO NO ALIEXPRESS' } });
+  const confirm = button(h.render(), 'Confirmar criação real não paga');
+  assert.equal(confirm.props.disabled, false); confirm.props.onClick(); confirm.props.onClick();
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual(h.calls[0].confirmation, { phrase: 'CRIAR PEDIDO REAL DE TESTE NÃO PAGO NO ALIEXPRESS', idempotencyKey: 'owned-fixture', fixtureDigest: 'fixture-digest' });
+  h.reject(); await new Promise(res => setImmediate(res));
+  assert.equal(button(h.render(), 'Criar pedido real de teste no AliExpress').props.disabled, true);
+});

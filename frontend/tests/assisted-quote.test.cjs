@@ -133,3 +133,12 @@ test('national mass review exposes import, verification and explicit draft savin
  for(const label of ['Importar arquivo JSON','Preparar 27 UFs','Salvar revisão nacional como rascunho','Custos desconhecidos','Aprovar linhas filtradas'])assert.ok(html.includes(label),label);
  assert.ok(!html.includes('Publicar automaticamente'));
 });
+
+test('provisional national policy fixes only customer SMALL freight, leaving 54 larger cells unpriced',()=>{
+ const {ProvisionalFreightPolicy}=load('components/admin/ProvisionalFreightPolicy.tsx',{'next/link':props=>React.createElement('a',props),'@/lib/auth/tokenStorage':{getToken:()=>null}});
+ const html=renderToStaticMarkup(React.createElement(ProvisionalFreightPolicy,{versions:[],onSaved:async()=>{}}));
+ assert.equal((html.match(/R\$ 24,00 — provisório/g)||[]).length,27);
+ assert.equal((html.match(/Rascunho, sem preço/g)||[]).length,54);
+ for(const text of ['Custo AliExpress','desconhecidos','Máximo de pedidos','Total máximo acumulado','Salvar política provisória como rascunho','não está ativa'])assert.ok(html.includes(text),text);
+ assert.ok(!html.includes('value="200"'));assert.ok(!html.includes('checked=""'));assert.ok(!html.includes('Ativar política provisória'));
+});

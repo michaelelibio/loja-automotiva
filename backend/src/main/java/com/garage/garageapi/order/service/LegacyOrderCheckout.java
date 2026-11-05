@@ -136,7 +136,7 @@ public class LegacyOrderCheckout {
             throw new ResourceConflictException("Solicite cotação com variantes AliExpress e chave de solicitação. Separe produtos de outros fornecedores.");
         boolean immediate=aliExpressRequired && request.shippingCode()!=null && request.shippingCode().startsWith("U_");
         if(aliExpressRequired && !assisted && !immediate) throw new ResourceConflictException("Selecione uma tarifa comercial válida ou solicite cotação assistida.");
-        var decision=immediate?commercial.evaluate(new ShippingProvider.Request(address.getZipCode(),shippingItems)):null;
+        var decision=immediate?commercial.forOrder(new ShippingProvider.Request(address.getZipCode(),shippingItems)):null;
         if(immediate && (request.requestKey()==null || !request.shippingCode().equals(decision.option().code())
                 || request.expectedTotal()==null || subtotal.add(decision.option().price()).compareTo(request.expectedTotal())!=0
                 || request.expectedAddress()==null || !request.expectedAddress().matches(address)

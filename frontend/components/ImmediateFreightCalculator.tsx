@@ -25,7 +25,7 @@ export function ImmediateFreightCalculator({items,subtotal}:{items:ShippingQuote
   return <section className="order-detail-card"><h3>Frete e total para seu CEP</h3>
     <label>CEP<input inputMode="numeric" autoComplete="postal-code" maxLength={9} value={zip} onChange={e=>{setZip(e.target.value.replace(/\D/g,'').slice(0,8));setOption(null);setError(null);}} placeholder="Somente números"/></label>
     {loading&&<p role="status">Calculando frete…</p>}
-    {option&&resolvedKey===key+zip&&<p>{option.name}: <strong>{brl(option.price)}</strong> · Total: <strong>{brl(subtotal+option.price)}</strong> · até {option.estimatedDays} dias estimados. Reconfirmado no checkout.</p>}
+    {option&&resolvedKey===key+zip&&<p>{option.name}: <strong>{brl(option.price)}</strong> · Total: <strong>{brl(subtotal+option.price)}</strong> · {option.estimatedDays>0?`até ${option.estimatedDays} dias estimados`:'prazo a confirmar'}. Reconfirmado no checkout.</p>}
     {error&&<p role="status">{error}</p>}
   </section>;
 }

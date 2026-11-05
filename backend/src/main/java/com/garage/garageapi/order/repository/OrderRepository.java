@@ -18,6 +18,9 @@ import java.time.Instant;
 import java.util.Set;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
+    interface CommercialExposure { long getQuantity(); BigDecimal getTotal(); }
+    @Query("select count(o) as quantity, coalesce(sum(o.total),0) as total from Order o where o.commercialShipping is not null and o.status not in :terminal")
+    CommercialExposure commercialExposure(@Param("terminal") Set<OrderStatus> terminal);
     Optional<Order> findByRequestKeyAndUserId(String requestKey, Long userId);
     interface StatusCount {
         OrderStatus getStatus();

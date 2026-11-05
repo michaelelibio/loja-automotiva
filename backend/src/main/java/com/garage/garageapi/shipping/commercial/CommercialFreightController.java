@@ -11,6 +11,7 @@ public class CommercialFreightController {
     @GetMapping public List<CommercialShippingService.View> list(){return service.list();}
     @PostMapping public CommercialShippingService.View draft(@Valid @RequestBody CommercialFreightPolicy.Document data){return service.draft(data);}
     @PostMapping("/bulk") public CommercialShippingService.View bulk(@RequestBody CommercialFreightPolicy.Document data){return service.bulkDraft(data);}
+    @PostMapping("/provisional") public CommercialShippingService.View provisional(@Valid @RequestBody CommercialFreightPolicy.ProvisionalPolicy data){return service.provisionalDraft(data);}
     @PostMapping("/{id}/publish") public CommercialShippingService.View publish(@PathVariable Long id){return service.publish(id);}
     @PostMapping("/{id}/retire") public CommercialShippingService.View retire(@PathVariable Long id){return service.retire(id);}
 }

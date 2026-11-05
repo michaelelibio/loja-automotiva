@@ -15,6 +15,12 @@ import static org.assertj.core.api.Assertions.*;
 @EnabledIfEnvironmentVariable(named="INGARAGE_HML_POSTGRES",matches="true")
 class CommercialFreightPostgresTests extends CommercialFreightIntegrationTests {
     @Autowired DataSource dataSource;@Autowired EntityManager entityManager;
+    @Test void provisionalJsonbRoundtripKeepsUnknownCostsAndNationalPolicy() throws Exception {
+        var table=provisionalActivate();long id=createProvisional(service.evaluate(request(1)).option().code(),UUID.randomUUID().toString());entityManager.flush();entityManager.clear();
+        var order=orders.findById(id).orElseThrow();order.requireCommercialContextUnchanged();
+        assertThat(order.getTotal()).isEqualByComparingTo("74");assertThat(order.getCommercialShipping().policyType()).isEqualTo("PROVISIONAL_24");assertThat(order.getCommercialShipping().supplierCostBrl()).isNull();
+        var loaded=tables.findById(table.version()).orElseThrow().getDocument().provisional();assertThat(loaded.nationalRates()).hasSize(81);assertThat(loaded.eligibleVariantIds()).containsExactly(variant.getId());
+    }
     @DynamicPropertySource static void isolatedDatabase(DynamicPropertyRegistry r){
         String url=System.getenv("INGARAGE_HML_PG_URL");
         if(url==null || !url.matches("jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/ingarage_homologation"))throw new IllegalStateException("Only the isolated local cluster is allowed");

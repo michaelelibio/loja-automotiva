@@ -101,6 +101,52 @@ class CommercialFreightIntegrationTests {
     @Test void expiredEvidenceAndRetiredTableFailClosed(){var table=activate();service.retire(table.version());assertThatThrownBy(()->service.evaluate(request(1))).isInstanceOf(ResourceConflictException.class);var bad=new Evidence(Source.ALIEXPRESS_PORTAL,"synthetic/expired",Instant.now().minusSeconds(100),Instant.now().minusSeconds(10),true,true);var r=rate("SC",Grouping.PER_SKU);var expired=new Rate(r.key(),r.state(),r.category(),r.size(),r.supplierStoreId(),r.originCountry(),r.logisticsCode(),r.logisticsName(),r.supplierFreightPerParcelBrl(),r.customerFreightPerParcelBrl(),r.taxesPerUnitBrl(),r.maximumVerifiedUnits(),r.maximumVerifiedSupplierBaseBrl(),r.unitsPerParcel(),r.grouping(),true,r.estimatedDays(),bad);var draft=service.draft(doc(List.of(profile(variant)),List.of(expired),"20"));assertThatThrownBy(()->service.publish(draft.version())).isInstanceOf(ResourceConflictException.class);}
     @Test void diagnosticsCannotAuthorizeTariffAndAdminEndpointsAreProtected() throws Exception {var p=profile(variant);var bad=new Profile(p.productId(),p.variantId(),p.size(),p.supplierProductId(),p.supplierSkuId(),p.supplierStoreId(),p.originCountry(),p.supplierProductUnitBrl(),p.otherSupplierUnitBrl(),new Evidence(Source.DIAGNOSTIC_ONLY,"synthetic/major-match",Instant.now().minusSeconds(60),Instant.now().plusSeconds(3600),false,false));var draft=service.draft(doc(List.of(bad),List.of(rate("SC",Grouping.PER_SKU)),"20"));assertThatThrownBy(()->service.publish(draft.version())).isInstanceOf(ResourceConflictException.class);mvc.perform(get("/api/admin/shipping-tables")).andExpect(status().isUnauthorized());mvc.perform(get("/api/admin/shipping-tables").with(customer())).andExpect(status().isForbidden());mvc.perform(get("/api/admin/shipping-tables").with(admin())).andExpect(status().isOk());}
     Document bulk(Document base,List<ReviewRow> rows){return new Document(base.costReservePercent(),base.paymentFeePercent(),base.paymentFixedFeeBrl(),base.minimumNetMarginPercent(),base.minimumNetProfitBrl(),base.paymentFeeEvidence(),base.profiles(),base.rates(),rows);}
+    ProvisionalPolicy provisional(int count,String maxTotal){return new ProvisionalPolicy(List.of(variant.getId()),true,Instant.now().plusSeconds(3600),b("200"),count,b(maxTotal));}
+    CommercialShippingService.View provisionalActivate(){return service.publish(service.provisionalDraft(provisional(10,"2000")).version());}
+    @ParameterizedTest @ValueSource(strings={"AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"})
+    void provisional24IsMerchantPriceInAllStatesWithoutInventingSupplierCost(String uf){
+        when(postal.resolve("89229040")).thenReturn(uf);var view=provisionalActivate();var decision=service.evaluate(request(1));
+        assertThat(decision.option().price()).isEqualByComparingTo("24.00");assertThat(decision.option().providerAmount()).isNull();assertThat(decision.option().legs()).isEmpty();
+        assertThat(decision.snapshot().supplierCostBrl()).isNull();assertThat(decision.snapshot().netProfitBrl()).isNull();assertThat(decision.snapshot().policyType()).isEqualTo("PROVISIONAL_24");
+        var cells=view.document().provisional().nationalRates();assertThat(cells).hasSize(81);assertThat(cells.stream().filter(c->c.size()==ParcelSize.SMALL)).hasSize(27);assertThat(cells.stream().filter(c->c.size()!=ParcelSize.SMALL)).allMatch(c->c.customerFreightBrl()==null && c.status().equals("DRAFT_INACTIVE"));
+    }
+    long createProvisional(String code,String key) throws Exception {
+        return JSON.readTree(mvc.perform(post("/api/orders").with(customer()).contentType("application/json").content(JSON.writeValueAsString(body(code,key,74)))).andExpect(status().isCreated()).andExpect(jsonPath("$.total").value(74)).andExpect(jsonPath("$.shippingCost").value(24)).andReturn().getResponse().getContentAsString()).path("id").asLong();
+    }
+    @Test void provisionalOrderPreservesUnknownCostsIdempotencyAndPayment409() throws Exception {
+        provisionalActivate();String code=service.evaluate(request(1)).option().code();String key=UUID.randomUUID().toString();long id=createProvisional(code,key);assertThat(createProvisional(code,key)).isEqualTo(id);
+        var order=orders.findById(id).orElseThrow();order.requireCommercialContextUnchanged();assertThat(order.getCommercialShipping().supplierCostBrl()).isNull();
+        assertThatThrownBy(()->service.revalidate(order)).isInstanceOf(ResourceConflictException.class);
+        mvc.perform(post("/api/orders/"+id+"/payments").with(customer()).contentType("application/json").content("{\"method\":\"MERCADO_PAGO\"}")).andExpect(status().isConflict());
+        mvc.perform(post("/api/orders").with(customer()).contentType("application/json").content(JSON.writeValueAsString(body(code,UUID.randomUUID().toString(),73)))).andExpect(status().isConflict());
+    }
+    @Test void provisionalRejectsMultipleUnitsSkusAndIneligibleProductsWithoutFreeShipping(){
+        provisionalActivate();assertThatThrownBy(()->service.evaluate(request(2))).isInstanceOf(ResourceConflictException.class);
+        var another=variant("987654");assertThatThrownBy(()->service.evaluate(new ShippingProvider.Request("89229040",List.of(item(another,1))))).isInstanceOf(ResourceConflictException.class);
+        assertThatThrownBy(()->service.evaluate(new ShippingProvider.Request("89229040",List.of(item(variant,1),item(another,1))))).isInstanceOf(ResourceConflictException.class);
+        ReflectionTestUtils.setField(product,"price",b("100"));products.saveAndFlush(product);assertThat(service.evaluate(request(1)).option().price()).isEqualByComparingTo("24");
+        ReflectionTestUtils.setField(product,"price",b("200"));products.saveAndFlush(product);assertThatThrownBy(()->service.evaluate(request(1))).isInstanceOf(ResourceConflictException.class);
+    }
+    @Test void provisionalExposureCountsPriorVersionsAndReleasesOnlyTerminalOrders() throws Exception {
+        service.publish(service.provisionalDraft(provisional(1,"200")).version());String code=service.evaluate(request(1)).option().code();long id=createProvisional(code,UUID.randomUUID().toString());
+        assertThatThrownBy(()->service.evaluate(request(1))).isInstanceOf(ResourceConflictException.class);
+        provisionalActivate();assertThat(service.evaluate(request(1)).option().price()).isEqualByComparingTo("24");
+        service.publish(service.provisionalDraft(provisional(1,"200")).version());assertThatThrownBy(()->service.evaluate(request(1))).isInstanceOf(ResourceConflictException.class);
+        var order=orders.findById(id).orElseThrow();order.cancel();orders.flush();assertThat(service.evaluate(request(1)).option().price()).isEqualByComparingTo("24");assertThat(order.getTotal()).isEqualByComparingTo("74");
+    }
+    @Test void provisionalGlobalAmountCapRetirementAndOldTotalsArePreserved() throws Exception {
+        activate();long old=create(service.evaluate(request(1)).option().code(),UUID.randomUUID().toString());
+        var limit=new ProvisionalPolicy(List.of(variant.getId()),true,Instant.now().plusSeconds(3600),b("100"),10,b("100"));var table=service.publish(service.provisionalDraft(limit).version());
+        assertThatThrownBy(()->service.evaluate(request(1))).isInstanceOf(ResourceConflictException.class);assertThat(orders.findById(old).orElseThrow().getTotal()).isEqualByComparingTo("70");
+        service.retire(table.version());assertThatThrownBy(()->service.evaluate(request(1))).isInstanceOf(ResourceConflictException.class);
+    }
+    @Test void provisionalAdminEndpointRequiresExplicitEligibilityAndLimits() throws Exception {
+        String json=JSON.writeValueAsString(provisional(2,"400"));
+        mvc.perform(post("/api/admin/shipping-tables/provisional").with(customer()).contentType("application/json").content(json)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/admin/shipping-tables/provisional").with(admin()).contentType("application/json").content(json)).andExpect(status().isOk()).andExpect(jsonPath("$.enabled").value(false)).andExpect(jsonPath("$.document.provisional.customerFreightBrl").value(24));
+        var invalid=new ProvisionalPolicy(List.of(variant.getId()),false,Instant.now().plusSeconds(60),b("200"),1,b("200"));assertThatThrownBy(()->service.provisionalDraft(invalid)).isInstanceOf(ResourceConflictException.class);
+        var expired=new ProvisionalPolicy(List.of(variant.getId()),true,Instant.now().minusSeconds(60),b("200"),1,b("200"));assertThatThrownBy(()->service.provisionalDraft(expired)).isInstanceOf(ResourceConflictException.class);
+    }
     Rate blank(String uf,ParcelSize size){return new Rate("planned-"+uf+"-"+size,uf,"Acessorios",size,"synthetic-store","CN","","",null,null,null,0,null,0,Grouping.PER_SKU,false,0,null);}
     @Test void national81UnknownPricesPersistAsInactiveDraftAndCannotPublish() throws Exception {
         var rows=new ArrayList<ReviewRow>();for(var uf:AliExpressDsFreightClient.BRAZILIAN_PROVINCES.keySet())for(var size:ParcelSize.values())rows.add(new ReviewRow(blank(uf,size),false));

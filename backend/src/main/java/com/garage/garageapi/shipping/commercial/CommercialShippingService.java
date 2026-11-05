@@ -18,6 +18,8 @@ public class CommercialShippingService {
     private final CommercialFreightTables tables; private final ProductRepository products;
     private final ProductVariantRepository variants; private final PostalStateResolver postal; private final Validator validator;
     private final boolean enabled;
+    @org.springframework.beans.factory.annotation.Autowired private com.garage.garageapi.order.repository.OrderRepository orders;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     public CommercialShippingService(CommercialFreightTables tables,ProductRepository products,ProductVariantRepository variants,
             PostalStateResolver postal,Validator validator,@Value("${app.shipping.commercial.enabled:false}") boolean enabled) {
         this.tables=tables;this.products=products;this.variants=variants;this.postal=postal;this.validator=validator;this.enabled=enabled;
@@ -25,8 +27,25 @@ public class CommercialShippingService {
     public record View(Long version,Document document,Instant createdAt,Instant publishedAt,boolean enabled){}
     public record Decision(ShippingProvider.Option option,CommercialShippingSnapshot snapshot){}
     public boolean available(){return enabled;}
+    private void lockCommercialPolicy(){tables.findFirstByOrderByIdAsc().ifPresent(t->entityManager.refresh(t,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));}
+    @Transactional public Decision forOrder(ShippingProvider.Request request){lockCommercialPolicy();return evaluate(request);}
+    @Transactional public View provisionalDraft(ProvisionalPolicy policy){
+        validateProvisional(policy);
+        return view(tables.saveAndFlush(new CommercialFreightTable(new Document(null,null,null,null,null,null,List.of(),List.of(),List.of(),policy))));
+    }
+    private void validateProvisional(ProvisionalPolicy p){
+        require(p!=null && validator.validate(p).isEmpty() && p.singleSmallUnitParcelConfirmed() && p.validUntil().isAfter(Instant.now()),"Defina SKUs pequenos de volume único, validade e limites comerciais positivos.");
+        require(p.eligibleVariantIds().stream().distinct().count()==p.eligibleVariantIds().size(),"SKU elegível duplicado.");
+        require(p.maximumOpenSalesBrl().compareTo(p.maximumOrderTotalBrl())>=0,"Limite global deve comportar o teto por pedido.");
+        for(Long id:p.eligibleVariantIds()) {
+            var v=variants.findById(id).orElseThrow(()->new com.garage.garageapi.shared.exception.ResourceConflictException("SKU elegível inexistente."));var product=v.getProduct();
+            require(Boolean.TRUE.equals(v.getActive()) && Boolean.TRUE.equals(product.getActive()) && "ALIEXPRESS".equalsIgnoreCase(v.getSupplier())
+                && "ALIEXPRESS".equalsIgnoreCase(product.getSupplier()) && product.getFulfillmentType()==FulfillmentType.DROPSHIPPING,"Selecione apenas SKUs AliExpress ativos.");
+        }
+    }
     @Transactional(readOnly=true) public List<View> list(){return tables.findAll(org.springframework.data.domain.Sort.by("id").descending()).stream().map(this::view).toList();}
     @Transactional public View draft(Document document){
+        require(document.provisional()==null,"Use o cadastro específico da política provisória.");
         require(document.reviewRows().isEmpty(),"Use a revisão em lote para linhas planejadas.");
         require(validator.validate(document).isEmpty(),"Documento incompleto ou valores inválidos.");
         require(document.profiles().stream().map(Profile::variantId).distinct().count()==document.profiles().size(),"SKU duplicado na tabela.");
@@ -37,6 +56,7 @@ public class CommercialShippingService {
     }
     /** Imports are new immutable versions. The submitted rates list is deliberately ignored. */
     @Transactional public View bulkDraft(Document document){
+        require(document==null || document.provisional()==null,"Use o cadastro específico da política provisória.");
         require(document!=null && !document.reviewRows().isEmpty() && document.reviewRows().size()<=2000,"Importe entre 1 e 2000 linhas.");
         require(document.profiles()==null || document.profiles().size()<=500,"Limite de SKUs excedido.");
         Set<Object> selectors=new HashSet<>();Set<String> keys=new HashSet<>();List<Rate> approved=new ArrayList<>();
@@ -62,11 +82,13 @@ public class CommercialShippingService {
         return view(tables.saveAndFlush(new CommercialFreightTable(normalized)));
     }
     @Transactional public View publish(Long id){
+        lockCommercialPolicy();
         require(enabled,"Tarifas reais ainda desabilitadas. Revise a proposta de precificação antes de habilitar.");
         var table=tables.locked(id).orElseThrow(()->new com.garage.garageapi.shared.exception.ResourceNotFoundException("Tabela não encontrada"));
         require(table.getPublishedAt()==null,"Versão publicada é imutável. Salve uma nova versão.");
         var current=tables.findFirstByPublishedAtIsNotNullOrderByIdDesc();
         require(current.isEmpty()||current.get().getId()<id,"Publique uma versão mais recente.");
+        if(table.getDocument().provisional()!=null){validateProvisional(table.getDocument().provisional());table.publish();return view(table);}
         require(validator.validate(table.getDocument()).isEmpty(),"Tabela sem tarifas aprovadas, custos completos ou política de rentabilidade válida.");
         require(table.getDocument().profiles().stream().map(Profile::variantId).distinct().count()==table.getDocument().profiles().size(),"SKU duplicado na tabela.");
         Instant now=Instant.now();table.getDocument().paymentFeeEvidence().requireValid(now);
@@ -75,7 +97,7 @@ public class CommercialShippingService {
         for(var rate:table.getDocument().rates()) {rate.evidence().requireValid(now);require(rate.evidence().source()!=Source.PAYMENT_PROVIDER_PLAN && rate.packagingVerified(),"Agrupamento/capacidade ou fonte da remessa não comprovados.");}
         table.publish();return view(table);
     }
-    @Transactional public View retire(Long id){var table=tables.locked(id).orElseThrow();table.retire();return view(table);}
+    @Transactional public View retire(Long id){lockCommercialPolicy();var table=tables.locked(id).orElseThrow();table.retire();return view(table);}
     private View view(CommercialFreightTable t){return new View(t.getId(),t.getDocument(),t.getCreatedAt(),t.getPublishedAt(),t.isEnabled());}
 
     @Transactional(readOnly=true) public Decision evaluate(ShippingProvider.Request request){
@@ -83,7 +105,9 @@ public class CommercialShippingService {
         var table=tables.findFirstByPublishedAtIsNotNullOrderByIdDesc().filter(CommercialFreightTable::isEnabled)
             .orElseThrow(()->new com.garage.garageapi.shared.exception.ResourceConflictException("Sem tarifa comercial válida. Solicite cotação assistida."));
         String zip=request.zipCode().replace("-","");String state=postal.resolve(zip);
-        Document d=table.getDocument();Instant now=Instant.now();d.paymentFeeEvidence().requireValid(now);
+        Document d=table.getDocument();Instant now=Instant.now();
+        if(d.provisional()!=null)return provisionalDecision(table,request,state,zip);
+        d.paymentFeeEvidence().requireValid(now);
         require(d.paymentFeeEvidence().source()==Source.PAYMENT_PROVIDER_PLAN || d.paymentFeeEvidence().source()==Source.OFFICIAL_SUPPORT,"Taxas de pagamento sem fonte válida.");
         Instant until=d.paymentFeeEvidence().validUntil();
         // Aggregate before packing: duplicate cart lines can never create duplicate freight.
@@ -150,11 +174,28 @@ public class CommercialShippingService {
     }
     @Transactional(readOnly=true) public void revalidate(Order order){
         if(order.getCommercialShipping()==null)return;
+        require(!"PROVISIONAL_24".equals(order.getCommercialShipping().policyType()),"Custo do fornecedor desconhecido: pagamento exige nova cotação completa e aceite.");
         order.requireCommercialContextUnchanged();
         var items=order.getItems().stream().map(i->new ShippingProvider.Item(i.getProductId(),i.getProductVariantId(),i.getQuantity(),i.getUnitPrice(),i.getFulfillmentType(),i.getSupplier(),i.getSupplierVariantId())).toList();
         var decision=evaluate(new ShippingProvider.Request(order.getZipCode(),items));
         require(order.getCommercialShipping().decisionCode().equals(decision.option().code())&&order.getShippingCost().compareTo(decision.option().price())==0,"Tarifa, custo ou preço mudou. Novo aceite necessário.");
     }
     private static Instant earlier(Instant a,Instant b){return a.isBefore(b)?a:b;}
+    private Decision provisionalDecision(CommercialFreightTable table,ShippingProvider.Request request,String state,String zip){
+        var p=table.getDocument().provisional();require(Instant.now().isBefore(p.validUntil()),"Política provisória expirada.");
+        require(request.items()!=null && request.items().size()==1,"Política provisória cobre somente uma unidade e uma remessa; separe pedidos ou solicite cotação assistida.");
+        var item=request.items().get(0);require(item.quantity()==1 && item.productVariantId()!=null && p.eligibleVariantIds().contains(item.productVariantId()),"SKU ou quantidade fora da política provisória.");
+        var variant=variants.findById(item.productVariantId()).orElseThrow();var product=variant.getProduct();
+        require(product.getId().equals(item.productId()) && Boolean.TRUE.equals(product.getActive()) && Boolean.TRUE.equals(variant.getActive())
+            && "ALIEXPRESS".equalsIgnoreCase(product.getSupplier()) && "ALIEXPRESS".equalsIgnoreCase(variant.getSupplier())
+            && product.getFulfillmentType()==FulfillmentType.DROPSHIPPING && product.canFulfill(1) && variant.getSupplierStockQuantity()!=null && variant.getSupplierStockQuantity()>=1,"Produto/SKU não disponível.");
+        var freight=new BigDecimal("24.00");var total=money(product.getPrice()).add(freight);
+        require(total.compareTo(p.maximumOrderTotalBrl())<=0,"Total excede o limite provisório por pedido.");
+        var exposure=orders.commercialExposure(Set.of(com.garage.garageapi.order.entity.OrderStatus.CANCELED,com.garage.garageapi.order.entity.OrderStatus.EXPIRED,com.garage.garageapi.order.entity.OrderStatus.DELIVERED));
+        require(exposure.getQuantity()<p.maximumOpenOrders() && exposure.getTotal().add(total).compareTo(p.maximumOpenSalesBrl())<=0,"Limite de exposição provisória atingido.");
+        String code="U_"+digest(List.of("PROVISIONAL_24",table.getId(),zip,state,product.getId(),variant.getId(),variant.getSupplierVariantId(),1,total.toPlainString()));
+        var snapshot=new CommercialShippingSnapshot(table.getId(),code,state,p.validUntil(),null,null,null,null,List.of("PROVISIONAL-SMALL-"+state),List.of("MERCHANT_PRICE_NOT_SUPPLIER_COST"),null,"PROVISIONAL_24");
+        return new Decision(new ShippingProvider.Option(code,"Frete comercial provisório inGarage",freight,0,"MERCHANT_UF",null,null,List.of()),snapshot);
+    }
     private static String digest(Object value){try{return Base64.getUrlEncoder().withoutPadding().encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsBytes(value)));}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}}
 }

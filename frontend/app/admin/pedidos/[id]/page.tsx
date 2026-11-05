@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { AliExpressRecipientStatus } from '@/components/admin/AliExpressRecipientStatus';
 import { AliExpressOrderAction } from '@/components/admin/AliExpressOrderAction';
+import { AliExpressTestActions } from '@/components/admin/AliExpressTestActions';
 import { AdminOrderApiError, getAdminOrder, getAdminOrderFulfillment, retryAdminOrderFulfillment, updateAdminOrderStatus } from '@/lib/api/admin/orders';
 import { adminOrderStatusLabels, type AdminOrder, type AdminOrderFulfillment, type AdminOrderStatus } from '@/lib/types/admin-order';
 
@@ -58,6 +59,7 @@ export default function AdminOrderDetailPage() {
       {order.quote && <p className="admin-muted">Pedido histórico de cotação. Consulte os registros; novas cotações estão desabilitadas.</p>}
       <section className="admin-card"><h2>Cliente e entrega</h2><div className="admin-customer"><div><span>Cliente</span><strong>{order.customer.name}</strong><a href={`mailto:${order.customer.email}`}>{order.customer.email}</a></div><address><strong>{address.recipientName}</strong><span>{address.street}, {address.number}</span>{address.complement && <span>{address.complement}</span>}<span>{address.neighborhood}</span><span>{address.city} — {address.state}</span><span>CEP {address.zipCode}</span></address></div></section>
       <AliExpressRecipientStatus status={order.recipientData} />
+      <AliExpressTestActions key={order.id} orderId={order.id} />
       {(fulfillment?.provider === 'ALIEXPRESS' || order.items.some(item => item.supplier?.toUpperCase() === 'ALIEXPRESS')) && <section className="admin-card"><h2>Pedidos AliExpress</h2><AliExpressOrderAction orderId={order.id} onUpdated={async () => {
         const [updated, delivery] = await Promise.all([getAdminOrder(id), getAdminOrderFulfillment(id)]); setOrder(updated); setFulfillment(delivery);
       }} /></section>}
