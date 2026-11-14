@@ -60,14 +60,15 @@ export function AliExpressTestActions({ orderId }: { orderId:number }) {
   }
   if(!state)return error?<p role="alert">{error}</p>:null;
   if(!state.testOrder && orderId!==19)return null;
-  return <section className="admin-card"><h2>Operação administrativa AliExpress</h2>
+  return <section className="admin-card admin-aliexpress-test"><h2>Operação administrativa AliExpress</h2>
     {error && <p role="alert">{error}</p>}
     {orderId===19 && <>
       <p>Pedido próprio #19. Não depende de Mercado Pago. O fornecedor será pago somente por você, manualmente.</p>
       {state.realBlockers.length>0 && <ul>{state.realBlockers.map(value=><li key={value}>{value}</li>)}</ul>}
       <button type="button" disabled={busy || !state.fixture} onClick={()=>void reviewPayload()}>Revisar dados autorizados</button>
       {review && !confirming && <details open><summary>Dados do pedido #19</summary><AliExpressRealReview review={review}/></details>}
-      <button type="button" disabled={busy || uncertain || !state.canCreateReal || !!state.realStatus} onClick={()=>void reviewPayload(true)}>Criar pedido real no AliExpress</button>
+      <button type="button" className="admin-aliexpress-test-primary" disabled={busy || uncertain || !state.canCreateReal || !!state.realStatus} onClick={()=>void reviewPayload(true)}>Criar pedido real no AliExpress</button>
+      <p>O primeiro clique abre a conferência dos dados. A criação só acontece após a confirmação explícita.</p>
       {state.realStatus && <div role="status">
         <p>Estado da tentativa: {state.realStatus}. Referência: {state.idempotencyKey}</p>
         <p>Enviado em {date(state.submittedAt)} por {state.submittedBy}.</p>
@@ -81,10 +82,10 @@ export function AliExpressTestActions({ orderId }: { orderId:number }) {
       <dialog style={{width:'min(44rem, calc(100vw - 2rem))',maxHeight:'85vh',overflowY:'auto',padding:'1.5rem'}} ref={dialog} onCancel={event=>{if(busy)event.preventDefault();else setConfirming(false);}} aria-labelledby="real-test-title">
         <h3 id="real-test-title">Confirmar pedido real no AliExpress</h3><p>Esta confirmação envia uma requisição real de criação. Não haverá pagamento automático.</p>
         {review && <AliExpressRealReview review={review}/>}
-        <label><input type="checkbox" checked={acceptCosts} onChange={event=>setAcceptCosts(event.target.checked)}/>Aceito criar este pedido com os custos conhecidos, com frete, impostos ou total ainda desconhecidos e com possível custo superior ao da inGarage. Pagarei somente após conferir no AliExpress.</label>
+        <label className="admin-aliexpress-test-consent"><input type="checkbox" checked={acceptCosts} onChange={event=>setAcceptCosts(event.target.checked)}/>Aceito criar este pedido com os custos conhecidos, com frete, impostos ou total ainda desconhecidos e com possível custo superior ao da inGarage. Pagarei somente após conferir no AliExpress.</label>
         <label>Digite {confirmationPhrase}<input type="text" value={phrase} onChange={event=>setPhrase(event.target.value)} autoComplete="off"/></label>
         <button type="button" disabled={busy} onClick={()=>setConfirming(false)}>Cancelar</button>
-        <button type="button" disabled={busy || !acceptCosts || phrase!==confirmationPhrase || uncertain || !state.canCreateReal} onClick={()=>void run('create-real')}>Confirmar criação real não paga</button>
+        <button type="button" className="admin-aliexpress-test-primary" disabled={busy || !acceptCosts || phrase!==confirmationPhrase || uncertain || !state.canCreateReal} onClick={()=>void run('create-real')}>Confirmar criação real não paga</button>
       </dialog>
     </>}
     {state.testOrder && <details><summary>Simulações administrativas existentes</summary><p>Registros de teste, sem confirmação financeira.</p>
