@@ -57,7 +57,7 @@ public class AliExpressOrderService {
         tx.executeWithoutResult(s->{
             orders.findByIdForLifecycleUpdate(id).orElseThrow();
             var fulfillment=fulfillments.findByOrderIdForUpdate(id).orElseThrow();
-            fulfillment.finishAliExpress(claim.token(),outcome.orderIds(),outcome.rejected(),Instant.now());
+            fulfillment.finishAliExpress(claim.token(),outcome.confirmed() ? outcome.orderIds() : List.of(),outcome.rejected(),Instant.now());
             fulfillments.flush();
         });
         return view(id);

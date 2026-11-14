@@ -119,9 +119,9 @@ test('browser timeout fetches persisted state and never enables a second purchas
   assert.equal(find(h.render(), (node) => node.type === 'button' && node.props.children === 'Enviar ao AliExpress'), null);
 });
 
-const testState = { orderId: 123, testOrder: true, simulatedPaymentAt: null, simulatedPaymentBy: null,
+const testState = { orderId: 19, testOrder: true, simulatedPaymentAt: null, simulatedPaymentBy: null,
   simulatedSupplierAt: null, simulatedSupplierId: null, simulatedSupplierBy: null,
-  canCreateReal: false, realBlockers: ['Permissão placeorder não comprovada.'], fixture: null,
+  canCreateReal: false, realBlockers: ['Criação administrativa desabilitada na configuração.'], fixture: null,
   realStatus: null, idempotencyKey: null, submittedAt: null, createdAt: null, submittedBy: null, supplierOrderIds: [] };
 
 test('test endpoints isolate simulated actions and send only explicit confirmation for real action', async () => {
@@ -149,42 +149,88 @@ async function testHarness(initial) {
     },
     '@/lib/api/admin/orders': { AdminOrderApiError: class extends Error {},
       getAdminAliExpressTest: async () => initial,
+      getAdminAliExpressTestPayload: async () => ({ orderId: initial.orderId, digest: initial.fixture?.digest, costs: initial.fixture, payload: { product_items: [] } }),
+      preflightAdminAliExpressTest: async () => ({ orderId: initial.orderId, digest: initial.fixture?.digest, costs: initial.fixture, payload: { logistics_address: { full_name: 'Owner Name', address: 'Authorized Street, 19' } }, preflightId: 'server-review-19', buyerAccount: 'Existing OAuth account', buyerState: 'UNKNOWN', warnings: [], productCostSource: 'LIVE_PRODUCT_READ', inGarageProductTotal: 50, checkedAt: new Date().toISOString(), validUntil: new Date(Date.now()+120000).toISOString() }),
       runAdminAliExpressTest(id, action, confirmation) { calls.push({ id, action, confirmation }); return new Promise((res, rej) => { resolve = res; reject = rej; }); },
     },
   });
-  function render() { cursor = 0; refCursor = 0; const tree = AliExpressTestActions({ orderId: 123 }); if (first) { first = false; effects.forEach(effect => effect()); } return tree; }
+  function render() { cursor = 0; refCursor = 0; const tree = AliExpressTestActions({ orderId: initial.orderId }); if (first) { first = false; effects.forEach(effect => effect()); } return tree; }
   render(); await Promise.resolve();
   return { render, calls, resolve: value => resolve(value), reject: () => reject(new Error('timeout')) };
 }
 const button = (tree, label) => find(tree, node => node.type === 'button' && node.props.children === label);
 
 test('only identified test orders show test actions and real action is blocked by backend readiness', async () => {
-  const unmarked = await testHarness({ ...testState, testOrder: false }); assert.equal(unmarked.render(), null);
+  const unmarked = await testHarness({ ...testState, orderId:20, testOrder: false }); assert.equal(unmarked.render(), null);
   const h = await testHarness(testState);
   assert.equal(button(h.render(), 'Simular pagamento').props.disabled, false);
   assert.equal(button(h.render(), 'Executar AliExpress simulado').props.disabled, true);
-  assert.equal(button(h.render(), 'Criar pedido real de teste no AliExpress').props.disabled, true);
+  assert.equal(button(h.render(), 'Criar pedido real no AliExpress').props.disabled, true);
   button(h.render(), 'Simular pagamento').props.onClick();
   button(h.render(), 'Simular pagamento').props.onClick();
   assert.equal(h.calls.length, 1); assert.equal(h.calls[0].action, 'simulate-payment');
   h.resolve({ ...testState, simulatedPaymentAt: '2026-11-04T12:00:00Z', simulatedPaymentBy: 'admin' });
   await new Promise(res => setImmediate(res));
   assert.equal(button(h.render(), 'Executar AliExpress simulado').props.disabled, false);
-  assert.equal(button(h.render(), 'Criar pedido real de teste no AliExpress').props.disabled, true);
+  assert.equal(button(h.render(), 'Criar pedido real no AliExpress').props.disabled, true);
 });
 
 test('real test requires phrase and fixture binding and a browser timeout blocks repeated purchase', async () => {
   const h = await testHarness({ ...testState, canCreateReal: true, realBlockers: [], fixture: {
     id: 'owned-fixture', digest: 'fixture-digest', authorizationReference: 'owned-test-data',
   } });
-  button(h.render(), 'Criar pedido real de teste no AliExpress').props.onClick();
+  assert.equal(button(h.render(), 'Criar pedido real no AliExpress').props.disabled, false);
+  button(h.render(), 'Criar pedido real no AliExpress').props.onClick();
+  await new Promise(res => setImmediate(res));
   assert.equal(h.calls.length, 0);
   assert.equal(button(h.render(), 'Confirmar criação real não paga').props.disabled, true);
-  find(h.render(), node => node.type === 'input').props.onChange({ target: { value: 'CRIAR PEDIDO REAL DE TESTE NÃO PAGO NO ALIEXPRESS' } });
+  find(h.render(), node => node.type === 'input' && node.props.type === 'text').props.onChange({ target: { value: 'CRIAR PEDIDO REAL DE TESTE NÃO PAGO NO ALIEXPRESS' } });
+  find(h.render(), node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } });
   const confirm = button(h.render(), 'Confirmar criação real não paga');
   assert.equal(confirm.props.disabled, false); confirm.props.onClick(); confirm.props.onClick();
   assert.equal(h.calls.length, 1);
-  assert.deepEqual(h.calls[0].confirmation, { phrase: 'CRIAR PEDIDO REAL DE TESTE NÃO PAGO NO ALIEXPRESS', idempotencyKey: 'owned-fixture', fixtureDigest: 'fixture-digest' });
+  assert.deepEqual(h.calls[0].confirmation, { phrase: 'CRIAR PEDIDO REAL DE TESTE NÃO PAGO NO ALIEXPRESS', idempotencyKey: 'owned-fixture', fixtureDigest: 'fixture-digest', preflightId: 'server-review-19', acceptKnownAndUnknownCosts: true });
   h.reject(); await new Promise(res => setImmediate(res));
-  assert.equal(button(h.render(), 'Criar pedido real de teste no AliExpress').props.disabled, true);
+  assert.equal(button(h.render(), 'Criar pedido real no AliExpress').props.disabled, true);
+});
+
+test('test order lookup shows awaiting payment only from verified supplier observation', async () => {
+  const initial = { ...testState, realStatus: 'CREATED_UNPAID_UNVERIFIED', supplierOrderIds: ['900001'],
+    supplierSync: { checkedAt: '2026-11-05T20:00:00Z', inProgress: false, parts: [
+      { orderId: '900001', state: 'AWAITING_MANUAL_PAYMENT', verified: true, checkedAt: '2026-11-05T20:00:00Z' },
+    ] } };
+  const h = await testHarness(initial);
+  let html = renderToStaticMarkup(h.render());
+  assert.match(html, /Aguardando pagamento manual confirmado por consulta/);
+  assert.match(html, /900001/); assert.match(html, /Última consulta real/);
+  button(h.render(), 'Consultar pedido real de teste').props.onClick();
+  assert.equal(h.calls[0].action, 'sync');
+  h.resolve({ ...initial, supplierSync: { ...initial.supplierSync, parts: [{ ...initial.supplierSync.parts[0], verified: false, state: 'UNKNOWN' }] } });
+  await new Promise(res => setImmediate(res));
+  html = renderToStaticMarkup(h.render());
+  assert.doesNotMatch(html, /Aguardando pagamento manual confirmado por consulta/);
+  assert.match(html, /Pagamento ao fornecedor desconhecido/);
+});
+
+ test('other identified administrative orders never expose the real purchase button', async () => {
+  const h=await testHarness({...testState, orderId:20, canCreateReal:true});
+  assert.equal(button(h.render(),'Criar pedido real no AliExpress'),null);
+  assert.equal(button(h.render(),'Confirmar criação real não paga'),null);
+});
+
+test('order19 shows a disabled real button and exact blockers before private configuration', async () => {
+  const h=await testHarness({...testState,testOrder:false});
+  assert.equal(button(h.render(),'Criar pedido real no AliExpress').props.disabled,true);
+  assert.equal(button(h.render(),'Simular pagamento'),null);
+});
+
+test('review preserves unknown costs, higher supplier price and unknown buyer without fictitious zero totals',()=>{
+  const {AliExpressRealReview}=load('components/admin/AliExpressTestActions.tsx');
+  const html=renderToStaticMarkup(React.createElement(AliExpressRealReview,{review:{orderId:19,buyerState:'UNKNOWN',buyerAccount:'Existing OAuth account',payload:{},costs:{productId:'1005000000000000',skuId:'123456',quantity:1,deliveryService:null,currency:'BRL',productCost:125,shippingCost:null,taxCost:null,totalCost:null},inGarageProductTotal:50,productCostSource:'LIVE_PRODUCT_READ',warnings:[],checkedAt:null,validUntil:null}}));
+  assert.match(html,/Desconhecido/);assert.match(html,/125,00/);assert.match(html,/50,00/);assert.doesNotMatch(html,/>R\$[^0-9<]*0,00<\//);
+});
+
+test('official sanitized rejection is displayed with code and message and blocks another create',async()=>{
+ const h=await testHarness({...testState,realStatus:'REJECTED_NO_RETRY',providerError:{code:'29',subCode:'isv.permission-denied',message:'Insufficient permissions',httpStatus:403}});
+ const html=renderToStaticMarkup(h.render());assert.match(html,/29/);assert.match(html,/Insufficient permissions/);assert.doesNotMatch(html,/NOT_VERIFIED/);assert.equal(button(h.render(),'Criar pedido real no AliExpress').props.disabled,true);
 });

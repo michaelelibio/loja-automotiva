@@ -1,10 +1,8 @@
 package com.garage.garageapi.integration.aliexpress;
-
 import org.springframework.stereotype.Component;
-
-/** No safe read-only proof of method permission has been homologated for this application. */
+/** Normal customer production flow stays closed. The explicit #19 attempt is decided by the provider. */
 @Component
 public class AliExpressPlaceOrderPermission {
-    public boolean verified() { return false; }
-    public String status() { return "NOT_VERIFIED"; }
+    public boolean verified(){return false;}
+    public String status(){return "NOT_VERIFIED";}
 }

@@ -23,6 +23,9 @@ public class AdminAliExpressTestRun {
     Instant createdAt;
     String submittedBy;
     @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") List<String> supplierOrderIds;
+    @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") AliExpressSupplierSnapshot supplierSync;
+    @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") AliExpressAdminPreflight preflight;
+    @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") AliExpressOrderClient.ProviderError providerError;
     protected AdminAliExpressTestRun() {}
     AdminAliExpressTestRun(Long orderId) { this.orderId = orderId; }
 }

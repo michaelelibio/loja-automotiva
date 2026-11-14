@@ -15,7 +15,7 @@ public record AliExpressSupplierSnapshot(String token, Instant startedAt, Instan
     public static Part classify(String id, String order, String logistics) {
         String state = switch (order == null ? "" : order) {
             case "PLACE_ORDER_SUCCESS" -> "AWAITING_MANUAL_PAYMENT";
-            case "RISK_CONTROL" -> "PAYMENT_CONFIRMED";
+            // Risk control alone does not prove supplier payment. Keep the raw allowlisted code for manual review.
             case "WAIT_SELLER_SEND_GOODS" -> "AWAITING_SHIPMENT";
             case "WAIT_BUYER_ACCEPT_GOODS" -> "SHIPPED";
             case "SELLER_PART_SEND_GOODS" -> "PARTIALLY_SHIPPED";

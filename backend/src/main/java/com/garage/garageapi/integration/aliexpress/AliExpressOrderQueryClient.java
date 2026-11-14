@@ -10,7 +10,6 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -22,35 +21,47 @@ public class AliExpressOrderQueryClient {
     private final RestClient http;
     private final String key,secret;
     private final boolean enabled;
+    private boolean administrativeEnabled;
     @Autowired
     public AliExpressOrderQueryClient(@Value("${aliexpress.app-key:}") String key,
             @Value("${aliexpress.app-secret:}") String secret,
             @Value("${aliexpress.orders.sync-enabled:false}") boolean enabled,
             @Value("${aliexpress.orders.sync-contract-confirmed:false}") boolean confirmed,
-            AliExpressOrderQueryPermission permission) {
+            AliExpressOrderQueryPermission permission,@Value("${aliexpress.admin-tests.real-enabled:false}") boolean administrativeEnabled) {
         this(defaultClient(),key,secret,enabled && confirmed && permission.verified());
+        this.administrativeEnabled=administrativeEnabled;
     }
     AliExpressOrderQueryClient(RestClient http,String key,String secret,boolean enabled) {
         this.http=http;this.key=key;this.secret=secret;this.enabled=enabled;
     }
     public AliExpressSupplierSnapshot.Part query(String id,String token) {
-        if (!enabled || id==null || !id.matches("[0-9]{1,30}") || key.isBlank() || secret.isBlank()
+        if(!enabled) return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_BLOCKED");
+        return lookup(id,token);
+    }
+    public AliExpressSupplierSnapshot.Part queryAdministrative(Long orderId,String id,String token) {
+        if(!Long.valueOf(19).equals(orderId) || !administrativeEnabled) return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_BLOCKED");
+        return lookup(id,token);
+    }
+    private AliExpressSupplierSnapshot.Part lookup(String id,String token) {
+        if (id==null || !id.matches("[0-9]{1,30}") || key.isBlank() || secret.isBlank()
                 || token==null || token.isBlank()) return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_BLOCKED");
         try {
             Map<String,String> p=new TreeMap<>(Map.of("method",METHOD,"app_key",key,"session",token,
-                    "sign_method","hmac","v","2.0","format","json","order_id",id,"timestamp",
-                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(ZonedDateTime.now(ZoneId.of("Asia/Shanghai")))));
+                    "sign_method","sha256","v","2.0","format","json","order_id",id,"timestamp",
+                    Long.toString(System.currentTimeMillis())));
             StringBuilder canonical=new StringBuilder();p.forEach((k,v)->canonical.append(k).append(v));
-            Mac mac=Mac.getInstance("HmacMD5");mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacMD5"));
+            Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
             p.put("sign",HexFormat.of().withUpperCase().formatHex(mac.doFinal(canonical.toString().getBytes(StandardCharsets.UTF_8))));
             StringJoiner form=new StringJoiner("&");p.forEach((k,v)->form.add(URLEncoder.encode(k,StandardCharsets.UTF_8)+"="+URLEncoder.encode(v,StandardCharsets.UTF_8)));
             byte[] bytes=form.toString().getBytes(StandardCharsets.UTF_8);
-            JsonNode body=http.post().uri("/router/rest").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            JsonNode body=http.post().uri("/sync").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .accept(MediaType.APPLICATION_JSON).body(out->out.write(bytes)).retrieve().body(JsonNode.class);
-            if (body==null || body.has("error_response")) return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_FAILED");
+            if (body==null || body.has("error_response") || (body.hasNonNull("code") && !"0".equals(body.path("code").asText()))) return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_FAILED");
             var envelope=body.path("aliexpress_ds_trade_order_get_response");
+            if(envelope.isMissingNode()) envelope=body;
             // Never accept an error envelope just because it also contains a result.
-            if (envelope.hasNonNull("rsp_code") && !Set.of("0","200").contains(envelope.path("rsp_code").asText()))
+            if (envelope.has("error_response") || (envelope.hasNonNull("code") && !"0".equals(envelope.path("code").asText()))
+                    || !"200".equals(envelope.path("rsp_code").asText()))
                 return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_FAILED");
             var result=envelope.path("result");
             if (!result.isObject() || !result.path("order_status").isString()) return AliExpressSupplierSnapshot.unknown(id,"INVALID_RESPONSE");
@@ -64,6 +75,6 @@ public class AliExpressOrderQueryClient {
         var factory=new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
                 .followRedirects(HttpClient.Redirect.NEVER).build());
         factory.setReadTimeout(Duration.ofSeconds(8));
-        return RestClient.builder().baseUrl("https://eco.taobao.com").requestFactory(factory).build();
+        return RestClient.builder().baseUrl("https://api-sg.aliexpress.com").requestFactory(factory).build();
     }
 }

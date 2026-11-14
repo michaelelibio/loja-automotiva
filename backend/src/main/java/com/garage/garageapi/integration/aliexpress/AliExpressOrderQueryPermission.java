@@ -1,9 +1,8 @@
 package com.garage.garageapi.integration.aliexpress;
-
 import org.springframework.stereotype.Component;
-
-/** Permission for read-only order lookup must be homologated separately from placeorder. */
+/** Normal customer production flow stays closed. The explicit #19 attempt is decided by the provider. */
 @Component
 public class AliExpressOrderQueryPermission {
-    public boolean verified() { return false; }
+    public boolean verified(){return false;}
+    public String status(){return "NOT_VERIFIED";}
 }

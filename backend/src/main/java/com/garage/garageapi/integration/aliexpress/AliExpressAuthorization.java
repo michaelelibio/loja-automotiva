@@ -11,6 +11,8 @@ public class AliExpressAuthorization {
     @Column(length = 4096) private String refreshCiphertext;
     @Column(nullable = false) private Instant accessExpiresAt;
     private Instant refreshExpiresAt;
+    @Column(length = 255) private String buyerUserId;
+    @Column(length = 255) private String buyerAccountId;
     @Version private Long version;
     protected AliExpressAuthorization() {}
     AliExpressAuthorization(String id) { this.id = id; }
@@ -22,4 +24,7 @@ public class AliExpressAuthorization {
     String refreshCiphertext() { return refreshCiphertext; }
     Instant accessExpiresAt() { return accessExpiresAt; }
     Instant refreshExpiresAt() { return refreshExpiresAt; }
+    String buyerUserId() { return buyerUserId; }
+    String buyerAccountId() { return buyerAccountId; }
+    void identifyBuyer(String userId,String accountId) { buyerUserId=userId;buyerAccountId=accountId; }
 }
