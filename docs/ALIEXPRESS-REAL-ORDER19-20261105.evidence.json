@@ -1,0 +1,43 @@
+{
+    "placeorderGrant":  "NOT_VERIFIED",
+    "realCreationExecuted":  false,
+    "queryGrant":  "NOT_VERIFIED",
+    "tokenRefreshExecuted":  false,
+    "databaseInspection":  "READ ONLY; order pending, one item, snapshots consistent, no test supplier IDs",
+    "deliveryTaxFinalTotal":  "NOT_VERIFIED",
+    "productReadOnlyResult":  {
+                                  "oauth":  "READ_ONLY_PRODUCT_CALL_ACCEPTED",
+                                  "method":  "aliexpress.ds.product.get",
+                                  "productId":  "1005010687850279",
+                                  "productStatus":  "onSelling",
+                                  "skuFound":  true,
+                                  "skuId":  "12000053193152987",
+                                  "skuAttr":  "14:193",
+                                  "stock":  118,
+                                  "regularPrice":  "145.56",
+                                  "offerPrice":  "62.59",
+                                  "currency":  "BRL",
+                                  "deliveryAndTax":  "NOT_VERIFIED",
+                                  "placeorderPermission":  "NOT_PROVEN_BY_PRODUCT_CALL",
+                                  "checkedAt":  "2026-11-06T00:09:15.564Z"
+                              },
+    "documentation":  [
+                          {
+                              "officialUrl":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.trade.buy.placeorder\u0026methodType=GET%2FPOST",
+                              "method":  "aliexpress.trade.buy.placeorder",
+                              "authorizationRequired":  true,
+                              "javaProtocol":  "TOP",
+                              "docId":  479
+                          },
+                          {
+                              "officialUrl":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.ds.trade.order.get\u0026methodType=GET%2FPOST",
+                              "method":  "aliexpress.ds.trade.order.get",
+                              "authorizationRequired":  true,
+                              "javaProtocol":  "TOP",
+                              "docId":  1199
+                          }
+                      ],
+    "testOwnershipAndAddress":  "Explicitly confirmed by user in this session; no creation authorized for execution",
+    "orderId":  19,
+    "sdkSha256":  "E36C92A8E6583E560CD100BE4EF23FFF30674B52E6CE1ACFDCFAE928055BB889"
+}

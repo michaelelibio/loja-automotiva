@@ -44,6 +44,7 @@ public class AliExpressOrderService {
         if(!view(id).paymentConfirmed())return;
         boolean due=tx.execute(s->{
             var order=orders.findByIdForLifecycleUpdate(id).orElseThrow();
+            if(order.isPaymentReviewRequired())return false;
             if(!preparation.hasAliExpress(order))return false;
             var row=store.locked(order);return row.automaticDispatchDue(Instant.now());
         });
@@ -63,11 +64,13 @@ public class AliExpressOrderService {
     private void recordBlock(Long id,String message,boolean temporary) {
         tx.executeWithoutResult(s->{
             var order=orders.findByIdForLifecycleUpdate(id).orElseThrow();
+            if(order.isPaymentReviewRequired())return;
             if(!preparation.hasAliExpress(order))return;
             var row=store.locked(order);
             var current=viewInside(id);
             if(!current.paymentConfirmed())return;
-            row.recordDispatchBlock(current.blockReason()==null?message:current.blockReason(),temporary);
+            if(message!=null && message.startsWith("Pagamento atual não confirmado")) row.recordPaymentDispatchBlock(message);
+            else row.recordDispatchBlock(current.blockReason()==null?message:current.blockReason(),temporary);
             store.flush(row);
         });
     }
@@ -140,6 +143,7 @@ public class AliExpressOrderService {
         boolean paid=confirmedPayment(id).isPresent();
         var quote=row==null?null:row.getDispatchQuote();
         String reason=!applicable?"Este pedido não contém itens AliExpress."
+                :order.isPaymentReviewRequired()?"Pagamento exige revisão financeira. Confira estorno, contestação ou pagamentos divergentes antes de encaminhar."
                 :!paid || (order.getStatus()!=OrderStatus.PAID && order.getStatus()!=OrderStatus.PROCESSING)?"Aguardando pagamento confirmado pelo backend."
                 :status==FulfillmentStatus.CREATED?"Pedido vinculado ao fornecedor. Confira o estado atual antes do pagamento manual."
                 :status==FulfillmentStatus.VERIFICATION_REQUIRED || status==FulfillmentStatus.PROCESSING?"Verificação necessária. Reenvio bloqueado até reconciliação."

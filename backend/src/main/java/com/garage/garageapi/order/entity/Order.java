@@ -46,6 +46,55 @@ public class Order {
     @Column(nullable = false, length = 30)
     private OrderStatus status;
 
+    // Financial state is independent from logistics: a reversal never erases a supplier reference.
+    @Column(name = "financial_payment_id")
+    private Long financialPaymentId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_financial_status", length = 30)
+    private com.garage.garageapi.payment.entity.PaymentStatus paymentFinancialStatus;
+    @Column(name = "payment_refunded_amount", precision = 12, scale = 2)
+    private BigDecimal paymentRefundedAmount;
+    @Column(name = "payment_net_revenue", precision = 12, scale = 2)
+    private BigDecimal paymentNetRevenue;
+    @Column(name = "payment_review_required", nullable = false)
+    @ColumnDefault("false")
+    private boolean paymentReviewRequired;
+    @Column(name = "payment_binding_conflict", nullable = false)
+    @ColumnDefault("false")
+    private boolean paymentBindingConflict;
+
+    public boolean isPaymentReviewRequired() { return paymentReviewRequired; }
+    public com.garage.garageapi.payment.entity.PaymentStatus getPaymentFinancialStatus() { return paymentFinancialStatus; }
+    public BigDecimal getPaymentRefundedAmount() { return paymentRefundedAmount; }
+    public BigDecimal getPaymentNetRevenue() { return paymentNetRevenue == null
+            ? OrderStatus.confirmedRevenueStatuses().contains(status) ? total : BigDecimal.ZERO : paymentNetRevenue; }
+    public Long getFinancialPaymentId() { return financialPaymentId; }
+    public void requirePaymentReview() { paymentReviewRequired = true; }
+    public void recordPaymentBindingConflict() { paymentBindingConflict = true; paymentReviewRequired = true; }
+
+    public void applyPaymentFinancialState(com.garage.garageapi.payment.entity.Payment payment) {
+        var current = payment.getStatus();
+        boolean captured = payment.getPaidAt() != null || current == com.garage.garageapi.payment.entity.PaymentStatus.PAID
+                || current.requiresFinancialReview() && current != com.garage.garageapi.payment.entity.PaymentStatus.CANCELED;
+        if (financialPaymentId != null && !java.util.Objects.equals(financialPaymentId, payment.getId())) {
+            if (captured) recordPaymentBindingConflict();
+            return;
+        }
+        if (financialPaymentId == null && !captured) return;
+        financialPaymentId = payment.getId();
+        paymentFinancialStatus = current;
+        paymentRefundedAmount = payment.getRefundedAmount();
+        paymentNetRevenue = current == com.garage.garageapi.payment.entity.PaymentStatus.PAID ? total
+                : current == com.garage.garageapi.payment.entity.PaymentStatus.PARTIALLY_REFUNDED
+                    ? total.subtract(paymentRefundedAmount).max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        paymentReviewRequired = paymentBindingConflict || current != com.garage.garageapi.payment.entity.PaymentStatus.PAID;
+    }
+
+    private void requirePaymentCleared() {
+        if (paymentReviewRequired) throw new ResourceConflictException(
+                "Pagamento exige revisão financeira. Encaminhamento e envio bloqueados; confira o pagamento e o fornecedor.");
+    }
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
 
@@ -326,17 +375,20 @@ public class Order {
     }
 
     public void startProcessing(Instant occurredAt) {
+        requirePaymentCleared();
         requireAssistedDispatch();
         requireStatus(OrderStatus.PAID, OrderStatus.PROCESSING);
         status = OrderStatus.PROCESSING;
         processingAt = occurredAt;
     }
     public void startProcessingAfterSupplierCreation(Instant occurredAt) {
+        requirePaymentCleared();
         requireStatus(OrderStatus.PAID,OrderStatus.PROCESSING);
         status=OrderStatus.PROCESSING;processingAt=occurredAt;
     }
 
     public void markShipped(Instant occurredAt) {
+        requirePaymentCleared();
         if (assistedQuote!=null && !"ACCEPTED".equals(assistedQuote.state()))
             throw new ResourceConflictException("Envio bloqueado: resolva o cancelamento/reembolso.");
         requireStatus(OrderStatus.PROCESSING, OrderStatus.SHIPPED);

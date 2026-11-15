@@ -20,6 +20,7 @@ public class SupplierFulfillmentService {
     }
 
     public void fulfill(Long orderId) {
+        if (repository.paymentReviewRequired(orderId).orElse(false)) return;
         aliExpress.ifAvailable(worker->worker.enqueue(orderId));
         repository.findByOrderId(orderId).ifPresent(fulfillment -> {
             if ("CJ".equals(fulfillment.getProvider())) cjService.fulfill(orderId);

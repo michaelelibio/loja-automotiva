@@ -8,11 +8,13 @@ import java.time.Instant;
 
 public record PaymentResponse(Long id, Long orderId, PaymentMethod method, PaymentStatus status,
                               String providerPaymentId, String preferenceId, String checkoutUrl,
-                              Instant paidAt, Instant createdAt, Instant updatedAt) {
+                              Instant paidAt, Instant createdAt, Instant updatedAt,
+                              java.math.BigDecimal refundedAmount, Instant providerUpdatedAt, String statusDetail) {
     public static PaymentResponse from(Payment payment) {
         return new PaymentResponse(payment.getId(), payment.getOrder().getId(), payment.getMethod(),
                 payment.getStatus(), payment.getProviderPaymentId(), payment.getProviderPreferenceId(),
                 payment.getCheckoutUrl(), payment.getPaidAt(),
-                payment.getCreatedAt(), payment.getUpdatedAt());
+                payment.getCreatedAt(), payment.getUpdatedAt(), payment.getRefundedAmount(),
+                payment.getProviderUpdatedAt(), payment.getProviderStatusDetail());
     }
 }

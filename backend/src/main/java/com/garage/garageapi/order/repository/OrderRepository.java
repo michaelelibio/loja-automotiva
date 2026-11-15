@@ -55,11 +55,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     long countByStatus(OrderStatus status);
 
-    @Query("select count(o) from Order o where o.status in :statuses and o.createdAt >= :start and o.createdAt < :end")
+    @Query("select count(o) from Order o where o.status in :statuses and coalesce(o.paymentNetRevenue,o.total)>0 and o.createdAt >= :start and o.createdAt < :end")
     long countConfirmedInPeriod(@Param("statuses") Set<OrderStatus> statuses,
                                 @Param("start") Instant start, @Param("end") Instant end);
 
-    @Query("select coalesce(sum(o.total), 0) from Order o where o.status in :statuses and o.createdAt >= :start and o.createdAt < :end")
+    @Query("select coalesce(sum(coalesce(o.paymentNetRevenue,o.total)), 0) from Order o where o.status in :statuses and o.createdAt >= :start and o.createdAt < :end")
     BigDecimal sumConfirmedRevenueInPeriod(@Param("statuses") Set<OrderStatus> statuses,
                                            @Param("start") Instant start, @Param("end") Instant end);
 
@@ -83,8 +83,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("""
             select o.user.id as userId,
-                   count(o) as confirmedOrders,
-                   coalesce(sum(o.total), 0) as totalSpent
+                   sum(case when coalesce(o.paymentNetRevenue,o.total)>0 then 1 else 0 end) as confirmedOrders,
+                   coalesce(sum(coalesce(o.paymentNetRevenue,o.total)), 0) as totalSpent
               from Order o
              where o.user.id in :userIds
                and o.status in :confirmedStatuses

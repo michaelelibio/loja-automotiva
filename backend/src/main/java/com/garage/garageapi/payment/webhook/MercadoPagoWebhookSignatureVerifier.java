@@ -41,6 +41,8 @@ public class MercadoPagoWebhookSignatureVerifier {
                 dataId, requestId, null, 0);
         if (!StringUtils.hasText(signature)) return diagnosed(Verification.SIGNATURE_MISSING,
                 dataId, requestId, null, 0);
+        if(signature.length()>512 || requestId!=null && requestId.length()>200 || dataId!=null && dataId.length()>100)
+            return Verification.SIGNATURE_MALFORMED;
 
         String timestamp = part(signature, "ts");
         String suppliedHash = part(signature, "v1");
@@ -49,7 +51,7 @@ public class MercadoPagoWebhookSignatureVerifier {
                         + "v1Present={}; v1Length={}",
                 StringUtils.hasText(timestamp), length(timestamp),
                 StringUtils.hasText(suppliedHash), length(suppliedHash));
-        if (!StringUtils.hasText(suppliedHash)) {
+        if (timestamp==null || !timestamp.matches("[0-9]{1,20}") || suppliedHash==null || !suppliedHash.matches("[a-fA-F0-9]{64}")) {
             return diagnosed(Verification.SIGNATURE_MALFORMED, dataId, requestId, timestamp,
                     manifestLength);
         }
@@ -68,21 +70,8 @@ public class MercadoPagoWebhookSignatureVerifier {
     private void logHmacComparison(String signature, String dataId, String requestId,
                                    String timestamp, String suppliedHash, Verification sdkResult) {
         if (!diagnosticLogging) return;
-        try {
-            String manifest = manifest(dataId, requestId, timestamp);
-            String calculatedHmac = hmacSha256(manifest, secret);
-            logger.info("Mercado Pago webhook HMAC comparison diagnostic; dataId={}; "
-                            + "requestId={}; xSignature={}; ts={}; receivedV1={}; "
-                            + "secretLength={}; secretFingerprint={}; manifest={}; "
-                            + "manifestLength={}; calculatedHmac={}; manualMatch={}; sdkResult={}",
-                    dataId, requestId, signature, timestamp, suppliedHash, secret.length(),
-                    sha256Fingerprint(secret), manifest,
-                    manifest.getBytes(StandardCharsets.UTF_8).length, calculatedHmac,
-                    calculatedHmac.equalsIgnoreCase(suppliedHash), sdkResult);
-        } catch (GeneralSecurityException exception) {
-            logger.warn("Mercado Pago webhook HMAC comparison diagnostic unavailable; sdkResult={}",
-                    sdkResult);
-        }
+        // Diagnostic mode must never disclose signatures, HMACs, manifests or secret fingerprints.
+        logger.info("Mercado Pago webhook signature validation diagnostic; result={}",sdkResult);
     }
 
     private String manifest(String dataId, String requestId, String timestamp) {
@@ -130,11 +119,15 @@ public class MercadoPagoWebhookSignatureVerifier {
     }
 
     private String part(String signature, String expectedName) {
+        String value=null;
         for (String part : signature.split(",")) {
             String[] pair = part.trim().split("=", 2);
-            if (pair.length == 2 && pair[0].equals(expectedName)) return pair[1].trim();
+            if (pair.length == 2 && pair[0].equals(expectedName)) {
+                if(value!=null)return null;
+                value=pair[1].trim();
+            }
         }
-        return null;
+        return value;
     }
 
     public enum Verification {

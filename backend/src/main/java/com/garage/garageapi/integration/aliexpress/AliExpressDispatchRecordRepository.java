@@ -8,7 +8,7 @@ import java.util.*;
 public interface AliExpressDispatchRecordRepository extends JpaRepository<AliExpressDispatchRecord,Long> {
     @Query("""
         select distinct o.id from Order o join o.items i
-        where i.supplier='ALIEXPRESS' and o.status in ('PAID','PROCESSING')
+        where i.supplier='ALIEXPRESS' and o.status in ('PAID','PROCESSING') and o.paymentReviewRequired=false
           and not exists(select f.id from OrderFulfillment f where f.order=o and f.provider='ALIEXPRESS')
           and (not exists(select a.orderId from AliExpressDispatchRecord a where a.order=o)
                or exists(select a.orderId from AliExpressDispatchRecord a where a.order=o and a.status='PENDING' and a.automaticEligible=true

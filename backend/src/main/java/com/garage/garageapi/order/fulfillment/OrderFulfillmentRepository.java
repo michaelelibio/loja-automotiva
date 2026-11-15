@@ -12,7 +12,7 @@ public interface OrderFulfillmentRepository extends JpaRepository<OrderFulfillme
     @Query("""
         select f.order.id from OrderFulfillment f
         where f.provider = 'ALIEXPRESS' and f.status = 'PENDING' and f.attemptCount = 0
-          and f.dispatchManualHold = false
+          and f.dispatchManualHold = false and f.order.paymentReviewRequired = false
           and f.supplierOrderId is null and f.order.status in ('PAID','PROCESSING')
           and (f.lastError is null or f.dispatchNextCheckAt <= :now)
           and exists (select p.id from Payment p where p.order = f.order and p.method = 'MERCADO_PAGO'
@@ -21,6 +21,8 @@ public interface OrderFulfillmentRepository extends JpaRepository<OrderFulfillme
         order by f.updatedAt, f.order.id
         """)
     java.util.List<Long> findAutomaticDispatchCandidates(@Param("now") java.time.Instant now, org.springframework.data.domain.Pageable pageable);
+    @Query("select o.paymentReviewRequired from Order o where o.id = :orderId")
+    Optional<Boolean> paymentReviewRequired(@Param("orderId") Long orderId);
     Optional<OrderFulfillment> findByOrderId(Long orderId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

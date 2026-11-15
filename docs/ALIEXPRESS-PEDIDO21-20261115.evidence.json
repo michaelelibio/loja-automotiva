@@ -1,0 +1,185 @@
+{
+    "date":  "2026-11-15",
+    "order21":  {
+                    "checkedAt":  "2026-11-15T14:27:23.520Z",
+                    "readOnly":  true,
+                    "orderId":  21,
+                    "status":  "PAID",
+                    "total":  10,
+                    "shippingCode":  "CATALOG_FREE",
+                    "missingRecipientFields":  [
+
+                                               ],
+                    "cpfValid":  true,
+                    "zipValid":  true,
+                    "phoneValid":  true,
+                    "assistedQuotePresent":  false,
+                    "shippingLegs":  [
+
+                                     ],
+                    "commercialShipping":  null,
+                    "items":  [
+                                  {
+                                      "productId":  12,
+                                      "variantId":  18,
+                                      "supplier":  "ALIEXPRESS",
+                                      "supplierProductId":  "1005007170269840",
+                                      "supplierVariantId":  "12000039689247941",
+                                      "quantity":  1,
+                                      "unitPrice":  10,
+                                      "fulfillmentType":  "DROPSHIPPING",
+                                      "variantMatches":  true,
+                                      "rawSkuPresent":  true,
+                                      "importedSupplierCost":  11.08,
+                                      "importedSupplierCurrency":  "BRL"
+                                  }
+                              ],
+                    "payments":  [
+                                     {
+                                         "status":  "PAID",
+                                         "method":  "MERCADO_PAGO",
+                                         "providerLiveMode":  true,
+                                         "verifiedAt":  "2026-11-15T13:53:29.520642+00:00",
+                                         "paidAt":  "2026-11-15T13:53:29+00:00",
+                                         "providerPaymentIdPresent":  true
+                                     }
+                                 ],
+                    "fulfillment":  {
+                                        "provider":  "ALIEXPRESS",
+                                        "status":  "PENDING",
+                                        "attemptCount":  0,
+                                        "supplierOrderId":  null,
+                                        "supplierOrderIds":  null,
+                                        "lastError":  null
+                                    },
+                    "adminRun":  null,
+                    "flags":  {
+                                  "SPRING_PROFILES_ACTIVE":  "controlled",
+                                  "ALIEXPRESS_ORDERS_ENABLED":  "false",
+                                  "ALIEXPRESS_ORDERS_CONTRACT_CONFIRMED":  "false",
+                                  "ALIEXPRESS_ORDER_SYNC_ENABLED":  "UNSET",
+                                  "ALIEXPRESS_ORDER_SYNC_CONTRACT_CONFIRMED":  "UNSET",
+                                  "ALIEXPRESS_ADMIN_TEST_ORDER_IDS":  "19",
+                                  "ALIEXPRESS_ADMIN_TEST_REAL_ENABLED":  "true"
+                              },
+                    "mercadoPago":  {
+                                        "http":  200,
+                                        "status":  "approved",
+                                        "liveMode":  true,
+                                        "amount":  10,
+                                        "currency":  "BRL",
+                                        "externalReferenceMatches":  true,
+                                        "approvedAt":  "2026-11-15T09:53:29.000-04:00"
+                                    },
+                    "oauth":  {
+                                  "present":  true,
+                                  "expiresAt":  "2026-12-14T21:28:39+00:00",
+                                  "buyerIdentityPresent":  true
+                              },
+                    "liveProducts":  [
+                                         {
+                                             "supplierProductId":  "1005007170269840",
+                                             "http":  200,
+                                             "code":  "200",
+                                             "productStatus":  "onSelling",
+                                             "skuFound":  true,
+                                             "rawSkuMatches":  true,
+                                             "stock":  4,
+                                             "regularPrice":  "24.43",
+                                             "offerPrice":  "10.50",
+                                             "currency":  "BRL",
+                                             "shippingAndTax":  "NOT_CONFIRMED"
+                                         }
+                                     ],
+                    "freight":  {
+                                    "method":  "aliexpress.ds.freight.query",
+                                    "http":  200,
+                                    "providerCode":  200,
+                                    "requestUsesActualOrderProvince":  true,
+                                    "postalCodeSupportedByKnownContract":  false,
+                                    "fullAddressQuoteConfirmed":  false,
+                                    "options":  [
+                                                    {
+                                                        "company":  "AliExpress Selection Standard",
+                                                        "shippingFeeReceived":  "24.00",
+                                                        "shippingFeeFormat":  "R$24,00",
+                                                        "currency":  "BRL",
+                                                        "freeShipping":  false,
+                                                        "ddpIncludesVatTax":  "true"
+                                                    }
+                                                ],
+                                    "productTaxIndicators":  {
+                                                                 "priceIncludeTax":  false
+                                                             },
+                                    "totalConfirmed":  false,
+                                    "missing":  [
+                                                    "CEP/full destination coverage",
+                                                    "confirmed freight monetary scale and applicable delivery service",
+                                                    "all Brazilian taxes and other charges",
+                                                    "final supplier total for order #21"
+                                                ]
+                                }
+                },
+    "ownerConfirmedNoManualDuplicate":  true,
+    "ownerAcceptedKnownCostAboveSale":  true,
+    "ownerRequiresApiFullDestinationTotal":  true,
+    "supplierCreateCallsThisTask":  0,
+    "supplierPaymentCallsThisTask":  0,
+    "createdSupplierOrderId":  null,
+    "diagnosticUpdate":  {
+                             "updatedRows":  1,
+                             "result":  [
+                                            {
+                                                "order_id":  21,
+                                                "status":  "PENDING",
+                                                "supplier_status":  "BLOCKED",
+                                                "attempt_count":  0,
+                                                "supplier_order_id":  null,
+                                                "last_error":  "Criação AliExpress bloqueada: API não confirmou custo total para o CEP do pedido #21. Produto: oferta R$ 10,50; frete observado por país/UF: R$ 24,00 (não é cotação por CEP). Impostos e total final não confirmados. Nenhuma criação enviada; pagamento ao fornecedor manual."
+                                            }
+                                        ],
+                             "checkedAt":  "2026-11-15T14:40:00.781Z"
+                         },
+    "deploymentPerformed":  false,
+    "productionMigrationPerformed":  false,
+    "productionFlagsChanged":  false,
+    "finalDatabaseVerification":  {
+                                      "orderId":  21,
+                                      "orderStatus":  "PAID",
+                                      "supplierStatus":  "BLOCKED",
+                                      "fulfillmentStatus":  "PENDING",
+                                      "attemptCount":  0,
+                                      "supplierOrderId":  null,
+                                      "supplierOrderIds":  null,
+                                      "diagnosticRecorded":  true,
+                                      "checkedAt":  "2026-11-15T15:02:35.787Z"
+                                  },
+    "validation":  {
+                       "backendAffected":  {
+                                               "discovered":  576,
+                                               "errors":  0,
+                                               "skippedOptIn":  61,
+                                               "failures":  0,
+                                               "passed":  515
+                                           },
+                       "backendFinalRegression":  {
+                                                      "errors":  0,
+                                                      "failures":  0,
+                                                      "passed":  62
+                                                  },
+                       "frontend":  {
+                                        "affectedLint":  "PASS",
+                                        "nextBuild":  "PASS",
+                                        "typecheck":  "PASS",
+                                        "failures":  0,
+                                        "passed":  76
+                                    },
+                       "postgres18Migration":  {
+                                                   "historicalRowPreserved":  true,
+                                                   "appliedTwice":  true,
+                                                   "temporaryServerStopped":  true,
+                                                   "transactionRolledBack":  true
+                                               },
+                       "diffCheck":  "PASS"
+                   }
+}

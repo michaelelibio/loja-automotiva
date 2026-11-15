@@ -155,6 +155,15 @@ public class OrderFulfillment {
         updatedAt = Instant.now();
         dispatchNextCheckAt = temporary && dispatchCheckCount < 3 ? updatedAt.plusSeconds(60L * dispatchCheckCount) : null;
     }
+    public void recordPaymentDispatchBlock(String message) {
+        if (!"ALIEXPRESS".equals(provider) || status != FulfillmentStatus.PENDING || attemptCount != 0) return;
+        lastError = message; supplierStatus = "PAYMENT_REVIEW"; dispatchNextCheckAt = null; updatedAt = Instant.now();
+    }
+    /** Only an authenticated fresh payment application may clear this pre-submission block. */
+    public void clearPaymentDispatchBlock() {
+        if (status != FulfillmentStatus.PENDING || attemptCount != 0 || !"PAYMENT_REVIEW".equals(supplierStatus)) return;
+        lastError = null; supplierStatus = "READY"; dispatchCheckCount = 0; dispatchNextCheckAt = null; updatedAt = Instant.now();
+    }
     public boolean automaticDispatchDue(Instant now) {
         return "ALIEXPRESS".equals(provider) && !dispatchManualHold && status == FulfillmentStatus.PENDING && attemptCount == 0
                 && supplierOrderId == null && getSupplierOrderIds().isEmpty()
@@ -219,7 +228,8 @@ public class OrderFulfillment {
             supplierStatus = "CREATED_UNPAID_UNVERIFIED";
             lastError = null;
             createdExternallyAt = now;
-            if (order.getStatus() == com.garage.garageapi.order.entity.OrderStatus.PAID) order.startProcessingAfterSupplierCreation(now);
+            if (order.getStatus() == com.garage.garageapi.order.entity.OrderStatus.PAID && !order.isPaymentReviewRequired())
+                order.startProcessingAfterSupplierCreation(now);
         } else if (rejected) {
             status = FulfillmentStatus.FAILED;
             supplierStatus = "REJECTED";

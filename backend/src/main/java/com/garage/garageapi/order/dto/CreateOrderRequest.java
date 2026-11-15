@@ -14,7 +14,9 @@ public record CreateOrderRequest(
         @Size(max = 50, message = "código de frete inválido") String shippingCode,
         AliExpressRecipientRequest recipient,
         @jakarta.validation.constraints.Pattern(regexp = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}") String requestKey,
-        @jakarta.validation.constraints.DecimalMin("0.01") java.math.BigDecimal expectedTotal,
+        @jakarta.validation.constraints.DecimalMin("0.01")
+        @tools.jackson.databind.annotation.JsonDeserialize(using = com.garage.garageapi.shared.json.StrictCheckoutAmountDeserializer.class)
+        java.math.BigDecimal expectedTotal,
         AddressConsent expectedAddress
 ) {
     public record AddressConsent(String recipientName,String zipCode,String street,String number,String complement,String neighborhood,String city,String state){
