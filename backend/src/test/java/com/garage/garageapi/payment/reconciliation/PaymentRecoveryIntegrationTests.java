@@ -3,7 +3,8 @@ package com.garage.garageapi.payment.reconciliation;
 import com.garage.garageapi.address.entity.Address;
 import com.garage.garageapi.address.repository.AddressRepository;
 import com.garage.garageapi.order.email.OrderEmailService;
-import com.garage.garageapi.order.entity.*;
+import com.garage.garageapi.order.entity.Order;
+import com.garage.garageapi.order.entity.OrderStatus;
 import com.garage.garageapi.order.repository.OrderRepository;
 import com.garage.garageapi.payment.entity.*;
 import com.garage.garageapi.payment.gateway.CheckoutProGateway;
@@ -11,7 +12,8 @@ import com.garage.garageapi.payment.repository.PaymentRepository;
 import com.garage.garageapi.payment.service.PaymentWebhookService;
 import com.garage.garageapi.user.entity.User;
 import com.garage.garageapi.user.repository.UserRepository;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -69,7 +71,7 @@ public class PaymentRecoveryIntegrationTests {
         assertThat(store.claim(p.getId(),Instant.now())).isNull();
         // A later process can reclaim persisted scheduling state; no in-memory retry list is required.
         var claim=store.claim(p.getId(),Instant.now().plusSeconds(61));assertThat(claim).isNotNull();
-        when(search.findIds(p.getExternalReference())).thenReturn(List.of("80005"));
+        doReturn(List.of("80005")).when(search).findIds(p.getExternalReference());
         when(gateway.findPayment("80005")).thenReturn(result(p,"80005",new BigDecimal("50"),"BRL"));
         // Model a process exit after claiming, then lease expiry in another process.
         assertThat(store.claim(p.getId(),Instant.now().plusSeconds(62))).isNull();
