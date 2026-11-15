@@ -21,7 +21,9 @@ public record AdminOrderResponse(
         Instant createdAt, Instant expiresAt, Instant updatedAt, Instant processingAt,
         Instant shippedAt, Instant deliveredAt, Customer customer,
         ShippingAddress shippingAddress, List<Item> items, PaymentSummary payment,
-        com.garage.garageapi.order.recipient.AliExpressRecipientData.Status recipientData
+        com.garage.garageapi.order.recipient.AliExpressRecipientData.Status recipientData,
+        com.garage.garageapi.order.quote.AssistedQuote.Summary quote,
+        com.garage.garageapi.order.dto.OrderFinancialResponse financial
 ) {
     public static AdminOrderResponse from(Order order, Payment payment) {
         return new AdminOrderResponse(
@@ -38,7 +40,10 @@ public record AdminOrderResponse(
                         order.getCity(), order.getState()),
                 order.getItems().stream().map(Item::from).toList(),
                 payment == null ? null : new PaymentSummary(payment.getMethod(), payment.getStatus(),
-                        payment.getPaidAt()),com.garage.garageapi.order.recipient.AliExpressRecipientData.status(order));
+                        payment.getPaidAt(), payment.getRefundedAmount(), payment.getProviderUpdatedAt(), payment.getProviderStatusDetail()),
+                com.garage.garageapi.order.recipient.AliExpressRecipientData.status(order),
+                order.getAssistedQuote() == null ? null : order.getAssistedQuote().summary(),
+                com.garage.garageapi.order.dto.OrderFinancialResponse.from(order));
     }
 
     public record Customer(Long userId, String name, String email) { }
@@ -63,5 +68,6 @@ public record AdminOrderResponse(
         }
     }
 
-    public record PaymentSummary(PaymentMethod method, PaymentStatus status, Instant paidAt) { }
+    public record PaymentSummary(PaymentMethod method, PaymentStatus status, Instant paidAt,
+                                 BigDecimal refundedAmount, Instant providerUpdatedAt, String statusDetail) { }
 }

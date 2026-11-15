@@ -14,11 +14,37 @@ public interface CheckoutProGateway {
 
     record PreferenceRequest(Long orderId, Long paymentId, BigDecimal total, String payerName,
                              String payerEmail, String idempotencyKey, List<Item> items,
-                             BigDecimal shippingCost, String shippingName) { }
+                             BigDecimal shippingCost, String shippingName, Instant expiresAt) {
+        public PreferenceRequest(Long orderId, Long paymentId, BigDecimal total, String payerName,
+                String payerEmail, String idempotencyKey, List<Item> items, BigDecimal shippingCost, String shippingName) {
+            this(orderId,paymentId,total,payerName,payerEmail,idempotencyKey,items,shippingCost,shippingName,null);
+        }
+    }
 
     record PreferenceResult(String preferenceId, String externalReference, String checkoutUrl) { }
 
     record PaymentResult(String providerPaymentId, String externalReference, PaymentStatus status,
                          String statusDetail, BigDecimal transactionAmount, String currencyId,
-                         String paymentType, String paymentMethodId, Instant approvedAt) { }
+                         String paymentType, String paymentMethodId, Instant approvedAt, Boolean liveMode,
+                         BigDecimal refundedAmount, Instant providerUpdatedAt) {
+        public PaymentResult(String providerPaymentId, String externalReference, PaymentStatus status,
+                String statusDetail, BigDecimal transactionAmount, String currencyId,
+                String paymentType, String paymentMethodId, Instant approvedAt, Boolean liveMode,
+                BigDecimal refundedAmount) {
+            this(providerPaymentId,externalReference,status,statusDetail,transactionAmount,currencyId,
+                    paymentType,paymentMethodId,approvedAt,liveMode,refundedAmount,null);
+        }
+        public PaymentResult(String providerPaymentId, String externalReference, PaymentStatus status,
+                String statusDetail, BigDecimal transactionAmount, String currencyId,
+                String paymentType, String paymentMethodId, Instant approvedAt, Boolean liveMode) {
+            this(providerPaymentId,externalReference,status,statusDetail,transactionAmount,currencyId,
+                    paymentType,paymentMethodId,approvedAt,liveMode,BigDecimal.ZERO,null);
+        }
+        public PaymentResult(String providerPaymentId, String externalReference, PaymentStatus status,
+                String statusDetail, BigDecimal transactionAmount, String currencyId,
+                String paymentType, String paymentMethodId, Instant approvedAt) {
+            this(providerPaymentId,externalReference,status,statusDetail,transactionAmount,currencyId,
+                    paymentType,paymentMethodId,approvedAt,null);
+        }
+    }
 }

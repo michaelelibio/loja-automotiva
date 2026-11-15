@@ -14,6 +14,7 @@ export function AliExpressFreightResult({ result }: { result: FreightDiagnosticR
       <h3>{success ? 'Consulta concluída com sucesso' : 'Não foi possível confirmar a cotação'}</h3>
       <p>Status: <code>{result.status}</code></p><p>{freightDiagnosticMessage(result)}</p><p>Código: <code>{result.safeCode}</code></p>
     </div>
+    <p>Autorização comercial: não autorizada por este diagnóstico. A venda exige cotação assistida confirmada e aceite do cliente.</p>
     {!!result.monetaryStructure?.length && <div className="admin-aliexpress-table-wrap"><table className="admin-aliexpress-table">
       <caption>Estrutura monetária sanitizada. Valores observados sem conversão; vazio indica valor suprimido.</caption>
       <thead><tr><th>Opção</th><th>Campo</th><th>Presente</th><th>Tipo JSON</th><th>Moeda</th><th>Escala documentada</th><th>Valor observado</th></tr></thead>

@@ -1,4 +1,5 @@
 export const freightStatusMessages = {
+  MONEY_SCALE_UNCONFIRMED: 'Valor decimal recebido e sintaticamente válido. A escala monetária permanece sem confirmação; use cotação assistida para vender.',
   SUCCESS: 'A consulta foi concluída e retornou modalidades de entrega.',
   PERMISSION_DENIED: 'O fornecedor negou o acesso à consulta. Confira as permissões da aplicação e as restrições de acesso no AliExpress.',
   TOKEN_REJECTED: 'O AliExpress rejeitou a autorização nesta consulta. Confira a integração; nenhuma credencial foi renovada automaticamente.',

@@ -11,6 +11,7 @@ import com.garage.garageapi.payment.repository.PaymentRepository;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import com.garage.garageapi.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -19,19 +20,29 @@ import java.util.List;
 
 @Service
 public class PaymentAttemptService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery freeDelivery;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.core.env.Environment environment;
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final CheckoutProGateway checkoutProGateway;
+    private final boolean paymentCreationEnabled;
 
     public PaymentAttemptService(PaymentRepository paymentRepository, OrderRepository orderRepository,
-                                 CheckoutProGateway checkoutProGateway) {
+                                 CheckoutProGateway checkoutProGateway,
+                                 @Value("${app.payment.creation-enabled:false}") boolean paymentCreationEnabled) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.checkoutProGateway = checkoutProGateway;
+        this.paymentCreationEnabled = paymentCreationEnabled;
     }
 
     @Transactional
     public PreparedAttempt prepare(Long userId, Long orderId) {
+        requirePaymentCreationEnabled();
         Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido não encontrado: " + orderId));
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
@@ -40,7 +51,7 @@ public class PaymentAttemptService {
         if (!Instant.now().isBefore(order.getExpiresAt())) {
             throw new ResourceConflictException("Prazo para pagamento do pedido expirou");
         }
-        com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(order);
+        validateDelivery(order);
         Payment payment = paymentRepository
                 .findFirstByOrderIdAndStatusOrderByCreatedAtDescIdDesc(orderId, PaymentStatus.PENDING)
                 .orElseGet(() -> paymentRepository.saveAndFlush(
@@ -56,15 +67,22 @@ public class PaymentAttemptService {
         boolean completed = payment.getProviderPreferenceId() != null;
         return new PreparedAttempt(payment.getId(), order.getId(), order.getTotal(),
                 order.getUser().getName(), order.getUser().getEmail(), payment.getIdempotencyKey(),
-                items, order.getShippingCost(), order.getShippingName(), completed);
+                items, order.getShippingCost(), order.getShippingName(), completed,
+                order.getAssistedQuote()==null && order.getCommercialShipping()==null
+                        && !com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.supports(order.getShippingCode()) ? null : order.getExpiresAt());
     }
 
     @Transactional
     public Payment createCheckoutPreference(Long paymentId,
                                             CheckoutProGateway.PreferenceRequest request) {
+        requirePaymentCreationEnabled();
         Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tentativa de pagamento não encontrada"));
-        com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(payment.getOrder());
+        validateDelivery(payment.getOrder());
+        if (payment.getOrder().getStatus() != OrderStatus.PENDING_PAYMENT
+                || !Instant.now().isBefore(payment.getOrder().getExpiresAt())
+                || request.total().compareTo(payment.getOrder().getTotal()) != 0)
+            throw new ResourceConflictException("Pedido alterado ou expirado antes da cobrança.");
         if (payment.getProviderPreferenceId() != null) return payment;
         CheckoutProGateway.PreferenceResult result = checkoutProGateway.createPreference(request);
         payment.applyCheckoutPreference(result.preferenceId(), result.externalReference(),
@@ -91,5 +109,22 @@ public class PaymentAttemptService {
     public record PreparedAttempt(Long paymentId, Long orderId, BigDecimal amount, String payerName,
                                   String payerEmail, String idempotencyKey,
                                   List<CheckoutProGateway.Item> items, BigDecimal shippingCost,
-                                  String shippingName, boolean completed) { }
+                                  String shippingName, boolean completed, Instant expiresAt) { }
+
+    private void requirePaymentCreationEnabled() {
+        if (!paymentCreationEnabled) {
+            throw new ResourceConflictException("Pagamentos temporariamente indisponíveis durante a validação da loja.");
+        }
+    }
+    private void validateDelivery(Order order) {
+        if (com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.supports(order.getShippingCode())) {
+            freeDelivery.validateSnapshot(order);
+        } else {
+            if (environment != null && !environment.acceptsProfiles(org.springframework.core.env.Profiles.of(
+                    "local-freight & !controlled & !production & !prod")))
+                throw new ResourceConflictException("Pagamento indisponível: este pedido não possui entrega grátis comprovada.");
+            com.garage.garageapi.integration.aliexpress.AliExpressFreightService.requireConfirmedFreight(order);
+            if (order.getCommercialShipping()!=null) commercial.revalidate(order);
+        }
+    }
 }

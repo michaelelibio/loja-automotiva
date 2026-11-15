@@ -16,7 +16,9 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.UUID;
+import com.garage.garageapi.payment.gateway.CheckoutProGateway;
 
 @Entity
 @Table(name = "payments")
@@ -72,6 +74,79 @@ public class Payment {
 
     @Column(name = "paid_at")
     private Instant paidAt;
+
+    @Column(name = "provider_live_mode")
+    private Boolean providerLiveMode;
+    @Column(name = "provider_verified_at")
+    private Instant providerVerifiedAt;
+
+    @Column(name = "provider_updated_at")
+    private Instant providerUpdatedAt;
+    @Column(name = "refunded_amount", precision = 12, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+    @Column(name = "provider_status_detail", length = 120)
+    private String providerStatusDetail;
+
+    public Instant getProviderUpdatedAt() { return providerUpdatedAt; }
+    public BigDecimal getRefundedAmount() { return refundedAmount; }
+    public String getProviderStatusDetail() { return providerStatusDetail; }
+
+    public enum SnapshotDisposition { APPLIED, DUPLICATE, STALE, INVALID }
+
+    /** Apply only an authenticated, associated provider lookup while holding the payment lock. */
+    public SnapshotDisposition synchronizeProviderSnapshot(CheckoutProGateway.PaymentResult result, Instant checkedAt) {
+        BigDecimal amount = result.transactionAmount();
+        BigDecimal refund = result.refundedAmount();
+        if (result.status() == null || amount == null || amount.signum() <= 0 || refund == null
+                || refund.signum() < 0 || refund.compareTo(amount) > 0 || refund.scale() > 2
+                || result.status() == PaymentStatus.PAID && result.approvedAt() == null
+                || result.status() == PaymentStatus.PARTIALLY_REFUNDED && (refund.signum() == 0 || refund.compareTo(amount) >= 0)
+                || result.status() == PaymentStatus.REFUNDED && refund.compareTo(amount) != 0)
+            return SnapshotDisposition.INVALID;
+        Instant incoming = result.providerUpdatedAt();
+        if (incoming != null && incoming.isAfter(checkedAt.plusSeconds(300))) return SnapshotDisposition.INVALID;
+        if (providerUpdatedAt != null && (incoming == null || incoming.isBefore(providerUpdatedAt)))
+            return SnapshotDisposition.STALE;
+        BigDecimal previousRefund = refundedAmount == null ? BigDecimal.ZERO : refundedAmount;
+        // A completed refund cannot disappear because a later provider response omitted its amount.
+        BigDecimal effectiveRefund = refund.max(previousRefund);
+        PaymentStatus next = result.status();
+        if (next != PaymentStatus.CHARGED_BACK && next != PaymentStatus.DISPUTED && effectiveRefund.signum() > 0)
+            next = effectiveRefund.compareTo(amount) == 0 ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED;
+        if (providerUpdatedAt != null && providerUpdatedAt.equals(incoming)) {
+            if (status != next || previousRefund.compareTo(effectiveRefund) != 0)
+                return SnapshotDisposition.STALE;
+            recordProviderEnvironment(result.liveMode(), checkedAt);
+            return SnapshotDisposition.DUPLICATE;
+        }
+        // Legacy/unversioned fixtures may establish an initial state, but cannot undo a reversal/dispute.
+        if (incoming == null && status.requiresFinancialReview() && next == PaymentStatus.PAID)
+            return SnapshotDisposition.STALE;
+        if (incoming == null && status == PaymentStatus.PAID
+                && (next == PaymentStatus.PENDING || next == PaymentStatus.FAILED || next == PaymentStatus.EXPIRED))
+            return SnapshotDisposition.STALE;
+        boolean changed = status != next || previousRefund.compareTo(effectiveRefund) != 0
+                || providerPaymentId == null || providerUpdatedAt == null && incoming != null;
+        if (providerPaymentId == null) providerPaymentId = result.providerPaymentId();
+        status = next;
+        refundedAmount = effectiveRefund;
+        providerUpdatedAt = incoming;
+        providerPaymentType = result.paymentType();
+        providerPaymentMethodId = result.paymentMethodId();
+        providerStatusDetail = result.statusDetail() != null && result.statusDetail().matches("[A-Za-z0-9_.:-]{1,120}")
+                ? result.statusDetail() : null;
+        if (result.approvedAt() != null) paidAt = result.approvedAt();
+        recordProviderEnvironment(result.liveMode(), checkedAt);
+        return changed ? SnapshotDisposition.APPLIED : SnapshotDisposition.DUPLICATE;
+    }
+
+    public Boolean getProviderLiveMode() { return providerLiveMode; }
+    public Instant getProviderVerifiedAt() { return providerVerifiedAt; }
+    /** Called only after validating the authenticated provider lookup and its order association. */
+    public void recordProviderEnvironment(Boolean liveMode, Instant checkedAt) {
+        providerLiveMode = liveMode;
+        providerVerifiedAt = checkedAt;
+    }
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -149,6 +224,8 @@ public class Payment {
         this.checkoutUrl = checkoutUrl;
     }
 
+    /** Legacy hydration only. Production provider responses use synchronizeProviderSnapshot. */
+    @Deprecated(forRemoval = false)
     public void synchronizeCheckoutPayment(String providerPaymentId, PaymentStatus providerStatus,
                                            Instant providerPaidAt, String paymentType,
                                            String paymentMethodId) {
@@ -159,6 +236,10 @@ public class Payment {
     }
 
     public boolean synchronizeProviderStatus(PaymentStatus providerStatus, Instant providerPaidAt) {
+        if (providerStatus.requiresFinancialReview() && status != providerStatus) {
+            status = providerStatus;
+            return true;
+        }
         if (status == PaymentStatus.PAID) {
             if (paidAt == null && providerPaidAt != null) {
                 paidAt = providerPaidAt;

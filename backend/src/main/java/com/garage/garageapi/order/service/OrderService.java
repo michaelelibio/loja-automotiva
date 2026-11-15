@@ -36,6 +36,10 @@ import java.util.TreeMap;
 
 @Service
 public class OrderService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery freeDelivery;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private LegacyOrderCheckout legacyLocalCheckout;
     private static final BigDecimal ZERO_MONEY = new BigDecimal("0.00");
 
     private final OrderRepository orderRepository;
@@ -67,7 +71,12 @@ public class OrderService {
 
     @Transactional
     public OrderResponse create(Jwt jwt, CreateOrderRequest request) {
+        if (legacyLocalCheckout != null) return legacyLocalCheckout.create(jwt, request);
         User user = userService.findCurrentUser(jwt);
+        if (request.requestKey() != null) {
+            var existing = orderRepository.findByRequestKeyAndUserId(request.requestKey(), user.getId());
+            if (existing.isPresent()) return OrderResponse.from(existing.get());
+        }
         Address address = addressRepository.findByIdAndUserId(request.addressId(), user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Endereço não encontrado: " + request.addressId()));
@@ -77,6 +86,11 @@ public class OrderService {
         List<Long> productIds = new ArrayList<>(requestedQuantities.keySet());
         List<Product> products = productRepository.findAllByIdInOrderByIdWithLock(productIds);
 
+        // Product locks serialize retries of the same cart, including requests that arrived before commit.
+        if (request.requestKey() != null) {
+            var existing = orderRepository.findByRequestKeyAndUserId(request.requestKey(), user.getId());
+            if (existing.isPresent()) return OrderResponse.from(existing.get());
+        }
         if (products.size() != productIds.size()) {
             Long missingId = productIds.stream()
                     .filter(id -> products.stream().noneMatch(product -> product.getId().equals(id)))
@@ -103,6 +117,12 @@ public class OrderService {
         for (Map.Entry<PurchaseKey, Integer> entry : requestedLines.entrySet()) {
             Product product = productsById.get(entry.getKey().productId());
             ProductVariant variant = resolveVariant(product, entry.getKey().variantId());
+            if (variant == null || !"ALIEXPRESS".equalsIgnoreCase(variant.getSupplier())
+                    || !java.util.Objects.equals(product.getSupplierProductId(), variant.getSupplierProductId())
+                    || variant.getRawVariantKey() == null || variant.getRawVariantKey().isBlank()
+                    || variant.getSupplierStockQuantity() == null || variant.getSupplierStockQuantity() < entry.getValue()
+                    || product.getPrice() == null || product.getPrice().signum() <= 0)
+                throw new ResourceConflictException("Produto, variante ou estoque indisponível para compra.");
             BigDecimal unitPrice = money(product.getPrice());
             BigDecimal itemSubtotal = money(unitPrice.multiply(BigDecimal.valueOf(entry.getValue())));
             snapshots.add(new ItemSnapshot(product, variant, entry.getValue(), unitPrice, itemSubtotal));
@@ -118,14 +138,19 @@ public class OrderService {
                 .map(snapshot -> shippingService.item(snapshot.product(), snapshot.variant(),
                         snapshot.quantity()))
                 .toList();
-        ShippingProvider.Option shipping = shippingService.select(address.getZipCode(),
-                shippingItems, request.shippingCode());
+        var shipping = freeDelivery.select(shippingItems);
+        if (!com.garage.garageapi.shipping.eligibility.CatalogFreeDelivery.CODE.equals(request.shippingCode()) || request.requestKey() == null
+                || request.expectedTotal() == null || subtotal.compareTo(request.expectedTotal()) != 0
+                || request.expectedAddress() == null || !request.expectedAddress().matches(address))
+            throw new ResourceConflictException("Confira o endereço, os produtos e o total antes de finalizar.");
 
         Order order = new Order(user, address, subtotal, shipping, orderExpiration);
         if(recipient!=null) order.snapshotRecipient(recipient);
+        order.identifyRequest(request.requestKey());
         snapshots.forEach(snapshot -> order.addItem(new OrderItem(order, snapshot.product(),
                 snapshot.variant(), snapshot.quantity(), snapshot.unitPrice(), snapshot.subtotal())));
         orderRepository.saveAndFlush(order);
+
         fulfillmentInitializer.initialize(order);
         products.stream().filter(Product::requiresLocalStock)
                 .forEach(product -> stockService.recordSale(product,

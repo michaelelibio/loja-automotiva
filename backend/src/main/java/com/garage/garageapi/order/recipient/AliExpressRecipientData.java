@@ -32,6 +32,15 @@ public final class AliExpressRecipientData {
         errors.putAll(addressErrors(order.getRecipientName(),order.getZipCode(),order.getStreet(),order.getNumber(),order.getNeighborhood(),order.getCity(),order.getState()));
         return new Status(true,errors.isEmpty(),List.copyOf(errors.keySet()));
     }
+    public static Normalized validateCorrection(String rawCpf,String rawBirthDate,Order order) {
+        String cpf=normalizeCpf(rawCpf);LocalDate birthDate=null;
+        try {if(rawBirthDate!=null && rawBirthDate.matches("[0-9]{2}/[0-9]{2}/[0-9]{4}"))birthDate=LocalDate.parse(rawBirthDate,BR_DATE);}
+        catch(DateTimeParseException ignored) { }
+        var errors=personalErrors(cpf,birthDate,order.getRecipientPhone());
+        errors.putAll(addressErrors(order.getRecipientName(),order.getZipCode(),order.getStreet(),order.getNumber(),order.getNeighborhood(),order.getCity(),order.getState()));
+        if(!errors.isEmpty())throw new RecipientValidationException(errors);
+        return new Normalized(cpf,birthDate,order.getRecipientPhone());
+    }
     private static LinkedHashMap<String,String> personalErrors(String cpf,LocalDate birthDate,String phone) {
         var errors=new LinkedHashMap<String,String>();
         if(!cpfValid(cpf)) errors.put("recipient.cpf","Informe um CPF válido do destinatário.");

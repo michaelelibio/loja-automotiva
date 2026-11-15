@@ -23,7 +23,7 @@ class OrderEmailModeTests {
 
     @Test void resendModeUsesSharedConfiguredTransport() {
         runner.withPropertyValues("app.account.email.mode=resend", "app.account.email.resend.api-key=test-key",
-                "app.account.email.from=GARAGE <onboarding@resend.dev>").run(context ->
+                "app.account.email.from=inGarage <nao-responda@ingarage.com.br>").run(context ->
                 assertThat(context.getBean(OrderEmailService.class)).isInstanceOf(ResendOrderEmailService.class));
     }
 }

@@ -13,6 +13,8 @@ import com.garage.garageapi.payment.entity.PaymentStatus;
 import com.garage.garageapi.payment.entity.PaymentMethod;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
+    @Query("select p.order.id from Payment p where p.externalReference = :externalReference")
+    Optional<Long> findOrderIdByExternalReference(@Param("externalReference") String externalReference);
     interface FinancePaymentMethod {
         PaymentMethod getMethod();
         long getOrders();
@@ -33,13 +35,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                                                         @Param("status") PaymentStatus status);
 
     @Query("""
-            select p.method as method, count(p.order.id) as orders, sum(p.order.total) as revenue
+            select p.method as method, count(p.order.id) as orders, sum(coalesce(p.order.paymentNetRevenue,p.order.total)) as revenue
               from Payment p
-             where p.status = :paidStatus
+             where (p.status = :paidStatus or p.status in ('PARTIALLY_REFUNDED','REFUNDED','CHARGED_BACK','DISPUTED','CANCELED'))
                and p.order.status in :orderStatuses
                and p.order.createdAt >= :start and p.order.createdAt < :end
-               and p.id = (select max(p2.id) from Payment p2
-                            where p2.order.id = p.order.id and p2.status = :paidStatus)
+               and p.id = coalesce(p.order.financialPaymentId, (select max(p2.id) from Payment p2
+                            where p2.order.id = p.order.id and p2.status = :paidStatus))
              group by p.method
              order by p.method asc
             """)

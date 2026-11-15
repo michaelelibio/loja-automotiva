@@ -132,6 +132,27 @@ class AliExpressTokenPersistenceTests {
         verify(auth,times(1)).exchangeCode("synthetic-code");
         assertThat(output.getAll()).doesNotContain("callback-access","callback-refresh","synthetic-code",state);
     }
+    @Test void oauthBuyerIdentityIsPersistedAndOldTokensAreNotAssignedAnInventedIdentity() {
+        tokens.store(data("access","refresh"));assertThatThrownBy(tokens::buyerIdentity).isInstanceOf(AliExpressIntegrationException.class);
+        tokens.store(new AliExpressTokenData("access","refresh",3600L,7200L,null,null,"buyer-19","account-19"));
+        assertThat(tokens.buyerIdentity().userId()).isEqualTo("buyer-19");assertThat(tokens.buyerIdentity().accountId()).isEqualTo("account-19");
+        assertThat(tokens.buyerIdentity().toString()).doesNotContain("buyer-19","account-19");verifyNoInteractions(auth);
+    }
+    @Test void refreshCannotSilentlySwitchTheOAuthBuyer() {
+        tokens.store(new AliExpressTokenData("access","refresh",3600L,7200L,null,null,"buyer-19","account-19"));
+        var row=authorizations.findAll().get(0);row.update(row.accessCiphertext(),row.refreshCiphertext(),Instant.EPOCH,row.refreshExpiresAt());authorizations.saveAndFlush(row);
+        when(auth.refreshToken("refresh")).thenReturn(new AliExpressTokenData("changed-access","refresh",3600L,7200L,null,null,"other-buyer","other-account"));
+        assertThatThrownBy(tokens::accessToken).isInstanceOf(AliExpressIntegrationException.class);
+        assertThat(tokens.buyerIdentity().userId()).isEqualTo("buyer-19");
+    }
+    @Test void dispatchReadsTokenAndBuyerTogetherAndDoesNotExposeEitherInDiagnostics() {
+        tokens.store(new AliExpressTokenData("dispatch-private-access","refresh",3600L,7200L,null,null,"buyer-21","account-21"));
+        var context=tokens.dispatchAccess();
+        assertThat(context.token()).isEqualTo("dispatch-private-access");
+        assertThat(context.buyerHash()).isEqualTo(AliExpressOAuthStateService.hash("buyer-21"));
+        assertThat(context.toString()).doesNotContain("dispatch-private-access","buyer-21","account-21");
+        verifyNoInteractions(auth);
+    }
     static AliExpressTokenData data(String access,String refresh) {
         return new AliExpressTokenData(access,refresh,3600L,7200L,null,null,null,null);
     }

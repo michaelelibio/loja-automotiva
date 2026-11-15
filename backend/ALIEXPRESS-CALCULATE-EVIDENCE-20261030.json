@@ -1,0 +1,160 @@
+{
+    "inspectedOn":  "2026-10-30",
+    "method":  "aliexpress.logistics.buyer.freight.calculate",
+    "source":  "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038\u0026path=aliexpress.logistics.buyer.freight.calculate\u0026methodType=GET%2FPOST",
+    "metadataHttpStatus":  200,
+    "docId":  525,
+    "authType":  1,
+    "lastModified":  "2022-03-30 15:44:05",
+    "snapshotSha256":  "0b3b7dad609b6bb09674d5429133fe1251d6df7ce28e40be65bac64d8e683101",
+    "request":  [
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o",
+                        "type":  "Object",
+                        "required":  true,
+                        "description":  "Shipping Calculation Request Parameters"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.sku_id",
+                        "type":  "String",
+                        "required":  false,
+                        "description":  "skuId must be passed when calculating the choice product"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.city_code",
+                        "type":  "String",
+                        "required":  false,
+                        "description":  "city code"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.country_code",
+                        "type":  "String",
+                        "required":  true,
+                        "description":  "country code"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.product_id",
+                        "type":  "Number",
+                        "required":  true,
+                        "description":  "Product ID"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.product_num",
+                        "type":  "Number",
+                        "required":  true,
+                        "description":  "Product count"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.province_code",
+                        "type":  "String",
+                        "required":  false,
+                        "description":  "Province code"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.send_goods_country_code",
+                        "type":  "String",
+                        "required":  true,
+                        "description":  "Shipping country"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.price",
+                        "type":  "String",
+                        "required":  false,
+                        "description":  "commodity price"
+                    },
+                    {
+                        "path":  "param_aeop_freight_calculate_for_buyer_d_t_o.price_currency",
+                        "type":  "String",
+                        "required":  false,
+                        "description":  "commodity price currency"
+                    }
+                ],
+    "response":  [
+                     {
+                         "path":  "result",
+                         "type":  "Object",
+                         "required":  false,
+                         "description":  "result"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list",
+                         "type":  "Object[]",
+                         "required":  false,
+                         "description":  "aeopFreightCalculateResultForBuyerDTOList"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.tracking_available",
+                         "type":  "String",
+                         "required":  false,
+                         "description":  "tracking available"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.error_code",
+                         "type":  "Number",
+                         "required":  false,
+                         "description":  "errorCode"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.estimated_delivery_time",
+                         "type":  "String",
+                         "required":  false,
+                         "description":  "Estimated delivery time"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight",
+                         "type":  "Object",
+                         "required":  false,
+                         "description":  "freight"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight.amount",
+                         "type":  "String",
+                         "required":  false,
+                         "description":  "amount"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight.cent",
+                         "type":  "Number",
+                         "required":  false,
+                         "description":  "cent"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.freight.currency_code",
+                         "type":  "String",
+                         "required":  false,
+                         "description":  "currencyCode"
+                     },
+                     {
+                         "path":  "result.aeop_freight_calculate_result_for_buyer_d_t_o_list.service_name",
+                         "type":  "String",
+                         "required":  false,
+                         "description":  "serviceName"
+                     },
+                     {
+                         "path":  "result.error_desc",
+                         "type":  "String",
+                         "required":  false,
+                         "description":  "errorDesc"
+                     },
+                     {
+                         "path":  "result.success",
+                         "type":  "Boolean",
+                         "required":  false,
+                         "description":  "success"
+                     }
+                 ],
+    "documentationExample":  {
+                                 "amount":  "1.0",
+                                 "cent":  "1000",
+                                 "currency":  "USD",
+                                 "classification":  "DOCUMENTATION_ONLY_NOT_REAL_QUOTE",
+                                 "consistencyUnderTwoDecimalCentHypothesis":  "CONFLICT"
+                             },
+    "applicationPermission":  "NOT_VERIFIED",
+    "authenticatedExecution":  "NOT_EXECUTED",
+    "observedRealQuotes":  [
+
+                           ],
+    "commercialAuthorization":  "NOT_APPROVED",
+    "productionDatabaseAccess":  false
+}

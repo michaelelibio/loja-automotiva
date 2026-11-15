@@ -17,7 +17,7 @@ class AliExpressFreightSafetyTests {
     final OrderRepository orders = mock(OrderRepository.class);
     final PaymentRepository payments = mock(PaymentRepository.class);
     final CheckoutProGateway gateway = mock(CheckoutProGateway.class);
-    final PaymentAttemptService service = new PaymentAttemptService(payments, orders, gateway);
+    final PaymentAttemptService service = new PaymentAttemptService(payments, orders, gateway, true);
 
     private Order order() {
         Order order = mock(Order.class);

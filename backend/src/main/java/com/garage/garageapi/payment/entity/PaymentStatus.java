@@ -5,5 +5,14 @@ public enum PaymentStatus {
     PAID,
     EXPIRED,
     CANCELED,
-    FAILED
+    FAILED,
+    PARTIALLY_REFUNDED,
+    REFUNDED,
+    CHARGED_BACK,
+    DISPUTED;
+
+    public boolean requiresFinancialReview() {
+        return this == PARTIALLY_REFUNDED || this == REFUNDED || this == CHARGED_BACK
+                || this == DISPUTED || this == CANCELED;
+    }
 }

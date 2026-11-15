@@ -1,0 +1,403 @@
+{
+  "retrievedOn": "2026-10-30",
+  "sourceType": "Public official contracts, fetched without credentials",
+  "authenticatedCallsPerformed": false,
+  "productionDatabaseAccessed": false,
+  "alternativeApiGrants": "NOT_VERIFIED; alternatives not invoked",
+  "monetaryFinding": {
+    "description": "shipping fee amount in cent",
+    "officialExample": {
+      "shipping_fee_cent": "1.99",
+      "shipping_fee_format": "US $1.99",
+      "shipping_fee_currency": "USD"
+    },
+    "conclusion": "Description and example conflict. MAJOR_MATCH is observational consistency, not commercial scale authorization.",
+    "previousObservationReportedInProject": {
+      "shipping_fee_cent": "24.00",
+      "currency": "BRL",
+      "normalizedDisplay": "24.00",
+      "comparison": "MAJOR_MATCH",
+      "newLiveProbe": false
+    }
+  },
+  "apis": [
+    {
+      "method": "aliexpress.ds.freight.query",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.freight.query&methodType=GET%2FPOST",
+      "sha256": "80434330751c7026108e9e584cd472672765d7e0a9678783a5f1f376eaa10ee6",
+      "docId": 1579,
+      "authorizationType": 1,
+      "title": "Delivery/Freight API",
+      "documentReturned": true,
+      "request": [
+        {
+          "path": "queryDeliveryReq",
+          "type": "Object",
+          "description": "delivery query request"
+        },
+        {
+          "path": "queryDeliveryReq.quantity",
+          "type": "Number",
+          "description": "quantity for your request"
+        },
+        {
+          "path": "queryDeliveryReq.shipToCountry",
+          "type": "String",
+          "description": "country that ships to"
+        },
+        {
+          "path": "queryDeliveryReq.productId",
+          "type": "String",
+          "description": "product_id"
+        },
+        {
+          "path": "queryDeliveryReq.provinceCode",
+          "type": "String",
+          "description": "The province code, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+        },
+        {
+          "path": "queryDeliveryReq.cityCode",
+          "type": "String",
+          "description": "The city code. Optional."
+        },
+        {
+          "path": "queryDeliveryReq.language",
+          "type": "String",
+          "description": "language"
+        },
+        {
+          "path": "queryDeliveryReq.locale",
+          "type": "String",
+          "description": "locale"
+        },
+        {
+          "path": "queryDeliveryReq.selectedSkuId",
+          "type": "String",
+          "description": "selected sku"
+        },
+        {
+          "path": "queryDeliveryReq.currency",
+          "type": "String",
+          "description": "currency for calculate the freight fee"
+        },
+        {
+          "path": "queryDeliveryReq.province",
+          "type": "String",
+          "description": "The province name, used to query shipping fees for local-to-local products. Please provide either province or provinceCode; do not provide both."
+        }
+      ],
+      "selectedResponse": [
+        {
+          "path": "result.delivery_options.shipping_fee_format",
+          "type": "String",
+          "description": "format String shipping fee to make it understandable"
+        },
+        {
+          "path": "result.delivery_options.max_delivery_days",
+          "type": "Number",
+          "description": "estimated delivery days, max days"
+        },
+        {
+          "path": "result.delivery_options.min_delivery_days",
+          "type": "Number",
+          "description": "estimated delivery days, main days"
+        },
+        {
+          "path": "result.delivery_options.ship_from_country",
+          "type": "String",
+          "description": "where your sku will ship from"
+        },
+        {
+          "path": "result.delivery_options.company",
+          "type": "String",
+          "description": "shipping service company name which you can use to display"
+        },
+        {
+          "path": "result.delivery_options.shipping_fee_cent",
+          "type": "String",
+          "description": "shipping fee amount in cent"
+        },
+        {
+          "path": "result.delivery_options.guaranteed_delivery_days",
+          "type": "String",
+          "description": "it is a guaranteed days"
+        }
+      ]
+    },
+    {
+      "method": "aliexpress.logistics.buyer.freight.get",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.logistics.buyer.freight.get&methodType=GET%2FPOST",
+      "sha256": "630d719ec398372c484d1f17877f70f102af0a102dbfb660d45eb40c1065af11",
+      "docId": 1442,
+      "authorizationType": 1,
+      "title": "Freight calculation (new)",
+      "documentReturned": true,
+      "request": [
+        {
+          "path": "aeopFreightCalculateForBuyerDTO",
+          "type": "Object",
+          "description": "Param Object"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.price_currency",
+          "type": "String",
+          "description": "Commodity Price Currency"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.product_id",
+          "type": "Number",
+          "description": "Product Id"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.country_code",
+          "type": "String",
+          "description": "Country Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.province_code",
+          "type": "String",
+          "description": "Province Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.city_code",
+          "type": "String",
+          "description": "City Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.send_goods_country_code",
+          "type": "String",
+          "description": "Send Goods Country Code"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.price",
+          "type": "String",
+          "description": "Commodity Price"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.product_num",
+          "type": "Number",
+          "description": "Product Num"
+        },
+        {
+          "path": "aeopFreightCalculateForBuyerDTO.sku_id",
+          "type": "Number",
+          "description": "Sku Id"
+        }
+      ],
+      "selectedResponse": []
+    },
+    {
+      "method": "aliexpress.logistics.buyer.freight.calculate",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.logistics.buyer.freight.calculate&methodType=GET%2FPOST",
+      "sha256": "f7d725df58d233f4c70f8fb7ef5e1a34c57b683fc418a329d8b39d8452927e2f",
+      "docId": 525,
+      "authorizationType": 1,
+      "title": "Freight calculation interface provided for buyers",
+      "documentReturned": true,
+      "request": [
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o",
+          "type": "Object",
+          "description": "Shipping Calculation Request Parameters"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.sku_id",
+          "type": "String",
+          "description": "skuId must be passed when calculating the choice product"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.city_code",
+          "type": "String",
+          "description": "city code"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.country_code",
+          "type": "String",
+          "description": "country code"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.product_id",
+          "type": "Number",
+          "description": "Product ID"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.product_num",
+          "type": "Number",
+          "description": "Product count"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.province_code",
+          "type": "String",
+          "description": "Province code"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.send_goods_country_code",
+          "type": "String",
+          "description": "Shipping country"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.price",
+          "type": "String",
+          "description": "commodity price"
+        },
+        {
+          "path": "param_aeop_freight_calculate_for_buyer_d_t_o.price_currency",
+          "type": "String",
+          "description": "commodity price currency"
+        }
+      ],
+      "selectedResponse": []
+    },
+    {
+      "method": "aliexpress.ds.product.get",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.product.get&methodType=GET%2FPOST",
+      "sha256": "69e3dcfb9a735fc2aded08ed6a1910f5d4c2959f4caf926127a8baa0eb9c2eb3",
+      "docId": 13307,
+      "authorizationType": 1,
+      "title": "product info query for ds",
+      "documentReturned": true,
+      "request": [
+        {
+          "path": "ship_to_country",
+          "type": "String",
+          "description": "Country"
+        },
+        {
+          "path": "product_id",
+          "type": "Number",
+          "description": "Item ID"
+        },
+        {
+          "path": "target_currency",
+          "type": "String",
+          "description": "Target currency"
+        },
+        {
+          "path": "target_language",
+          "type": "String",
+          "description": "hi de ru pt ko in en it fr zh es iw ar vi th uk ja id pl he nl tr (lowercase) or \"en_US\"、\"ko_KR\"..."
+        },
+        {
+          "path": "remove_personal_benefit",
+          "type": "Boolean",
+          "description": "if true, you will not get any crowd type promotion"
+        },
+        {
+          "path": "biz_model",
+          "type": "String",
+          "description": "BETA version for open api business model"
+        },
+        {
+          "path": "province_code",
+          "type": "String",
+          "description": "provice"
+        },
+        {
+          "path": "city_code",
+          "type": "String",
+          "description": "city"
+        }
+      ],
+      "selectedResponse": [
+        {
+          "path": "result.ae_item_sku_info_dtos.offer_bulk_sale_price",
+          "type": "String",
+          "description": "SKU bulk discount price"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.sku_price",
+          "type": "String",
+          "description": "Origin SKU price. Value range: 0.01-100000; Unit: USD. Such as: 200.07, which means: 200 US dollars 7 points. Need to be in the correct price range."
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.offer_sale_price",
+          "type": "String",
+          "description": "SKU discount price"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.price_include_tax",
+          "type": "Boolean",
+          "description": "if the price include tax"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.wholesale_price_tiers",
+          "type": "Object[]",
+          "description": "display when the item has wholesale price"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.wholesale_price_tiers.min_quantity",
+          "type": "String",
+          "description": "threshold quantity for wholesale"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.wholesale_price_tiers.discount",
+          "type": "String",
+          "description": "discount rate"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.wholesale_price_tiers.wholesale_price",
+          "type": "String",
+          "description": "whole price"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.tax_currency_code",
+          "type": "String",
+          "description": "currency code of tax"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.tax_amount",
+          "type": "String",
+          "description": "tax amount"
+        },
+        {
+          "path": "result.ae_item_sku_info_dtos.channel_discount_price",
+          "type": "String",
+          "description": "ds channel price"
+        },
+        {
+          "path": "result.ae_multimedia_info_dto.ae_video_dtos.poster_url",
+          "type": "String",
+          "description": "The URL of the video cover image"
+        }
+      ]
+    },
+    {
+      "method": "aliexpress.ds.address.get",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.address.get&methodType=GET%2FPOST",
+      "sha256": "a23c44feab4da139e277cf18a8dfe8943181fc2e0ff0538849b41d99b24a5c77",
+      "docId": 1584,
+      "authorizationType": 2,
+      "title": "Get restrict name on AE",
+      "documentReturned": true,
+      "request": [
+        {
+          "path": "language",
+          "type": "String",
+          "description": "language"
+        },
+        {
+          "path": "countryCode",
+          "type": "String",
+          "description": "countryCode"
+        },
+        {
+          "path": "isMultiLanguage",
+          "type": "String",
+          "description": "support multi language"
+        }
+      ],
+      "selectedResponse": []
+    },
+    {
+      "method": "aliexpress.ds.shippinginfo.get",
+      "source": "https://openservice.aliexpress.com/handler/share/apidoc/getApi?cid=21038&path=aliexpress.ds.shippinginfo.get&methodType=GET%2FPOST",
+      "sha256": "72c11de608df6f855780014a205fc83202990958287eea62e60d573dfdbb982d",
+      "docId": null,
+      "authorizationType": null,
+      "title": null,
+      "documentReturned": false,
+      "request": [],
+      "selectedResponse": []
+    }
+  ]
+}

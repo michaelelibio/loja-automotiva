@@ -18,7 +18,8 @@ public class FulfillmentStateService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Claim claim(Long orderId) {
         OrderFulfillment fulfillment = repository.findByOrderIdForUpdate(orderId).orElse(null);
-        if (fulfillment == null || fulfillment.getOrder().getStatus() != OrderStatus.PAID) return null;
+        if (fulfillment == null || fulfillment.getOrder().getStatus() != OrderStatus.PAID
+                || fulfillment.getOrder().isPaymentReviewRequired()) return null;
         FulfillmentStatus previousStatus = fulfillment.getStatus();
         String token = fulfillment.claim(Instant.now());
         return token == null ? null : new Claim(fulfillment.getId(), token, previousStatus);

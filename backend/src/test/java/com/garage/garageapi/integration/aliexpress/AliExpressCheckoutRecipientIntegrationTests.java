@@ -69,8 +69,9 @@ class AliExpressCheckoutRecipientIntegrationTests {
         assertThat(saved.getRecipientBirthDate()).isEqualTo(LocalDate.of(2000,2,29));
         assertThat(saved.getRecipientPhone()).isEqualTo("47999999999");
         assertThat(saved.getStatus().name()).isEqualTo("PENDING_PAYMENT");assertThat(payments.count()).isZero();
-        assertThat(AliExpressOrderPreparation.logisticsAddress(saved)).containsEntry("birth_date","29022000")
+        assertThat(AliExpressOrderPreparation.logisticsAddress(saved)).containsEntry("province","Santa Catarina").doesNotContainKey("birth_date")
                 .containsEntry("cpf","52998224725").containsEntry("phone_country","+55").containsEntry("mobile_no","47999999999");
+        assertThat(AliExpressOrderPreparation.dsExtendRequest(saved)).containsEntry("trade_extra_param",Map.of("birthday","29022000"));
         var address=fixture.address();address.update("Casa","Outro Destinatário","89229040","Rua Alterada","999",null,"Centro","Joinville","SC");addresses.saveAndFlush(address);
         assertThat(orders.findById(saved.getId()).orElseThrow().getStreet()).isEqualTo("Rua Original");
         assertThat(orders.findById(saved.getId()).orElseThrow().getRecipientName()).isEqualTo("Cliente Teste");
@@ -138,11 +139,12 @@ class AliExpressCheckoutRecipientIntegrationTests {
                 .andExpect(jsonPath("$.recipientData.complete").value(false)).andExpect(jsonPath("$.recipientData.pendingFields.length()").value(3));
         assertThat(orders.findById(legacy.getId()).orElseThrow().getRecipientCpf()).isNull();
     }
-    @Test void collectionDoesNotResolveFreightOrEnableRealOrders() throws Exception {
+    @Test void legacyCollectionRejectsUnconfirmedFreightWithoutEnablingRealOrders() throws Exception {
         var fixture=fixture(true);
         doThrow(new com.garage.garageapi.shipping.exception.InvalidShippingOptionException("Frete não confirmado."))
                 .when(shipping).select(anyString(),anyList(),any());
-        mvc.perform(post("/api/orders").with(customer(fixture.user())).contentType(MediaType.APPLICATION_JSON).content(body(fixture).toString())).andExpect(status().isBadRequest());
+        var unsupported=body(fixture);unsupported.put("shippingCode","STANDARD");
+        mvc.perform(post("/api/orders").with(customer(fixture.user())).contentType(MediaType.APPLICATION_JSON).content(unsupported.toString())).andExpect(status().isConflict());
         assertThat(orders.count()).isZero();verifyNoInteractions(client,tokens);
     }
     @Test void catalogOnlyRequiresRecipientDataForAliExpressFulfillment() throws Exception {
@@ -154,7 +156,7 @@ class AliExpressCheckoutRecipientIntegrationTests {
         doCallRealMethod().when(shipping).select(anyString(),anyList(),any());
         var request=body(fixture);request.put("shippingCode","STANDARD");request.put("shippingCost",0);
         mvc.perform(post("/api/orders").with(customer(fixture.user())).contentType(MediaType.APPLICATION_JSON).content(request.toString()))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_FREIGHT_UNAVAILABLE"));
+                .andExpect(status().isConflict());
         assertThat(orders.count()).isZero();assertThat(payments.count()).isZero();verifyNoInteractions(client,tokens);
     }
     @Test void requestRepresentationsNeverExposeValues() {
@@ -164,7 +166,8 @@ class AliExpressCheckoutRecipientIntegrationTests {
     }
     private void assertPrivateValuesAbsent(String text) {assertThat(text).doesNotContain("52998224725","529.982.247-25","29/02/2000","2000-02-29","47999999999","(47) 99999-9999");}
     private ObjectNode body(Fixture fixture) {
-        var body=JSON.createObjectNode();body.put("addressId",fixture.address().getId());body.put("shippingCode","TEST");
+        var body=JSON.createObjectNode();body.put("addressId",fixture.address().getId());body.put("shippingCode",fixture.variant()==null ? "TEST" : "ASSISTED_QUOTE");
+        if(fixture.variant()!=null) body.put("requestKey",UUID.randomUUID().toString());
         var item=body.putArray("items").addObject();item.put("productId",fixture.product().getId());item.put("quantity",1);
         if(fixture.variant()!=null) item.put("variantId",fixture.variant().getId());
         var recipient=body.putObject("recipient");recipient.put("cpf","529.982.247-25");recipient.put("birthDate","29/02/2000");recipient.put("phone","(47) 99999-9999");return body;

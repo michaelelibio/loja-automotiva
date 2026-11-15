@@ -25,3 +25,7 @@ async function parse<T>(response: Response): Promise<T> {
 export async function createOrder(data: CreateOrderRequest): Promise<Order> { return parse<Order>(await fetch(endpoint, { method: 'POST', headers: headers(true), body: JSON.stringify(data) })); }
 export async function getOrders(): Promise<Order[]> { return parse<Order[]>(await fetch(endpoint, { headers: headers(), cache: 'no-store' })); }
 export async function getOrder(id: number): Promise<Order> { return parse<Order>(await fetch(`${endpoint}/${encodeURIComponent(id)}`, { headers: headers(), cache: 'no-store' })); }
+
+export async function acceptOrderQuote(id: number, revision: number, expectedTotal: number): Promise<Order> {
+  return parse<Order>(await fetch(endpoint+'/'+id+'/quote/accept', {method:'POST', headers:headers(true), body:JSON.stringify({revision,expectedTotal})}));
+}

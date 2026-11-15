@@ -62,9 +62,11 @@ public record AdminCustomerDetailResponse(
         }
     }
 
-    public record PaymentSummary(PaymentMethod method, PaymentStatus status, Instant paidAt) {
+    public record PaymentSummary(PaymentMethod method, PaymentStatus status, Instant paidAt,
+                                 BigDecimal refundedAmount, Instant providerUpdatedAt, String statusDetail) {
         public static PaymentSummary from(Payment payment) {
-            return new PaymentSummary(payment.getMethod(), payment.getStatus(), payment.getPaidAt());
+            return new PaymentSummary(payment.getMethod(), payment.getStatus(), payment.getPaidAt(),
+                    payment.getRefundedAmount(), payment.getProviderUpdatedAt(), payment.getProviderStatusDetail());
         }
     }
 }

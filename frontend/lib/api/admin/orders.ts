@@ -4,6 +4,10 @@ import type { AdminAliExpressOrder, AdminOrder, AdminOrderFulfillment, AdminOrde
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const endpoint = `${API_BASE}/api/admin/orders`;
 
+export function getAssistedFreightSuggestions(id: number): Promise<import('@/lib/admin/assisted-freight').AssistedFreightPreview> {
+  return request(`${endpoint}/${id}/quote/suggestions`, { method: 'POST' });
+}
+
 export class AdminOrderApiError extends Error {
   constructor(message: string, public readonly status: number) { super(message); this.name = 'AdminOrderApiError'; }
 }
@@ -48,13 +52,13 @@ export function retryAdminOrderFulfillment(id: number): Promise<AdminOrderFulfil
   });
 }
 
-async function aliExpressOrderRequest(id: number, send: boolean): Promise<AdminAliExpressOrder> {
+async function aliExpressOrderRequest(id: number, send: boolean, sync = false): Promise<AdminAliExpressOrder> {
   const token = tokenStorage.getToken();
   if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
   let response: Response;
   try {
-    response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress${send ? '/send' : ''}`, {
-      method: send ? 'POST' : 'GET', cache: 'no-store', headers: { Authorization: `Bearer ${token}` },
+    response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress${sync ? '/sync' : send ? '/send' : ''}`, {
+      method: send || sync ? 'POST' : 'GET', cache: 'no-store', headers: { Authorization: `Bearer ${token}` },
     });
   } catch { throw new AdminOrderApiError('Não foi possível confirmar o resultado. Atualize o pedido antes de continuar.', 0); }
   if (!response.ok) throw new AdminOrderApiError(response.status === 409
@@ -70,3 +74,77 @@ async function aliExpressOrderRequest(id: number, send: boolean): Promise<AdminA
 
 export function getAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false); }
 export function sendAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, true); }
+export function syncAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false, true); }
+
+async function recipientRequest(id: number, init?: RequestInit): Promise<import('@/lib/types/admin-order').AdminAliExpressRecipient> {
+  const token = tokenStorage.getToken();
+  if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
+  let response: Response;
+  try { response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress/recipient`, { ...init, cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'Content-Type': 'application/json' } : {}) } }); }
+  catch { throw new AdminOrderApiError('Resultado não confirmado. Atualize os dados antes de continuar.', 0); }
+  if (!response.ok) throw new AdminOrderApiError(response.status === 400 ? 'Confira o CPF, a data de nascimento e os campos obrigatórios.'
+    : response.status === 409 ? 'O pedido mudou ou exige reconciliação. Atualize os dados antes de continuar.'
+    : 'Não foi possível consultar ou salvar os dados do destinatário.', response.status);
+  const data = await response.json();
+  if (data.orderId !== id || typeof data.birthDatePresent !== 'boolean' || !/^[a-f0-9]{64}$/.test(data.contextDigest)
+    || data.maskedCpf !== null && !/^\*{3}\.\*{3}\.\*{3}-[0-9]{2}$/.test(data.maskedCpf))
+    throw new AdminOrderApiError('Resposta não confirmada. Atualize os dados.', 0);
+  return data;
+}
+export function getAdminAliExpressRecipient(id: number) { return recipientRequest(id); }
+export function updateAdminAliExpressRecipient(id: number, data: { cpf: string; birthDate: string; expectedContext: string }) {
+  return recipientRequest(id, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function reconcileAdminAliExpressRecipient(id: number, data: { expectedContext: string; expectedAttemptCount: number;
+  recipientRevision: number; recipientDataConfirmed: boolean; allPreviousAttemptsChecked: boolean; noSupplierOrderConfirmed: boolean }) {
+  const token = tokenStorage.getToken(); if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
+  let response: Response;
+  try { response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress/recipient/reconcile`, { method: 'POST', cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); }
+  catch { throw new AdminOrderApiError('Reconciliação não confirmada. Atualize os dados.', 0); }
+  if (!response.ok) throw new AdminOrderApiError('Não foi possível liberar a tentativa manual. Atualize e confira os dados, o histórico e o término da tentativa anterior.', response.status);
+  // Read the masked representation after reconciliation. Neither operation creates a supplier order.
+  return getAdminAliExpressRecipient(id);
+}
+
+export function assistedQuoteAction(id: number, action: string, data?: unknown): Promise<unknown> {
+  return request(endpoint+'/'+id+'/quote'+(action ? '/'+action : ''), {method:'POST',headers:{'Content-Type':'application/json'},...(data ? {body:JSON.stringify(data)} : {})});
+}
+export function getFulfillmentRecipient(id:number): Promise<{cpf:string;birthDate:string;phone:string}> {
+  return request(endpoint+'/'+id+'/recipient-for-fulfillment');
+}
+
+export interface AdminAliExpressTest {
+  orderId: number; testOrder: boolean; simulatedPaymentAt: string | null; simulatedPaymentBy: string | null;
+  simulatedSupplierAt: string | null; simulatedSupplierId: string | null; simulatedSupplierBy: string | null;
+  canCreateReal: boolean; realBlockers: string[];
+  fixture: { id: string; digest: string; authorizationReference: string; productId: string; skuId: string;
+    quantity: number; deliveryService: string | null; currency: string; productCost: number | null; shippingCost: number | null;
+    taxCost: number | null; totalCost: number | null; city: string } | null;
+  providerError?: { code: string; subCode: string | null; message: string; httpStatus: number | null } | null;
+  realStatus: string | null; idempotencyKey: string | null; submittedAt: string | null; createdAt: string | null;
+  submittedBy: string | null; supplierOrderIds: string[]; submittedFixtureDigest: string | null;
+  supplierSync: { checkedAt: string | null; inProgress: boolean; parts: { orderId: string; state: string; orderStatus: string | null; verified: boolean; checkedAt: string }[] } | null;
+}
+
+export function getAdminAliExpressTest(id: number): Promise<AdminAliExpressTest> {
+  return request(`${endpoint}/${id}/aliexpress-tests`);
+}
+export interface AdminAliExpressReview {
+  orderId: number; digest: string; authorizationReference: string; payload: Record<string, unknown>;
+  preflightId: string | null; buyerAccount: string | null; buyerState: 'KNOWN' | 'UNKNOWN'; warnings: string[]; productCostSource: string; inGarageProductTotal: number; checkedAt: string | null; validUntil: string | null;
+  costs: NonNullable<AdminAliExpressTest['fixture']>;
+}
+export function preflightAdminAliExpressTest(id: number): Promise<AdminAliExpressReview> {
+  return request(`${endpoint}/${id}/aliexpress-tests/preflight`, { method: 'POST' });
+}
+export function getAdminAliExpressTestPayload(id: number): Promise<AdminAliExpressReview> {
+  return request(`${endpoint}/${id}/aliexpress-tests/payload-review`);
+}
+export function runAdminAliExpressTest(id: number, action: 'simulate-payment' | 'simulate-supplier' | 'create-real' | 'sync', confirmation?: {
+  phrase: string; idempotencyKey: string; fixtureDigest: string; preflightId: string; acceptKnownAndUnknownCosts: boolean;
+}): Promise<AdminAliExpressTest> {
+  return request(`${endpoint}/${id}/aliexpress-tests/${action}`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, ...(confirmation ? { body: JSON.stringify(confirmation) } : {}) });
+}

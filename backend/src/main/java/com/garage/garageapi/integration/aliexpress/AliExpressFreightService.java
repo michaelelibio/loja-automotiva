@@ -16,11 +16,20 @@ import java.util.List;
 @Service
 public class AliExpressFreightService {
     public static final String UNAVAILABLE =
-            "O frete dos produtos AliExpress ainda não pode ser confirmado. A compra está temporariamente indisponível para esses itens.";
+            "Aguarde a cotação confirmada, aceite o total e pague dentro da validade.";
     private final AliExpressFreightGateway gateway;
+    private final AliExpressAssistedFreightPreview assistedPreview;
 
     public AliExpressFreightService(AliExpressFreightGateway gateway) {
-        this.gateway=java.util.Objects.requireNonNull(gateway);
+        this(gateway,null);
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public AliExpressFreightService(AliExpressFreightGateway gateway,AliExpressAssistedFreightPreview assistedPreview) {
+        this.gateway=java.util.Objects.requireNonNull(gateway);this.assistedPreview=assistedPreview;
+    }
+
+    public AliExpressAssistedFreightPreview.Result previewAssisted(AliExpressAssistedFreightPreview.Context context) {
+        return assistedPreview.preview(context);
     }
 
     public List<ShippingProvider.Option> quote(ShippingProvider.Request request) {
@@ -41,9 +50,14 @@ public class AliExpressFreightService {
 
     /** Covers unpaid legacy orders too; existing paid orders are never modified. */
     public static void requireConfirmedFreight(Order order) {
+        if(order.getCommercialShipping()!=null){order.requireCommercialContextUnchanged();return;}
         if (order.getItems().stream().anyMatch(item -> "ALIEXPRESS".equalsIgnoreCase(item.getSupplier())
                 && item.getFulfillmentType() != com.garage.garageapi.product.entity.FulfillmentType.LOCAL_STOCK)) {
-            throw new ResourceConflictException(UNAVAILABLE);
+            var quote = order.getAssistedQuote();
+            if (quote == null || !"ACCEPTED".equals(quote.state()) || quote.acceptedAt() == null
+                    || !java.time.Instant.now().isBefore(quote.validUntil()) || order.getShippingLegs().isEmpty())
+                throw new ResourceConflictException(UNAVAILABLE);
+            order.requireQuoteContextUnchanged();
         }
     }
 }

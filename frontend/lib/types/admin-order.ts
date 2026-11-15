@@ -1,3 +1,4 @@
+import type { QuoteSummary } from './order';
 export type AdminOrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED' | 'EXPIRED';
 export type AdminPaymentStatus = 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELED' | 'FAILED';
 export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' | 'CREATED' | 'FAILED' | 'VERIFICATION_REQUIRED';
@@ -5,19 +6,38 @@ export type AdminFulfillmentStatus = 'NOT_REQUIRED' | 'PENDING' | 'PROCESSING' |
 export type AdminAliExpressOrder = {
   orderId: number; applicable: boolean; paymentConfirmed: boolean; canSend: boolean;
   status: AdminFulfillmentStatus; blockReason: string | null;
-  supplierStatus: 'AWAITING_MANUAL_PAYMENT' | 'REJECTED' | 'UNKNOWN' | null;
+  supplierStatus: string | null;
   supplierOrderIds: string[]; lastError: string | null;
   submittedAt: string | null; createdExternallyAt: string | null;
+  attemptCount?: number; maxAttempts?: number; validationAttemptCount?: number; nextValidationAt?: string | null;
+  contextDigest?: string;
+  automaticEnabled?: boolean;
+  financialWarnings?: string[];
+  supplierCosts?: { source: string; currency: string | null; productTotal: number | null; shippingTotal: number | null;
+    taxTotal: number | null; total: number | null; observedAt: string | null } | null;
+  dispatchQuote?: { productTotal: number; shippingTotal: number; taxTotal: number; total: number;
+    verifiedAt: string; validUntil: string; evidenceReference: string } | null;
+  supplierSync?: { startedAt: string; checkedAt: string | null; inProgress: boolean; parts: SupplierOrderPart[] } | null;
 };
+export type AdminAliExpressRecipient = {
+  orderId: number; maskedCpf: string | null; birthDatePresent: boolean; phonePresent: boolean; complete: boolean;
+  pendingFields: string[]; canEdit: boolean; canReconcile: boolean; manualHold: boolean; manualRetryReady: boolean;
+  attemptCount: number; lastAttemptAt: string | null; contextDigest: string; recipientRevision: number | null; correctedAt: string | null;
+};
+
+export type SupplierOrderPart = { orderId: string; state: string; orderStatus: string | null;
+  logisticsStatus: string | null; verified: boolean; checkedAt: string; failureCode: string | null };
 
 export type AdminOrderFulfillment = {
   orderId: number; status: AdminFulfillmentStatus; provider: string;
   supplierOrderId: string | null; supplierShipmentOrderId: string | null;
+  supplierOrderIds?: string[]; supplierStatus?: string | null;
   attemptCount: number; lastError: string | null; processingStartedAt: string | null;
   createdExternallyAt: string | null; updatedAt: string;
 };
 
 export type AdminOrderSummary = {
+  quote?: QuoteSummary | null;
   id: number; status: AdminOrderStatus; subtotal: number; shippingCost: number; total: number;
   createdAt: string; updatedAt: string; processingAt: string | null; shippedAt: string | null; deliveredAt: string | null;
 };
@@ -27,6 +47,7 @@ export type AdminOrderPage = {
 };
 
 export type AdminOrder = AdminOrderSummary & {
+  quote?: QuoteSummary | null;
   recipientData?: { required: boolean; complete: boolean; pendingFields: string[] };
   expiresAt: string | null;
   shippingCode: string;

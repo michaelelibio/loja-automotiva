@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useProducts } from '@/lib/useProducts';
-import { products as fallbackProducts } from '@/data/products';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -16,7 +15,7 @@ export function CartView() {
   useEffect(() => {
     if (!loading && !error) reconcileItems(products.map((product) => product.id));
   }, [loading, error, products, reconcileItems]);
-  const availableProducts = error ? fallbackProducts : products.length > 0 ? products : fallbackProducts;
+  const availableProducts = error ? [] : products;
   const cartProducts = items.flatMap((item) => {
     const product = availableProducts.find((candidate) => candidate.id === item.productId);
     return product ? [{ ...item, product }] : [];

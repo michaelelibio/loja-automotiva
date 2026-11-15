@@ -140,8 +140,8 @@ class AliExpressShippingHttpIntegrationTests {
                         +"\"productId\":"+product.getId()+",\"variantId\":"+variantId+",\"quantity\":2,"
                         +"\"supplierProductId\":\"FORGED\",\"supplierVariantId\":\"FORGED\",\"price\":0}]}"));
     }
-    @Test void completeSpringHttpPathNormalizesRatesButKeepsCountryQuoteBlocked() throws Exception {
-        responds(success("1230","CN"));
+    @Test void completeSpringHttpPathKeepsEvenZeroCountryQuoteBlocked() throws Exception {
+        responds(success("0","CN").replace("\"free_shipping\":false","\"free_shipping\":true"));
         quote(variant.getId()).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_DESTINATION_NOT_CONFIRMED"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(TOKEN))));
@@ -150,7 +150,7 @@ class AliExpressShippingHttpIntegrationTests {
         assertThat(observed.lines().get(0).variantId()).isEqualTo(variant.getId());
         var method=observed.lines().get(0).methods().get(0);
         assertThat(method.serviceName()).isEqualTo("CAINIAO_STANDARD");assertThat(method.currency()).isEqualTo("BRL");
-        assertThat(method.amount()).isEqualByComparingTo("12.30");assertThat(method.originCountry()).isEqualTo("CN");
+        assertThat(method.amount()).isEqualByComparingTo("0");assertThat(method.originCountry()).isEqualTo("CN");
         assertThat(method.estimatedDeliveryTime()).isEqualTo("5-12days");
     }
     @ParameterizedTest @CsvSource({"27,ALIEXPRESS_AUTHENTICATION_FAILED","11,ALIEXPRESS_PERMISSION_DENIED"})
@@ -173,13 +173,14 @@ class AliExpressShippingHttpIntegrationTests {
         verifyNoInteractions(tokens);assertThat(httpCalls.get()).isZero();
     }
     @Test void unknownOriginIsNeverAssumedAndCannotAuthorizeCheckout() throws Exception {
-        responds(success("1230","ZZ"));
+        responds(success("0","ZZ").replace("\"free_shipping\":false","\"free_shipping\":true"));
         quote(variant.getId()).andExpect(status().isConflict()).andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_DESTINATION_NOT_CONFIRMED"));
         assertThat(evaluation.get().lines().get(0).methods().get(0).originCountry()).isNull();
         assertThat(httpCalls.get()).isEqualTo(1);
     }
-    @Test void ambiguousMoneyIsRejectedThroughTheCompleteCheckoutPath() throws Exception {
-        responds(success("1.99","CN"));
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings={"1.99","24.00","1230"})
+    void ambiguousMoneyIsRejectedThroughTheCompleteCheckoutPath(String amount) throws Exception {
+        responds(success(amount,"CN"));
         quote(variant.getId()).andExpect(status().isConflict()).andExpect(jsonPath("$.fields.code").value("ALIEXPRESS_AMBIGUOUS_MONEY"));
         assertThat(evaluation.get()).isNull();assertThat(httpCalls.get()).isEqualTo(1);
     }

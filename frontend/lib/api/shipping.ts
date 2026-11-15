@@ -9,10 +9,9 @@ export class ShippingApiError extends Error {
 
 export async function quoteShipping(data: ShippingQuoteRequest, signal?: AbortSignal): Promise<ShippingQuoteResponse> {
   const token = tokenStorage.getToken();
-  if (!token) throw new ShippingApiError('Sessão não encontrada. Entre novamente.', 401);
   const response = await fetch(`${API_BASE}/api/shipping/quote`, {
     method: 'POST', signal,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   const text = await response.text();
@@ -24,4 +23,14 @@ export async function quoteShipping(data: ShippingQuoteRequest, signal?: AbortSi
     throw new ShippingApiError(String(fields || object?.message || object?.error || 'Não foi possível calcular o frete.'), response.status);
   }
   return result as ShippingQuoteResponse;
+}
+
+export async function checkFreeDelivery(addressId: number, data: ShippingQuoteRequest, signal?: AbortSignal): Promise<ShippingQuoteResponse> {
+  const token = tokenStorage.getToken();
+  const response = await fetch(`${API_BASE}/api/orders/delivery-eligibility`, {
+    method: 'POST', signal, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ addressId, cart: data }),
+  });
+  if (!response.ok) throw new ShippingApiError('Não foi possível validar os produtos e o endereço do pedido.', response.status);
+  return response.json();
 }

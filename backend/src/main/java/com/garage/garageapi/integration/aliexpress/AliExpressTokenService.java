@@ -35,6 +35,17 @@ public class AliExpressTokenService {
         }
         return cipher.decrypt(row.accessCiphertext(), authorizationId + ":access");
     }
+    /** Read token and buyer under the same authorization lock, including a possible same-buyer refresh. */
+    @Transactional
+    public DispatchAccess dispatchAccess() {
+        var row=repository.findLocked(authorizationId).orElseThrow(this::reauthorize);
+        String token=accessToken();
+        if(row.buyerUserId()==null || row.buyerUserId().isBlank())throw reauthorize();
+        return new DispatchAccess(token,AliExpressOAuthStateService.hash(row.buyerUserId()));
+    }
+    public record DispatchAccess(String token,String buyerHash) {
+        @Override public String toString() { return "DispatchAccess[REDACTED]"; }
+    }
     /** Diagnostic use only: no refresh, writes or pessimistic lock. Never return to an HTTP caller. */
     @Transactional(readOnly = true)
     public String existingAccessToken() {
@@ -48,6 +59,9 @@ public class AliExpressTokenService {
         Instant now = Instant.now();
         if (data == null || data.accessToken() == null || data.accessToken().length() > 2048
                 || (data.refreshToken() != null && data.refreshToken().length() > 2048)) throw reauthorize();
+        if ((data.userId()!=null && data.userId().length()>255) || (data.accountId()!=null && data.accountId().length()>255)) throw reauthorize();
+        if (refreshing && row.buyerUserId()!=null && data.userId()!=null && !row.buyerUserId().equals(data.userId())) throw reauthorize();
+        if (!refreshing || data.userId()!=null) row.identifyBuyer(data.userId(),data.accountId());
         Instant accessExpiry = expiry(data.expireTime(), data.expiresIn(), now, "access_token_expiration");
         Instant refreshExpiry = data.refreshExpiresIn() != null && data.refreshExpiresIn() <= 0 ? null
                 : expiry(data.refreshTokenValidTime(), data.refreshExpiresIn(), now, "refresh_token_expiration");
@@ -59,6 +73,15 @@ public class AliExpressTokenService {
         row.update(cipher.encrypt(data.accessToken(), authorizationId + ":access"),
                 data.refreshToken() == null || data.refreshToken().isBlank() ? null : cipher.encrypt(data.refreshToken(), authorizationId + ":refresh"),
                 accessExpiry, refreshExpiry);
+    }
+    @Transactional(readOnly = true)
+    public BuyerIdentity buyerIdentity() {
+        var row=repository.findById(authorizationId).orElseThrow(this::reauthorize);
+        if(row.buyerUserId()==null || row.buyerUserId().isBlank()) throw reauthorize();
+        return new BuyerIdentity(row.buyerUserId(),row.buyerAccountId());
+    }
+    public record BuyerIdentity(String userId,String accountId) {
+        @Override public String toString() { return "BuyerIdentity[REDACTED]"; }
     }
     private static Instant expiry(Long absoluteMillis, Long seconds, Instant now, String field) {
         try { return absoluteMillis != null ? Instant.ofEpochMilli(absoluteMillis) : seconds == null ? null : now.plusSeconds(seconds); }

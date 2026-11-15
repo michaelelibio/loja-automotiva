@@ -142,16 +142,20 @@ public class AdminFinanceService {
                             order.getUser().getEmail()), order.getStatus(),
                     payment == null ? null : payment.getMethod(),
                     payment == null ? null : payment.getStatus(), order.getTotal(), knownCost,
-                    money(order.getTotal().subtract(knownCost)), costComplete, order.getCreatedAt(),
-                    payment == null ? null : payment.getPaidAt());
+                    money(order.getPaymentNetRevenue().subtract(knownCost)), costComplete, order.getCreatedAt(),
+                    payment == null ? null : payment.getPaidAt(), order.getPaymentNetRevenue(),
+                    order.getPaymentRefundedAmount(), order.isPaymentReviewRequired());
         }).toList();
     }
 
     private Map<Long, Payment> latestPaidPayments(List<Long> orderIds) {
         if (orderIds.isEmpty()) return Collections.emptyMap();
         Map<Long, Payment> result = new LinkedHashMap<>();
-        paymentRepository.findAllByOrderIdsAndStatusNewestFirst(orderIds, PaymentStatus.PAID)
-                .forEach(payment -> result.putIfAbsent(payment.getOrder().getId(), payment));
+        paymentRepository.findAllLatestCandidatesByOrderIds(orderIds).forEach(payment -> {
+            Long selected = payment.getOrder().getFinancialPaymentId();
+            if (selected != null && selected.equals(payment.getId()) || selected == null && payment.getStatus() == PaymentStatus.PAID)
+                result.putIfAbsent(payment.getOrder().getId(), payment);
+        });
         return result;
     }
 

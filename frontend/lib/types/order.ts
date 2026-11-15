@@ -1,7 +1,8 @@
 export type OrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELED' | 'EXPIRED';
 export type CreateOrderItemRequest = { productId: number; variantId?: number; quantity: number };
-export type CreateOrderRequest = { addressId: number; shippingCode: string; items: CreateOrderItemRequest[];
-  recipient?: { cpf: string; birthDate: string; phone: string } };
+export type QuoteSummary = { state: string; revision: number; validUntil: string | null; acceptedAt: string | null };
+export type CreateOrderRequest = { requestKey?: string; addressId: number; shippingCode: string; items: CreateOrderItemRequest[];
+  recipient?: { cpf: string; birthDate: string; phone: string }; expectedTotal?: number; expectedAddress?: ShippingAddress };
 export type OrderItem = { productId: number; productName: string; productSlug: string;
   productVariantId: number | null; variantName: string | null;
   fulfillmentType: 'LOCAL_STOCK' | 'DROPSHIPPING' | null;
@@ -12,4 +13,4 @@ export type OrderShipping = { code: string; name: string; price: number; estimat
   legs: Array<{ provider: string; code: string; name: string; originCountry: string;
     amount: number; currency: string; priceBrl: number; estimatedDays: number;
     supplierVariantIds: string[] }> };
-export type Order = { id: number; status: OrderStatus; subtotal: number; shippingCost: number; total: number; createdAt: string; expiresAt: string; updatedAt: string; shippingAddress: ShippingAddress; shipping: OrderShipping; items: OrderItem[] };
+export type Order = { quote?: QuoteSummary | null; id: number; status: OrderStatus; subtotal: number; shippingCost: number; total: number; createdAt: string; expiresAt: string; updatedAt: string; shippingAddress: ShippingAddress; shipping: OrderShipping; items: OrderItem[] };

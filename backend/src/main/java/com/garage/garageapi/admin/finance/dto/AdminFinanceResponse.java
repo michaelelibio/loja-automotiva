@@ -44,5 +44,6 @@ public record AdminFinanceResponse(
                                     PaymentMethod paymentMethod, PaymentStatus paymentStatus,
                                     BigDecimal total, BigDecimal knownProductCost,
                                     BigDecimal grossProfit, boolean costComplete,
-                                    Instant createdAt, Instant paidAt) { }
+                                    Instant createdAt, Instant paidAt, BigDecimal netRevenue,
+                                    BigDecimal refundedAmount, boolean financialReviewRequired) { }
 }

@@ -4,6 +4,7 @@ import com.garage.garageapi.payment.entity.PaymentStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -16,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.Duration;
+import java.net.http.HttpClient;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -47,7 +50,7 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
             @Value("${mercadopago.checkout-pro.notification-url:}") String notificationUrl,
             @Value("${mercadopago.checkout-pro.sandbox:false}") boolean sandbox,
             @Value("${mercadopago.diagnostic-logging:false}") boolean diagnosticLogging) {
-        this(RestClient.builder().baseUrl(baseUrl).build(), accessToken, successUrl, pendingUrl,
+        this(defaultClient(baseUrl), accessToken, successUrl, pendingUrl,
                 failureUrl, notificationUrl, sandbox, diagnosticLogging);
     }
 
@@ -97,6 +100,14 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
         body.put("back_urls", Map.of("success", successUrl, "pending", pendingUrl,
                 "failure", failureUrl));
         body.put("auto_return", "approved");
+        if (request.expiresAt()!=null) {
+            if (!request.expiresAt().isAfter(Instant.now())) throw new PaymentProviderException("Cotação expirada");
+            body.put("expires", true);
+            body.put("expiration_date_from", java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+                    .format(Instant.now().atOffset(java.time.ZoneOffset.UTC)));
+            body.put("expiration_date_to", java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+                    .format(request.expiresAt().atOffset(java.time.ZoneOffset.UTC)));
+        }
         if (StringUtils.hasText(notificationUrl)) {
             body.put("notification_url", webhookNotificationUrl(notificationUrl));
         }
@@ -140,7 +151,9 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
                     mapStatus(text(response, "status")), text(response, "status_detail"),
                     decimal(response, "transaction_amount"), text(response, "currency_id"),
                     text(response, "payment_type_id"), text(response, "payment_method_id"),
-                    instant(response, "date_approved"));
+                    instant(response, "date_approved"), response.path("live_mode").isBoolean()
+                            ? response.path("live_mode").asBoolean() : null, decimal(response,"transaction_amount_refunded"),
+                    instant(response,"date_last_updated"));
         } catch (RestClientResponseException exception) {
             throw new PaymentProviderException("Falha ao consultar pagamento Mercado Pago", exception);
         } catch (RestClientException exception) {
@@ -208,11 +221,21 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
         if (status == null) throw new PaymentProviderException("Status ausente no pagamento Mercado Pago");
         return switch (status.toLowerCase()) {
             case "approved" -> PaymentStatus.PAID;
-            case "pending", "in_process", "authorized", "in_mediation" -> PaymentStatus.PENDING;
+            case "pending", "in_process", "authorized" -> PaymentStatus.PENDING;
+            case "in_mediation" -> PaymentStatus.DISPUTED;
             case "rejected" -> PaymentStatus.FAILED;
             case "cancelled", "canceled" -> PaymentStatus.CANCELED;
+            case "refunded" -> PaymentStatus.REFUNDED;
+            case "charged_back" -> PaymentStatus.CHARGED_BACK;
             default -> throw new PaymentProviderException("Status não suportado no pagamento Mercado Pago");
         };
+    }
+
+    private static RestClient defaultClient(String baseUrl) {
+        var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build());
+        factory.setReadTimeout(Duration.ofSeconds(15));
+        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
     private static String reference(Long orderId, Long paymentId) {

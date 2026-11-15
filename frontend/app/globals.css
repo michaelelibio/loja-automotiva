@@ -795,6 +795,25 @@ h2 { font-size: clamp(36px, 4.5vw, 61px); letter-spacing: -.055em; line-height: 
 .admin-aliexpress-order-dialog::backdrop { background: rgb(0 0 0 / .5); }
 .admin-aliexpress-order-dialog p { line-height: 1.6; margin: 16px 0; }
 .admin-aliexpress-order-dialog > div { display: flex; gap: 12px; justify-content: end; flex-wrap: wrap; }
+.admin-aliexpress-test { display: grid; gap: 16px; }
+.admin-aliexpress-test h2 { margin: 0; font-size: 20px; }
+.admin-aliexpress-test p { line-height: 1.6; }
+.admin-aliexpress-test button { width: fit-content; max-width: 100%; min-height: 44px; padding: 12px 18px; border: 1px solid var(--line); background: white; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; text-align: center; }
+.admin-aliexpress-test button.admin-aliexpress-test-primary { background: var(--ink); color: white; border-color: var(--ink); }
+.admin-aliexpress-test button:hover:not(:disabled) { border-color: var(--signal); }
+.admin-aliexpress-test button:disabled { opacity: .45; cursor: not-allowed; }
+.admin-aliexpress-test button:focus-visible, .admin-aliexpress-test input:focus-visible, .admin-aliexpress-test summary:focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; }
+.admin-aliexpress-test details { border-top: 1px solid var(--line); padding-top: 16px; }
+.admin-aliexpress-test details[open] > * + * { margin-top: 12px; }
+.admin-aliexpress-test summary { cursor: pointer; font-weight: 700; }
+.admin-aliexpress-test dialog { border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--ink); }
+.admin-aliexpress-test dialog::backdrop { background: rgb(0 0 0 / .5); }
+.admin-aliexpress-test dialog p, .admin-aliexpress-test dialog dl, .admin-aliexpress-test dialog address { margin: 16px 0; }
+.admin-aliexpress-test dialog label { display: grid; gap: 8px; margin: 20px 0; line-height: 1.6; }
+.admin-aliexpress-test dialog label.admin-aliexpress-test-consent { display: flex; align-items: flex-start; gap: 12px; }
+.admin-aliexpress-test input[type="text"] { min-width: 0; width: 100%; min-height: 44px; border: 1px solid var(--line); padding: 10px 12px; font: inherit; }
+.admin-aliexpress-test input[type="checkbox"] { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 3px; accent-color: var(--ink); }
+.admin-aliexpress-test dialog button { margin-right: 12px; margin-top: 8px; }
 .checkout-recipient { min-width: 0; border: 0; padding: 0; }
 .checkout-recipient legend { font-size: 20px; font-weight: 700; padding: 0; }
 .checkout-recipient > p { font-size: 13px; line-height: 1.6; margin: 12px 0 18px; }
@@ -1650,3 +1669,13 @@ body { overflow-x: hidden; }
   .home-products .product-card { max-width: 320px; }
 }
 @media (prefers-reduced-motion: reduce) { .home-cta, .home-category { transition: none; } }
+
+.assisted-quote-panel form, .assisted-quote-panel fieldset { display: grid; gap: 16px; }
+.assisted-quote-panel fieldset { border: 1px solid var(--line, #ddd); padding: 16px; margin: 12px 0; min-width: 0; }
+.assisted-quote-panel label { display: grid; gap: 8px; font-size: 13px; }
+.assisted-quote-panel input:not([type="checkbox"]) { border: 1px solid #ccc; padding: 10px 12px; max-width: 100%; width: 100%; background: white; color: #111; }
+.assisted-quote-panel label:has(input[type="checkbox"]) { display: flex; gap: 10px; align-items: flex-start; line-height: 1.5; }
+.assisted-quote-panel input[type="checkbox"] { margin-top: 4px; flex-shrink: 0; }
+.assisted-quote-panel button { background: var(--ink, #111); color: white; border: 0; padding: 12px 16px; margin: 8px 8px 8px 0; cursor: pointer; }
+.assisted-quote-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.assisted-quote-panel p { line-height: 1.6; overflow-wrap: anywhere; }

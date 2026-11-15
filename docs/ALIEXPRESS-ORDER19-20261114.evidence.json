@@ -1,0 +1,66 @@
+{
+  "updatedAt": "2026-11-14T20:44:03.068Z",
+  "authorizationStrategy": "OFFICIAL_CREATE_RESPONSE_AFTER_EXPLICIT_OWNER_CONFIRMATION",
+  "realSupplierCreateCalls": 0,
+  "supplierPaymentCalls": 0,
+  "productionWrites": false,
+  "committed": false,
+  "pushed": false,
+  "deployed": false,
+  "railway": {
+    "projectId": "f3ad479c-d78a-41fb-b7bb-fb2d0ebddb79",
+    "service": "loja-automotiva",
+    "environment": "production",
+    "deploymentId": "d04c3459-a979-4a52-940e-77d9b72f3cdf",
+    "commit": "97c881465a93453312ce5d1bfaeae0dd1871a05f",
+    "profile": "controlled",
+    "normalPayments": false,
+    "normalSupplierCreation": false,
+    "admin19Enabled": false,
+    "adminAllowlistConfigured": false,
+    "appKeyPresent": true,
+    "appSecretPresent": true
+  },
+  "order19": {
+    "status": "PENDING_PAYMENT",
+    "shippingCode": "CATALOG_FREE",
+    "productId": "1005010687850279",
+    "skuId": "12000053193152987",
+    "quantity": 1,
+    "recipientFieldsPresent": true,
+    "addressFieldsPresent": true,
+    "variantConsistent": true,
+    "realAttemptExists": false
+  },
+  "requiredMigrationColumns": [
+    "admin_aliexpress_test_runs.supplier_sync",
+    "admin_aliexpress_test_runs.preflight",
+    "admin_aliexpress_test_runs.provider_error",
+    "aliexpress_authorizations.buyer_user_id",
+    "aliexpress_authorizations.buyer_account_id"
+  ],
+  "vercel": {
+    "cliVersion": "65.16.0",
+    "authenticated": false,
+    "productionProjectInspected": false,
+    "domain": "ingarage.com.br"
+  },
+  "removedAdministrativePrerequisites": [
+    "individual method grant proof",
+    "buyer identity attestation",
+    "private fixture",
+    "cost ceiling",
+    "known freight or taxes",
+    "Mercado Pago approval"
+  ],
+  "privacy": "No recipient values, account identifiers, tokens or secrets are included.",
+  "oauthReadOnlyCheck": {
+    "matchingApplicationAuthorizations": 1,
+    "encryptedAccessPresent": true,
+    "accessCurrentlyUsable": false,
+    "encryptedRefreshPresent": true,
+    "refreshCurrentlyUsable": true,
+    "tokenRefreshExecuted": false,
+    "actionOnOwnerPreflight": "EXISTING_TOKEN_SERVICE_REFRESH_IF_NEEDED"
+  }
+}

@@ -33,7 +33,7 @@ function authHeaders(existing?: HeadersInit) {
 
 function parseItems(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
-  if (value && typeof value === 'object' && Array.isArray((value as any).content)) return (value as any).content;
+  if (value && typeof value === 'object' && 'content' in value && Array.isArray(value.content)) return value.content;
   return [];
 }
 

@@ -31,7 +31,9 @@ class AliExpressOrderClientTests {
                 var parts=pair.split("=",2);params.put(URLDecoder.decode(parts[0],StandardCharsets.UTF_8),URLDecoder.decode(parts[1],StandardCharsets.UTF_8));
             }
             assertThat(params).containsEntry("method","aliexpress.trade.buy.placeorder").containsEntry("session","synthetic-token");
-            assertThat(params.get("param_place_order_request4_open_api_d_t_o")).contains("INGARAGE-123");
+            assertThat(params.get("param_place_order_request4_open_api_d_t_o"))
+                    .contains("logistics_address","product_items","product_id","product_count")
+                    .doesNotContain("out_order_id","ds_extend_request","shipping_price");
             String signature=params.remove("sign");StringBuilder canonical=new StringBuilder();params.forEach((k,v)->canonical.append(k).append(v));
             try {
                 var mac=javax.crypto.Mac.getInstance("HmacSHA256");mac.init(new javax.crypto.spec.SecretKeySpec("synthetic-secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
@@ -47,11 +49,35 @@ class AliExpressOrderClientTests {
         "{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\",\"order_list\":{\"number\":[123]}}}}"})
     void ambiguousAndRepeatOrderResponsesNeverAllowRetry(String body) {
         server.expect(anything()).andRespond(withSuccess(body,MediaType.APPLICATION_JSON));
-        assertThat(query()).isEqualTo(AliExpressOrderClient.Result.unknown());server.verify();
+        var result=query(); assertThat(result.confirmed()).isFalse(); assertThat(result.rejected()).isFalse();server.verify();
     }
     @Test void definiteValidationRejectionIsSeparatedFromUnknown() {
         server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\"}}}",MediaType.APPLICATION_JSON));
         assertThat(query().rejected()).isTrue();server.verify();
+    }
+    @Test void systemOrServerErrorsNeverProveThatNoOrderWasCreated() {
+        server.expect(anything()).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON)
+                .body("{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\"}}"));
+        assertThat(query().rejected()).isFalse();server.verify();
+    }
+    @Test void partialOrderIdsAreRetainedWithoutConfirmingCreationOrRejection() {
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":false,\"order_list\":{\"number\":[12345678901234567]}}}}",MediaType.APPLICATION_JSON));
+        var result=query();assertThat(result.orderIds()).containsExactly("12345678901234567");
+        assertThat(result.confirmed()).isFalse();assertThat(result.rejected()).isFalse();server.verify();
+    }
+    @ParameterizedTest @ValueSource(strings={"true","True","1"})
+    void documentedStringSuccessIsStrict(String flag) {
+        server.expect(anything()).andRespond(withSuccess("{\"code\":\"0\",\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":\""+flag+"\",\"order_list\":[123]}}}",MediaType.APPLICATION_JSON));
+        var result=query();assertThat(result.orderIds()).containsExactly("123");
+        assertThat(result.confirmed()).isEqualTo("true".equals(flag));server.verify();
+    }
+    @Test void contradictorySuccessAndErrorRetainsIdsButRequiresReconciliation() {
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":true,\"error_code\":\"PARM_ILLEGL\",\"order_list\":[123]}}}",MediaType.APPLICATION_JSON));
+        var result=query();assertThat(result.orderIds()).containsExactly("123");assertThat(result.confirmed()).isFalse();server.verify();
+    }
+    @Test void acceptsOfficialUnwrappedResponseAndPreservesUncertainDocumentExample() {
+        server.expect(anything()).andRespond(withSuccess("{\"code\":\"0\",\"result\":{\"is_success\":\"true\",\"order_list\":[1000000000]}}",MediaType.APPLICATION_JSON));
+        assertThat(query().confirmed()).isTrue();server.verify();
     }
     @Test void timeoutNeverRetries() {
         server.expect(anything()).andRespond(withException(new java.net.SocketTimeoutException("synthetic-secret")));
@@ -61,5 +87,38 @@ class AliExpressOrderClientTests {
         var builder=RestClient.builder();var empty=MockRestServiceServer.bindTo(builder).build();
         assertThat(new AliExpressOrderClient(builder.build(),"key","secret",false).create(Map.of(),"token")).isEqualTo(AliExpressOrderClient.Result.unknown());empty.verify();
     }
-    private AliExpressOrderClient.Result query() {return client.create(Map.of("out_order_id","INGARAGE-123"),"synthetic-token");}
+    @Test void administrativeTransportIsRestrictedTo19AndDoesNotEnableGlobalClient() {
+        org.springframework.test.util.ReflectionTestUtils.setField(client,"enabled",false);
+        org.springframework.test.util.ReflectionTestUtils.setField(client,"administrativeEnabled",true);
+
+        assertThat(client.create(Map.of(),"token").confirmed()).isFalse();
+        assertThat(client.createAdministrative(20L,Map.of(),"token").confirmed()).isFalse();
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":true,\"order_list\":[123]}}}",MediaType.APPLICATION_JSON));
+        assertThat(client.createAdministrative(19L,Map.of(),"token").orderIds()).containsExactly("123");server.verify();
+    }
+    @ParameterizedTest @ValueSource(strings={"[123,0]","[123,123]","[123,1.5]","[123,\"invalid\"]","[123,1234567890123456789012345678901]"})
+    void mixedInvalidListsRetainKnownIdsWithoutConfirmingSuccess(String list) {
+        server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":true,\"order_list\":"+list+"}}}",MediaType.APPLICATION_JSON));
+        var result=query();assertThat(result.orderIds()).containsExactly("123");assertThat(result.confirmed()).isFalse();assertThat(result.rejected()).isFalse();server.verify();
+    }
+    @Test void concretePermissionErrorPreservesOfficialCodeAndSafeMessage() {
+        server.expect(anything()).andRespond(withStatus(HttpStatus.FORBIDDEN).contentType(MediaType.APPLICATION_JSON).body("{\"error_response\":{\"code\":\"29\",\"sub_code\":\"isv.permission-denied\",\"msg\":\"Insufficient permissions\"}}"));
+        var result=query();assertThat(result.providerError().code()).isEqualTo("29");assertThat(result.providerError().subCode()).isEqualTo("isv.permission-denied");assertThat(result.providerError().message()).contains("Insufficient permissions");assertThat(result.providerError().httpStatus()).isEqualTo(403);assertThat(result.confirmed()).isFalse();server.verify();
+    }
+    @Test void sensitiveProviderMessageCannotLeakPayloadTokensAddressesOrEmail() {
+        var clean=AliExpressOrderClient.sanitize("Permission denied synthetic-token app_secret=private-secret cpf=52998224725 test@example.com https://example.test/?token=private-secret Rua Teste, 10",List.of("synthetic-token","private-secret","Rua Teste, 10"));
+        assertThat(clean).contains("Permission denied").doesNotContain("synthetic-token","private-secret","52998224725","test@example.com","example.test","Rua Teste");
+    }
+    @Test void partialIdsSurviveHttpErrorsAndRemainUncertain() {
+        server.expect(anything()).andRespond(withStatus(HttpStatus.BAD_GATEWAY).contentType(MediaType.APPLICATION_JSON).body("{\"code\":\"SYSTEM_ERROR\",\"result\":{\"is_success\":false,\"order_list\":[123,124]}}"));
+        var result=query();assertThat(result.orderIds()).containsExactly("123","124");assertThat(result.confirmed()).isFalse();assertThat(result.rejected()).isFalse();assertThat(result.providerError().code()).isEqualTo("SYSTEM_ERROR");server.verify();
+    }
+    @Test void credentialsCannotLeakThroughAnErrorCode() {
+        server.expect(anything()).andRespond(withSuccess("{\"error_response\":{\"code\":\"synthetic-token\",\"msg\":\"Denied\"}}",MediaType.APPLICATION_JSON));
+        assertThat(query().providerError().toString()).doesNotContain("synthetic-token");server.verify();
+    }
+    private AliExpressOrderClient.Result query() {
+        return client.create(Map.of("logistics_address",Map.of("country","BR","address","Rua Teste, 10"),
+                "product_items",List.of(Map.of("product_id",1005010661577657L,"product_count",1))),"synthetic-token");
+    }
 }

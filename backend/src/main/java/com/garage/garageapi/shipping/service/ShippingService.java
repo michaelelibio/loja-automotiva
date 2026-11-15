@@ -26,6 +26,8 @@ import java.util.TreeMap;
 
 @Service
 public class ShippingService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.shipping.commercial.CommercialShippingService commercial;
     public static final String DEFAULT_OPTION_CODE = "STANDARD";
 
     private final ShippingProvider shippingProvider;
@@ -41,6 +43,11 @@ public class ShippingService {
 
     @Transactional(readOnly = true)
     public ShippingQuoteResponse quote(ShippingQuoteRequest request) {
+        return new ShippingQuoteResponse(options(normalizeZipCode(request.zipCode()), resolveItems(request)).stream()
+                .map(ShippingOptionResponse::from).toList());
+    }
+
+    public List<ShippingProvider.Item> resolveItems(ShippingQuoteRequest request) {
         Map<ItemKey, Integer> lines = aggregate(request.items());
         Map<Long, Integer> quantities = aggregateProducts(lines);
         List<Product> products = new ArrayList<>(productRepository.findAllById(quantities.keySet()));
@@ -53,12 +60,16 @@ public class ShippingService {
             ProductVariant variant = resolveVariant(product, entry.getKey().variantId());
             return item(product, variant, entry.getValue());
         }).toList();
-        return new ShippingQuoteResponse(options(normalizeZipCode(request.zipCode()), items).stream()
-                .map(ShippingOptionResponse::from).toList());
+        return items;
     }
 
     public ShippingProvider.Option select(String zipCode, List<ShippingProvider.Item> items,
                                           String requestedCode) {
+        if(requestedCode!=null && requestedCode.startsWith("U_")) {
+            var decision=commercial.evaluate(new ShippingProvider.Request(normalizeZipCode(zipCode),items));
+            if(!requestedCode.equals(decision.option().code())) throw new ResourceConflictException("Tarifa, itens ou preço mudaram. Confira o novo total e aceite novamente.");
+            return decision.option();
+        }
         List<ShippingProvider.Option> quoted = options(normalizeZipCode(zipCode), items);
         if (requestedCode == null || requestedCode.isBlank()) return quoted.get(0);
         String code = normalizeShippingCode(requestedCode);
@@ -77,7 +88,8 @@ public class ShippingService {
         return new ShippingProvider.Item(product.getId(), variant == null ? null : variant.getId(),
                 quantity, product.getPrice().setScale(2, RoundingMode.HALF_UP),
                 product.getFulfillmentType(), product.getSupplier(),
-                variant == null ? null : variant.getSupplierVariantId());
+                variant == null ? null : variant.getSupplierVariantId(),
+                variant == null ? null : variant.getSupplierProductId());
     }
 
     private List<ShippingProvider.Option> options(String zipCode, List<ShippingProvider.Item> items) {

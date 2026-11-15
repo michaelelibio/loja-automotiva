@@ -17,11 +17,14 @@ class AliExpressFreightWiringTests {
             context.registerBean(com.garage.garageapi.product.repository.ProductVariantRepository.class,
                     ()->mock(com.garage.garageapi.product.repository.ProductVariantRepository.class));
             context.registerBean(AliExpressTokenService.class,()->mock(AliExpressTokenService.class));
-            context.register(AliExpressFreightDiagnosticClient.class,AliExpressDsFreightGateway.class,AliExpressFreightService.class);
+            context.registerBean(AliExpressProductClient.class,()->mock(AliExpressProductClient.class));
+            context.registerBean(AliExpressProductNormalizer.class,AliExpressProductNormalizer::new);
+            context.register(AliExpressFreightDiagnosticClient.class,AliExpressDsFreightGateway.class,AliExpressFreightService.class,AliExpressAssistedFreightPreview.class);
             context.refresh();
             assertThat(context.getBean(AliExpressFreightGateway.class)).isInstanceOf(AliExpressDsFreightGateway.class);
             assertThat(org.springframework.test.util.ReflectionTestUtils.getField(context.getBean(AliExpressFreightDiagnosticClient.class),"client")).isSameAs(shared);
             assertThat(org.springframework.test.util.ReflectionTestUtils.getField(context.getBean(AliExpressDsFreightGateway.class),"client")).isSameAs(shared);
+            assertThat(org.springframework.test.util.ReflectionTestUtils.getField(context.getBean(AliExpressAssistedFreightPreview.class),"freight")).isSameAs(shared);
         }
     }
     @Test void springInjectsConfiguredGatewayAndPublicQuoteActuallyCallsIt() {
@@ -30,6 +33,7 @@ class AliExpressFreightWiringTests {
         when(gateway.calculate(request)).thenThrow(new AliExpressShippingException(AliExpressShippingException.Code.PERMISSION_DENIED));
         try(var context=new AnnotationConfigApplicationContext()) {
             context.registerBean(AliExpressFreightGateway.class,()->gateway);
+            context.registerBean(AliExpressAssistedFreightPreview.class,()->mock(AliExpressAssistedFreightPreview.class));
             context.register(AliExpressFreightService.class);
             context.refresh();
             var service=context.getBean(AliExpressFreightService.class);

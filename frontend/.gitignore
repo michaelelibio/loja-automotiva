@@ -4,4 +4,10 @@ out/
 .env*
 !.env.local.example
 npm-debug.log*
+test-clean-*.log
+build-clean-*.log
+lint-clean-*.log
+test-operation-*.log
+build-operation*.log
+lint-operation*.log
 *.tsbuildinfo

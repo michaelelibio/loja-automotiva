@@ -46,6 +46,55 @@ public class Order {
     @Column(nullable = false, length = 30)
     private OrderStatus status;
 
+    // Financial state is independent from logistics: a reversal never erases a supplier reference.
+    @Column(name = "financial_payment_id")
+    private Long financialPaymentId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_financial_status", length = 30)
+    private com.garage.garageapi.payment.entity.PaymentStatus paymentFinancialStatus;
+    @Column(name = "payment_refunded_amount", precision = 12, scale = 2)
+    private BigDecimal paymentRefundedAmount;
+    @Column(name = "payment_net_revenue", precision = 12, scale = 2)
+    private BigDecimal paymentNetRevenue;
+    @Column(name = "payment_review_required", nullable = false)
+    @ColumnDefault("false")
+    private boolean paymentReviewRequired;
+    @Column(name = "payment_binding_conflict", nullable = false)
+    @ColumnDefault("false")
+    private boolean paymentBindingConflict;
+
+    public boolean isPaymentReviewRequired() { return paymentReviewRequired; }
+    public com.garage.garageapi.payment.entity.PaymentStatus getPaymentFinancialStatus() { return paymentFinancialStatus; }
+    public BigDecimal getPaymentRefundedAmount() { return paymentRefundedAmount; }
+    public BigDecimal getPaymentNetRevenue() { return paymentNetRevenue == null
+            ? OrderStatus.confirmedRevenueStatuses().contains(status) ? total : BigDecimal.ZERO : paymentNetRevenue; }
+    public Long getFinancialPaymentId() { return financialPaymentId; }
+    public void requirePaymentReview() { paymentReviewRequired = true; }
+    public void recordPaymentBindingConflict() { paymentBindingConflict = true; paymentReviewRequired = true; }
+
+    public void applyPaymentFinancialState(com.garage.garageapi.payment.entity.Payment payment) {
+        var current = payment.getStatus();
+        boolean captured = payment.getPaidAt() != null || current == com.garage.garageapi.payment.entity.PaymentStatus.PAID
+                || current.requiresFinancialReview() && current != com.garage.garageapi.payment.entity.PaymentStatus.CANCELED;
+        if (financialPaymentId != null && !java.util.Objects.equals(financialPaymentId, payment.getId())) {
+            if (captured) recordPaymentBindingConflict();
+            return;
+        }
+        if (financialPaymentId == null && !captured) return;
+        financialPaymentId = payment.getId();
+        paymentFinancialStatus = current;
+        paymentRefundedAmount = payment.getRefundedAmount();
+        paymentNetRevenue = current == com.garage.garageapi.payment.entity.PaymentStatus.PAID ? total
+                : current == com.garage.garageapi.payment.entity.PaymentStatus.PARTIALLY_REFUNDED
+                    ? total.subtract(paymentRefundedAmount).max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        paymentReviewRequired = paymentBindingConflict || current != com.garage.garageapi.payment.entity.PaymentStatus.PAID;
+    }
+
+    private void requirePaymentCleared() {
+        if (paymentReviewRequired) throw new ResourceConflictException(
+                "Pagamento exige revisão financeira. Encaminhamento e envio bloqueados; confira o pagamento e o fornecedor.");
+    }
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
 
@@ -126,7 +175,7 @@ public class Order {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private Instant expiresAt;
 
     @Column(nullable = false)
@@ -140,6 +189,103 @@ public class Order {
 
     @Column(name = "delivered_at")
     private Instant deliveredAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "assisted_quote", columnDefinition = "jsonb")
+    private com.garage.garageapi.order.quote.AssistedQuote assistedQuote;
+
+    @Column(name = "request_key", length = 36, unique = true)
+    private String requestKey;
+
+    public com.garage.garageapi.order.quote.AssistedQuote getAssistedQuote() { return assistedQuote; }
+    public void identifyRequest(String key) { this.requestKey = java.util.Objects.requireNonNull(key); }
+
+    public void requestAssistedQuote(String key) {
+        if (assistedQuote != null) throw new ResourceConflictException("Cotação já solicitada.");
+        requestKey = key;
+        assistedQuote = com.garage.garageapi.order.quote.AssistedQuote.waiting();
+    }
+    public void confirmAssistedQuote(com.garage.garageapi.order.quote.AssistedQuote quote,
+                                     List<ShippingProvider.Leg> legs) {
+        if (status != OrderStatus.PENDING_PAYMENT || assistedQuote == null
+                || !"WAITING".equals(assistedQuote.state()))
+            throw new ResourceConflictException("Este pedido não pode receber outra cotação. Solicite um novo pedido.");
+        assistedQuote = quote;
+        shippingLegs = List.copyOf(legs);
+        shippingCost = legs.stream().map(ShippingProvider.Leg::priceBrl).reduce(BigDecimal.ZERO, BigDecimal::add);
+        shippingCode = "ASSISTED_QUOTE";
+        shippingName = "Entrega AliExpress confirmada";
+        shippingProvider = "ALIEXPRESS";
+        shippingProviderCurrency = "BRL";
+        shippingProviderAmount = shippingCost;
+        shippingEstimatedDays = legs.stream().mapToInt(ShippingProvider.Leg::estimatedDays).max().orElseThrow();
+        total = subtotal.add(shippingCost);
+        expiresAt = quote.validUntil();
+        assistedQuote = quote.withContextDigest(quoteContextDigest());
+    }
+    public void updateAssistedQuote(com.garage.garageapi.order.quote.AssistedQuote quote) { assistedQuote = quote; }
+    @JdbcTypeCode(SqlTypes.JSON) @Column(name="commercial_shipping",columnDefinition="jsonb")
+    private com.garage.garageapi.shipping.commercial.CommercialShippingSnapshot commercialShipping;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public com.garage.garageapi.shipping.commercial.CommercialShippingSnapshot getCommercialShipping(){return commercialShipping;}
+    public void agreeCommercialShipping(com.garage.garageapi.shipping.commercial.CommercialShippingSnapshot snapshot,String key){
+        if(commercialShipping!=null || assistedQuote!=null)throw new ResourceConflictException("Pedido já possui aceite.");
+        requestKey=key;
+        if(expiresAt.isAfter(snapshot.validUntil()))expiresAt=snapshot.validUntil();
+        commercialShipping=snapshot.bind(quoteContextDigest());
+    }
+    public void requireCommercialContextUnchanged(){
+        if(commercialShipping!=null && (!Instant.now().isBefore(commercialShipping.validUntil())
+                || !java.util.Objects.equals(commercialShipping.decisionCode(),shippingCode)
+                || !java.util.Objects.equals(commercialShipping.contextDigest(),quoteContextDigest())))
+            throw new ResourceConflictException("Tarifa expirada ou contexto alterado. Novo aceite necessário.");
+    }
+    /** Canonical digest survives JSONB/NUMERIC round trips and binds the confirmed commercial snapshot. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String quoteContextDigest() {
+        var lines=items.stream().sorted(java.util.Comparator.comparing(OrderItem::getProductId)
+                .thenComparing(item -> java.util.Objects.toString(item.getProductVariantId(), "")))
+                .map(item -> java.util.Arrays.asList(item.getProductId(),item.getProductVariantId(),
+                    item.getSupplierProductId(),item.getSupplierVariantId(),item.getQuantity(),
+                    decimal(item.getUnitPrice()),decimal(item.getSubtotal()))).toList();
+        var legs=getShippingLegs().stream().sorted(java.util.Comparator.comparing(ShippingProvider.Leg::code)
+                .thenComparing(leg -> String.join(",",leg.supplierVariantIds().stream().sorted().toList())))
+                .map(leg -> java.util.Arrays.asList(leg.provider(),leg.code(),leg.name(),leg.originCountry(),
+                    decimal(leg.amount()),leg.currency(),decimal(leg.priceBrl()),leg.estimatedDays(),
+                    leg.supplierVariantIds().stream().sorted().toList())).toList();
+        try {
+            byte[] snapshot=tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsBytes(java.util.Arrays.asList(
+                "v1",id,recipientName,zipCode,street,number,complement,neighborhood,city,state,
+                recipientCpf,recipientBirthDate==null ? null : recipientBirthDate.toString(),recipientPhone,
+                lines,legs,decimal(subtotal),decimal(shippingCost),decimal(total)));
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(snapshot));
+        } catch(java.security.NoSuchAlgorithmException ex) {throw new IllegalStateException("SHA-256 indisponível",ex);}
+    }
+    private static String decimal(BigDecimal value) {return value==null ? null : value.stripTrailingZeros().toPlainString();}
+    public void requireQuoteContextUnchanged() {
+        if (assistedQuote!=null && (assistedQuote.contextDigest()==null
+                || !assistedQuote.contextDigest().equals(quoteContextDigest())))
+            throw new ResourceConflictException("Endereço, itens, modalidade ou preço divergiram da cotação. Solicite uma nova cotação.");
+    }
+    public void requireAssistedDispatch() {
+        if(commercialShipping!=null)throw new ResourceConflictException("Encaminhamento de tarifa comercial exige reconferência manual e permanece bloqueado.");
+        requireQuoteContextUnchanged();
+        if (assistedQuote != null && (!"ACCEPTED".equals(assistedQuote.state())
+                || assistedQuote.dispatchCheckedAt() == null
+                || assistedQuote.dispatchCheckedAt().isBefore(Instant.now().minusSeconds(600))))
+            throw new ResourceConflictException("Reconfira o custo no AliExpress antes do encaminhamento. Divergências exigem cancelamento/reembolso.");
+    }
+    public void holdAssistedPaymentForRefund() {
+        if (assistedQuote==null || "REFUNDED".equals(assistedQuote.state())) return;
+        assistedQuote=assistedQuote.checked(false);
+        if (status==OrderStatus.EXPIRED || status==OrderStatus.CANCELED) status=OrderStatus.PAID;
+    }
+    public void cancelAfterRefund() {
+        if (assistedQuote == null || !"REFUNDED".equals(assistedQuote.state())
+                || (status != OrderStatus.PAID && status != OrderStatus.PROCESSING))
+            throw new ResourceConflictException("Reembolso confirmado é obrigatório.");
+        status = OrderStatus.CANCELED;
+    }
 
     protected Order() { }
 
@@ -178,6 +324,10 @@ public class Order {
     }
 
     public void addItem(OrderItem item) { items.add(item); }
+
+    public void limitExpiration(Instant deadline) {
+        if (deadline.isBefore(expiresAt)) expiresAt = deadline;
+    }
 
     @PrePersist
     void onCreate() {
@@ -225,12 +375,22 @@ public class Order {
     }
 
     public void startProcessing(Instant occurredAt) {
+        requirePaymentCleared();
+        requireAssistedDispatch();
         requireStatus(OrderStatus.PAID, OrderStatus.PROCESSING);
         status = OrderStatus.PROCESSING;
         processingAt = occurredAt;
     }
+    public void startProcessingAfterSupplierCreation(Instant occurredAt) {
+        requirePaymentCleared();
+        requireStatus(OrderStatus.PAID,OrderStatus.PROCESSING);
+        status=OrderStatus.PROCESSING;processingAt=occurredAt;
+    }
 
     public void markShipped(Instant occurredAt) {
+        requirePaymentCleared();
+        if (assistedQuote!=null && !"ACCEPTED".equals(assistedQuote.state()))
+            throw new ResourceConflictException("Envio bloqueado: resolva o cancelamento/reembolso.");
         requireStatus(OrderStatus.PROCESSING, OrderStatus.SHIPPED);
         status = OrderStatus.SHIPPED;
         shippedAt = occurredAt;

@@ -1,0 +1,254 @@
+{
+  "checkedAt": "2026-11-15T16:16:22.296Z",
+  "orderId": 21,
+  "realCreationAttempts": 1,
+  "supplierOrderIds": [],
+  "supplierState": "VERIFICATION_REQUIRED",
+  "providerError": {
+    "code": "B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_BIRTHDAY_NO_MATCH",
+    "subCode": null,
+    "message": "The date of birth information does not match",
+    "httpStatus": 200
+  },
+  "recipientPersonalDataChanged": false,
+  "subsequentRealCreationAuthorized": false,
+  "deployed": false,
+  "supplierPaymentExecuted": false,
+  "tests": {
+    "backendAffected": {
+      "total": 607,
+      "passed": 539,
+      "skipped": 68,
+      "failures": 0,
+      "errors": 0
+    },
+    "frontend": 80,
+    "frontendTypecheck": true,
+    "frontendLint": true,
+    "frontendBuild": true,
+    "operationalGuardTests": 4,
+    "localPostgresMigrationAppliedTwiceAndRolledBack": true
+  },
+  "artifact": {
+    "path": "backend/target/order21-validation/garage-api-0.0.1-SNAPSHOT.jar",
+    "sha256": "bf50949ef4f1eee828730507dc3963bef9e7f373fc301273096f890bb3fca060"
+  },
+  "files": [
+    {
+      "path": "backend/ops/AuthorizedOrder21Bridge.java",
+      "sha256": "1a4fbf1a0be5fad2e8b41aa4846b52701e31f4dc56e0af97e52c4fbbbbc187bd"
+    },
+    {
+      "path": "backend/ops/create-authorized-order21.cjs",
+      "sha256": "0dfd856c412cbf30f20fb0f96dfe94a28f8a0ee7964d0c42d7149be813a3edbc"
+    },
+    {
+      "path": "backend/ops/create-authorized-order21.test.cjs",
+      "sha256": "2420dc076d74810346286dc13a6087828f66b41b9721b22e7832dc76ecc9c0a2"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/admin/order/AdminAliExpressOrderController.java",
+      "sha256": "db74a688d1ffe33b13791a0add42ed2a60ef3b9ae77a05f81f90d2a49d926844"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/admin/order/AdminAliExpressRecipientController.java",
+      "sha256": "6ed051bd7dfcb50c303807642368ca03fac77022b5d33f52bbd7d90f83e47232"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AdminAliExpressTestService.java",
+      "sha256": "0a73698a604b49cc3cf4c67249224a4679dc97d9af14f64d3e2adee528091261"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchConfiguration.java",
+      "sha256": "40220396f0998d3caabc77771a48c62c5514bad5579665b75aa15f4bb7d0d05b"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchQuote.java",
+      "sha256": "68bc3f9f1d407a3cf7a6811f200a839290f5fb39a5d2db8db643efafc41d8a9d"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchQuoteService.java",
+      "sha256": "38d45c9beced9a58ca3a948f8b9f24a9480351edb4a38fdfd1eacf9fc36cd93e"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchRecord.java",
+      "sha256": "aa30d944340a985979e91776c7a28cbd122c4424279584f461fbc472fdb2115e"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchRecordRepository.java",
+      "sha256": "8e4552abfc0b0aa2aefaead8ce70b4a240948a1697f8e14a38935511d034f085"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchStore.java",
+      "sha256": "f00b4815a9ddfd09c477a2e88c9a792deba5bc1894586716b33b3e529a0308df"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchValidation.java",
+      "sha256": "833967dd284e60b1d958751b3957c49d91beab634d7d122eb340c00561278f5a"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchWorker.java",
+      "sha256": "8a13f5bac3a2ee3293b3b989c3766a4d08fa23fa521cd6cee75e257321d7223b"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderClient.java",
+      "sha256": "c0f7870182712d6ed54c45e477d3ba8ce5a1b78af07f2e2e754b0076e96ed3b9"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderPreparation.java",
+      "sha256": "e69dd9bbe8e9af22d0f745b1f96959b943d3b59df0c336bcf653207b8b94f8eb"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderQueryClient.java",
+      "sha256": "fd3555ad85c89b6ba4089706de338124749a20ae5b4a715b6618efc1f25e99d0"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderQueryPermission.java",
+      "sha256": "a44e706362805f30463b692c6516506fd7dc0b3203cb6895d832d0ff83d51444"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderService.java",
+      "sha256": "37fcf236276d722c27ea367eae1dea2859b0c038e950fcecc6cd415c1d3c9671"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderSyncService.java",
+      "sha256": "7c0c2c84babae1a7fc31c29a46ce07e37d680775951c423e0336cce13bb12818"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressPlaceOrderPermission.java",
+      "sha256": "1181f59de9b54ebb22943dc3853e55a0ed77fac86e993b01ae3bc16758cc1350"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressRecipientAdminAudit.java",
+      "sha256": "5fc6034411ef2e53c0088de8e12851f3fa4068bdfc0042798631d52b91018804"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressRecipientAdminAuditRepository.java",
+      "sha256": "d6ae1698ab00a530d8e01eb67b13b29391b53253d46bcc111d67765441705b8f"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressRecipientAdminService.java",
+      "sha256": "9f91a48e5edb0404ab0fcd44304b775267e7b886a043f633a951f2624c447d86"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressSupplierCosts.java",
+      "sha256": "7c1e48404a65097767abd27c6ed05a0c8591c6ba1702d055fe79621b5f9a6a85"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressSupplierSnapshot.java",
+      "sha256": "e120418f0f4d2ecef97002438855c871a972d5910a684ce4f876e6f176b41367"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/integration/aliexpress/AliExpressTokenService.java",
+      "sha256": "14783bc6fb0fda6b8f5c492737d37dd72905faf073830e67212901bf71f72b64"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/order/entity/Order.java",
+      "sha256": "3bbfdf21359375019b482e473f1d8c82a6c1252b6d14594b5e445283005137c3"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/order/fulfillment/OrderFulfillment.java",
+      "sha256": "516210b00369ad18ff81fa26cf0211440d72629b86497782065119a87804b842"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/order/fulfillment/OrderFulfillmentRepository.java",
+      "sha256": "98d2592fff0af0815bb025faaf77da45c3ae46eab420ce314e94e06a41de8671"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/order/fulfillment/SupplierFulfillmentService.java",
+      "sha256": "1e4e5a87c8d4132720c781891a2f5b55180c86112f91efe0dab41ef193e09962"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/order/recipient/AliExpressRecipientData.java",
+      "sha256": "d9d7bdf294951ca6d077ce6a69c523413f5fbefccba637f89fe29813db5f15bf"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/payment/gateway/CheckoutProGateway.java",
+      "sha256": "bb574ed4407be7009bd966f40cf489980d1b0bd3c8219d5e1079e5735793c42d"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/payment/gateway/MercadoPagoCheckoutProGateway.java",
+      "sha256": "3195d88ccda776b40273a6ccf42c1ae5967aa41b3bd4bd995cc81dce68967348"
+    },
+    {
+      "path": "backend/src/main/java/com/garage/garageapi/payment/service/CheckoutProWebhookUpdater.java",
+      "sha256": "fc0d089be14718f71fd23bf87e02f8307d81453fec0e1c4fe8d03247f37c3554"
+    },
+    {
+      "path": "backend/src/main/resources/application.properties",
+      "sha256": "ad72a5bde47d88684926f864d280995cc01e55440a5b3dc2edbf1ab998525528"
+    },
+    {
+      "path": "backend/src/main/resources/db/migration/V20261115_01__aliexpress_automatic_dispatch.sql",
+      "sha256": "471b1a70fbc628d7fa172a5a54a997370f520b5140324c7c157a95946e0d8c41"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AdminAliExpressTestIntegrationTests.java",
+      "sha256": "f44d1c1e7e0c3a8bce89876547af9f6ce6cef6d1ad74364fedaed429c0e912d3"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchConfigurationTests.java",
+      "sha256": "824aca78504e733fe1e067a458134a1203c40093e94d142ec72aefb3034c14a4"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressDispatchValidationTests.java",
+      "sha256": "c94e04ef88943ee50caa58f30f8ac4e6619f8164397aacd37d9e0258b52c12a2"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderClientTests.java",
+      "sha256": "0be1c24161e741d28612b92c32ebb31b935b9fc62fee3c6fe61251b2189e49f3"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressOrderIntegrationTests.java",
+      "sha256": "830b01797ff4028859a58a3d4295a5e29f61c48fda595dc6c9d9d7bc1ecebe17"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressSupplierCostsTests.java",
+      "sha256": "5f9340739a515008cc1b9c7eb85bd63b3c3234f1f73d8a4b878a85c9e189564c"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/AliExpressTokenPersistenceTests.java",
+      "sha256": "734f1eac2b5ac544b394ac26f71654881a80ff37a0ccc2772d97f6dd95416918"
+    },
+    {
+      "path": "backend/src/test/java/com/garage/garageapi/integration/aliexpress/CleanCheckoutIntegrationTests.java",
+      "sha256": "6eb7cb41ef14c0f0931509432769d2324646b18419becd22fa8396134e38aab9"
+    },
+    {
+      "path": "docs/ALIEXPRESS-AUTOMACAO-REGRA-DEFINITIVA-20261115.md",
+      "sha256": "49e0dbc2eb754c25c92fe5023ff23b2141ce96ccb9a2bf1867111d8091cb3938"
+    },
+    {
+      "path": "docs/ALIEXPRESS-DESTINATARIO-ADM-20261115.md",
+      "sha256": "474f85aa8563276a6de12c94703ebc21f62c031fd240001685ebeac67d6557cc"
+    },
+    {
+      "path": "docs/ALIEXPRESS-PEDIDO21-20261115.md",
+      "sha256": "01f53febfeb73e407b87624b189f305fd2e5a796656b8f5f8269b392c222b6f9"
+    },
+    {
+      "path": "frontend/app/admin/pedidos/[id]/page.tsx",
+      "sha256": "7297fdc979f182af40ab3fbce22902ad9f3121dba74429072ec5467b0bef027c"
+    },
+    {
+      "path": "frontend/components/admin/AliExpressOrderAction.tsx",
+      "sha256": "e18e42210bb58bc00101ec7a3eb28f679d812e0475fa9e3fc778e3c7a33b8924"
+    },
+    {
+      "path": "frontend/components/admin/AliExpressRecipientEditor.tsx",
+      "sha256": "9ecac5c3e0cea48c038c224a0ff700f45519a904cda5c73e202903da3303efc2"
+    },
+    {
+      "path": "frontend/lib/api/admin/orders.ts",
+      "sha256": "d23237c8c8a59d5f0c294aab07764e0876299bbb603a8579c52eebeda7ce31cc"
+    },
+    {
+      "path": "frontend/lib/types/admin-order.ts",
+      "sha256": "5c992f8e7c66648a295c35ad1edfe65ab85eea3ea4bcf521fda0190241ebc356"
+    },
+    {
+      "path": "frontend/tests/aliexpress-orders.test.cjs",
+      "sha256": "40fa6a46004e6d3d62237bb40dd9c38214cc5409e45235769c4b4eec39fb29cf"
+    }
+  ]
+}

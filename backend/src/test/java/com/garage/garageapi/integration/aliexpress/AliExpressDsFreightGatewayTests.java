@@ -63,9 +63,8 @@ class AliExpressDsFreightGatewayTests {
             assertThat(dto.path("shipToCountry").asText()).isEqualTo("BR");assertThat(dto.size()).isEqualTo(7);
             assertThat(dto.toString()).doesNotContain("89229030","FORGED","province","city","price");
         }).andRespond(withSuccess(response("1230"),MediaType.APPLICATION_JSON));
-        var result=adapter.calculate(request());
-        assertThat(result.coverage()).isEqualTo(AliExpressFreightGateway.Coverage.COUNTRY_ONLY);
-        assertThat(result.lines().get(0).methods().get(0).amount()).isEqualByComparingTo("12.30");
+        assertThatThrownBy(()->adapter.calculate(request())).isInstanceOfSatisfying(AliExpressShippingException.class,
+                ex->assertThat(ex.code()).isEqualTo(AliExpressShippingException.Code.AMBIGUOUS_MONEY));
         verify(tokens).existingAccessToken();verify(tokens,never()).accessToken();server.verify();
     }
     @ParameterizedTest @CsvSource({"PERMISSION_DENIED,PROVIDER_PERMISSION_DENIED,PERMISSION_DENIED",

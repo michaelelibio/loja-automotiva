@@ -39,7 +39,7 @@ class AccountEmailModeTests {
         contextRunner.withPropertyValues(
                         "app.account.email.mode=resend",
                         "app.account.email.resend.api-key=test-only-resend-key",
-                        "app.account.email.from=GARAGE <onboarding@resend.dev>")
+                        "app.account.email.from=inGarage <nao-responda@ingarage.com.br>")
                 .run(context -> {
                     assertThat(context).hasSingleBean(AccountEmailService.class);
                     assertThat(context.getBean(AccountEmailService.class))
