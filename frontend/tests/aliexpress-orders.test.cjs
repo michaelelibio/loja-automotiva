@@ -98,7 +98,34 @@ test('supplier sync waits for backend proof, blocks duplicate clicks and never c
 test('pending payments have no send button and missing prerequisites disable the paid action', async () => {
   const unpaid = await harness({ ...state, paymentConfirmed: false }); assert.equal(unpaid.render(), null);
   const blocked = await harness({ ...state, canSend: false, blockReason: 'CPF e frete não confirmados.' });
-  assert.equal(find(blocked.render(), (node) => node.type === 'button').props.disabled, true);
+  assert.equal(find(blocked.render(), (node) => node.type === 'button' && node.props.children === 'Enviar ao AliExpress').props.disabled, true);
+});
+
+test('financial alerts permit creation and unknown costs are never displayed as zero', () => {
+  const { AliExpressOrderState, AliExpressDispatchDetails } = load('components/admin/AliExpressOrderAction.tsx', mocks);
+  const blocked={...state,canSend:true,blockReason:null,attemptCount:0,maxAttempts:3,
+    validationAttemptCount:2,nextValidationAt:'2026-11-15T15:00:00Z',automaticEnabled:false,dispatchQuote:null,
+    financialWarnings:['Impostos desconhecidos.','Custo superior ao valor recebido.'],
+    supplierCosts:{source:'LIVE_PRODUCT_API',currency:'BRL',productTotal:100,shippingTotal:null,taxTotal:null,total:null,observedAt:null}};
+  const html=renderToStaticMarkup(React.createElement(React.Fragment,null,
+    React.createElement(AliExpressOrderState,{state:blocked}),React.createElement(AliExpressDispatchDetails,{state:blocked})));
+  assert.match(html,/Aguardando criação automática/);assert.match(html,/Alertas financeiros — criação permitida/);
+  assert.match(html,/Desconhecido/);assert.doesNotMatch(html,/Criação automática bloqueada|R\$[^0-9<]*0,00/);
+  assert.match(html,/Tentativas de criação: 0\/3/);assert.match(html,/Validações: 2/);assert.match(html,/Nova validação prevista/);
+  assert.match(html,/Processamento automático desativado/);assert.match(html,/exclusivamente manual/);
+});
+
+test('uncertain response retains supplier references and does not claim successful creation', () => {
+  const { AliExpressOrderState } = load('components/admin/AliExpressOrderAction.tsx', mocks);
+  const html=renderToStaticMarkup(React.createElement(AliExpressOrderState,{state:{...state,status:'VERIFICATION_REQUIRED',supplierOrderIds:['99112'],lastError:'Resultado incerto.'}}));
+  assert.match(html,/99112/);assert.match(html,/Resultado incerto/);assert.doesNotMatch(html,/Enviado ao fornecedor/);
+});
+
+test('refreshing automatic dispatch uses only the read endpoint', async () => {
+  const h=await harness({...state,canSend:false});
+  button(h.render(),'Atualizar acompanhamento').props.onClick();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(h.calls(),0);assert.equal(h.syncCalls(),0);assert.equal(h.updated(),1);
 });
 test('paid send requires confirmation, blocks duplicate clicks and refreshes backend states', async () => {
   const h = await harness(state);
@@ -233,4 +260,54 @@ test('review preserves unknown costs, higher supplier price and unknown buyer wi
 test('official sanitized rejection is displayed with code and message and blocks another create',async()=>{
  const h=await testHarness({...testState,realStatus:'REJECTED_NO_RETRY',providerError:{code:'29',subCode:'isv.permission-denied',message:'Insufficient permissions',httpStatus:403}});
  const html=renderToStaticMarkup(h.render());assert.match(html,/29/);assert.match(html,/Insufficient permissions/);assert.doesNotMatch(html,/NOT_VERIFIED/);assert.equal(button(h.render(),'Criar pedido real no AliExpress').props.disabled,true);
+});
+
+const recipientState={orderId:123,maskedCpf:'***.***.***-25',birthDatePresent:true,phonePresent:true,complete:true,pendingFields:[],
+  canEdit:true,canReconcile:false,manualHold:false,manualRetryReady:false,attemptCount:1,lastAttemptAt:'2026-11-15T12:00:00Z',contextDigest:'a'.repeat(64),recipientRevision:null,correctedAt:null};
+test('recipient endpoints use ADMIN authentication, no cache and fixed private-data errors',async()=>{
+  const api=load('lib/api/admin/orders.ts',{'@/lib/auth/tokenStorage':{getToken:()=> 'synthetic-admin-token'}});const calls=[];
+  global.fetch=async(url,init)=>{calls.push({url,init});return Response.json(recipientState);};
+  await api.getAdminAliExpressRecipient(123);
+  const edit={cpf:'11144477735',birthDate:'02/02/1992',expectedContext:recipientState.contextDigest};
+  await api.updateAdminAliExpressRecipient(123,edit);
+  await api.reconcileAdminAliExpressRecipient(123,{expectedContext:recipientState.contextDigest,expectedAttemptCount:1,recipientRevision:1,recipientDataConfirmed:true,allPreviousAttemptsChecked:true,noSupplierOrderConfirmed:true});
+  assert.equal(calls.length,4);assert.equal(calls[0].init.cache,'no-store');assert.equal(calls[1].init.method,'PATCH');
+  assert.deepEqual(JSON.parse(calls[1].init.body),edit);assert.ok(calls[2].url.endsWith('/recipient/reconcile'));
+  assert.ok(calls.every(c=>c.init.headers.Authorization==='Bearer synthetic-admin-token'&&!c.url.endsWith('/send')));
+  global.fetch=async()=>Response.json({message:'11144477735 02/02/1992 private-secret'},{status:400});
+  await assert.rejects(api.updateAdminAliExpressRecipient(123,edit),e=>{assert.doesNotMatch(e.message,/11144477735|02\/02\/1992|private-secret/);return true;});
+});
+test('recipient summary reveals only masked CPF and whether birth date exists',()=>{
+  const {AliExpressRecipientSummary}=load('components/admin/AliExpressRecipientEditor.tsx',mocks);
+  const html=renderToStaticMarkup(React.createElement(AliExpressRecipientSummary,{value:recipientState}));
+  assert.match(html,/\*\*\*\.\*\*\*\.\*\*\*-25/);assert.match(html,/Cadastrada/);assert.doesNotMatch(html,/52998224725|1990-01-01/);
+});
+async function recipientHarness(initial){
+  const states=[],refs=[],effects=[];let cursor,refCursor,first=true,updates=0,saves=0,reconciliations=0,submitted;
+  const {AliExpressRecipientEditor}=load('components/admin/AliExpressRecipientEditor.tsx',{...mocks,
+    react:{...React,useState(v){const n=cursor++;if(!(n in states))states[n]=v;return[states[n],v=>{states[n]=v;}];},
+      useRef(v){const n=refCursor++;return refs[n]??={current:v};},useEffect(effect){if(first)effects.push(effect);}},
+    '@/lib/api/admin/orders':{AdminOrderApiError:class extends Error{},getAdminAliExpressRecipient:async()=>initial,
+      updateAdminAliExpressRecipient:async(id,data)=>{saves++;submitted=data;return{...initial,manualHold:true,canReconcile:true,recipientRevision:2};},
+      reconcileAdminAliExpressRecipient:async()=>{reconciliations++;return{...initial,manualHold:true,canReconcile:false,manualRetryReady:true};}}});
+  function render(){cursor=0;refCursor=0;const tree=AliExpressRecipientEditor({orderId:123,onUpdated:()=>updates++});if(first){first=false;effects.forEach(e=>e());}return tree;}
+  render();await Promise.resolve();return{render,saves:()=>saves,reconciliations:()=>reconciliations,submitted:()=>submitted,updates:()=>updates};
+}
+test('saving correction clears personal form values and does not release or create an order',async()=>{
+  const h=await recipientHarness(recipientState);button(h.render(),'Corrigir CPF e nascimento').props.onClick();
+  find(h.render(),n=>n.type==='input'&&n.props.name==='recipientCpf').props.onChange({target:{value:'11144477735'}});
+  find(h.render(),n=>n.type==='input'&&n.props.name==='recipientBirthDate').props.onChange({target:{value:'02/02/1992'}});
+  const form=find(h.render(),n=>n.type==='form');const e={preventDefault(){}};form.props.onSubmit(e);form.props.onSubmit(e);
+  await new Promise(res=>setImmediate(res));assert.equal(h.saves(),1);assert.equal(h.reconciliations(),0);assert.equal(h.updates(),1);
+  assert.equal(find(h.render(),n=>n.type==='form'),null);button(h.render(),'Corrigir CPF e nascimento').props.onClick();
+  assert.equal(find(h.render(),n=>n.type==='input'&&n.props.name==='recipientCpf').props.value,'');
+  assert.equal(find(h.render(),n=>n.type==='input'&&n.props.name==='recipientBirthDate').props.value,'');
+});
+test('manual reconciliation requires both explicit checks and sends no supplier creation',async()=>{
+  const h=await recipientHarness({...recipientState,manualHold:true,canReconcile:true,recipientRevision:2});
+  const label='Registrar reconciliação e liberar envio manual';assert.equal(button(h.render(),label).props.disabled,true);
+  const checks=[];function collect(t){if(!t||typeof t!=='object')return;if(t.type==='input'&&t.props.type==='checkbox')checks.push(t);React.Children.toArray(t.props?.children).forEach(collect);}collect(h.render());
+  checks.forEach(c=>c.props.onChange({target:{checked:true}}));const confirm=button(h.render(),label);assert.equal(confirm.props.disabled,false);
+  confirm.props.onClick();confirm.props.onClick();await new Promise(res=>setImmediate(res));assert.equal(h.reconciliations(),1);assert.equal(h.saves(),0);
+  assert.equal(button(h.render(),label),null);
 });

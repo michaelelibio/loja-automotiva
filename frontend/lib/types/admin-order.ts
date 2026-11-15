@@ -9,7 +9,20 @@ export type AdminAliExpressOrder = {
   supplierStatus: string | null;
   supplierOrderIds: string[]; lastError: string | null;
   submittedAt: string | null; createdExternallyAt: string | null;
+  attemptCount?: number; maxAttempts?: number; validationAttemptCount?: number; nextValidationAt?: string | null;
+  contextDigest?: string;
+  automaticEnabled?: boolean;
+  financialWarnings?: string[];
+  supplierCosts?: { source: string; currency: string | null; productTotal: number | null; shippingTotal: number | null;
+    taxTotal: number | null; total: number | null; observedAt: string | null } | null;
+  dispatchQuote?: { productTotal: number; shippingTotal: number; taxTotal: number; total: number;
+    verifiedAt: string; validUntil: string; evidenceReference: string } | null;
   supplierSync?: { startedAt: string; checkedAt: string | null; inProgress: boolean; parts: SupplierOrderPart[] } | null;
+};
+export type AdminAliExpressRecipient = {
+  orderId: number; maskedCpf: string | null; birthDatePresent: boolean; phonePresent: boolean; complete: boolean;
+  pendingFields: string[]; canEdit: boolean; canReconcile: boolean; manualHold: boolean; manualRetryReady: boolean;
+  attemptCount: number; lastAttemptAt: string | null; contextDigest: string; recipientRevision: number | null; correctedAt: string | null;
 };
 
 export type SupplierOrderPart = { orderId: string; state: string; orderStatus: string | null;

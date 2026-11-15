@@ -19,9 +19,34 @@ export function AliExpressOrderState({ state }: { state: AdminAliExpressOrder })
         {part && <small>Consultado em {new Date(part.checkedAt).toLocaleString('pt-BR')}. {part.verified ? 'Confirmado por consulta AliExpress.' : 'Consulta não confirmou o estado; confira no AliExpress.'}</small>}</li>;
     })}</ul><small>Pagamento ao AliExpress exclusivamente manual. Confira a situação atual no fornecedor antes de pagar.</small>
   </div>;
-  if (state.status === 'VERIFICATION_REQUIRED' || state.status === 'PROCESSING') return <p role="status">Verificação necessária. Reenvio bloqueado até reconciliação.</p>;
+  if (state.status === 'VERIFICATION_REQUIRED' || state.status === 'PROCESSING') return <div role="status"><p>Verificação necessária. Reenvio bloqueado até reconciliação.</p>
+    {state.lastError && <p>{state.lastError}</p>}
+    {(state.supplierOrderIds ?? []).map(id => <p key={id}>Referência retornada: AliExpress #{id}. A criação ainda exige conferência.</p>)}
+  </div>;
   if (state.status === 'FAILED') return <p role="alert">{state.lastError || 'O AliExpress recusou a criação do pedido.'}</p>;
+  if (state.status === 'PENDING') return <div role="status">
+    <strong>{state.blockReason || state.lastError ? 'Criação automática bloqueada' : 'Aguardando criação automática no AliExpress'}</strong>
+    <p>{state.lastError || state.blockReason || 'O backend encaminhará o pedido após validar o pagamento e os dados do fornecedor.'}</p>
+  </div>;
   return null;
+}
+
+export function AliExpressDispatchDetails({ state }: { state: AdminAliExpressOrder }) {
+  const quote = state.dispatchQuote;
+  const costs = state.supplierCosts;
+  const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  return <div>
+    {state.automaticEnabled === false && state.status === 'PENDING' && <p>Processamento automático desativado na configuração do backend.</p>}
+    <small>Tentativas de criação: {state.attemptCount ?? 0}/{state.maxAttempts ?? 3}. Validações: {state.validationAttemptCount ?? 0}.</small>
+    {state.nextValidationAt && <p>Nova validação prevista para {new Date(state.nextValidationAt).toLocaleString('pt-BR')}.</p>}
+    {quote && <p>Cotação registrada: produto {money(quote.productTotal)}, frete {money(quote.shippingTotal)}, impostos {money(quote.taxTotal)}, total {money(quote.total)}. Válida até {new Date(quote.validUntil).toLocaleString('pt-BR')}.</p>}
+    {costs && <p>Custos informados pelo fornecedor{costs.currency ? ` (${costs.currency})` : ''}: produto {costs.productTotal ?? 'Desconhecido'}, frete {costs.shippingTotal ?? 'Desconhecido'}, impostos {costs.taxTotal ?? 'Desconhecido'}, total {costs.total ?? 'Desconhecido'}.
+      {costs.observedAt && <> Consultados em {new Date(costs.observedAt).toLocaleString('pt-BR')}.</>}</p>}
+    {!!state.financialWarnings?.length && <aside aria-label="Alertas financeiros"><strong>Alertas financeiros — criação permitida</strong>
+      <ul>{state.financialWarnings.map(message=><li key={message}>{message}</li>)}</ul>
+      <p>Custos elevados ou desconhecidos não impedem a criação. O pagamento ao fornecedor permanece manual.</p></aside>}
+    <small>Pagamento ao AliExpress exclusivamente manual.</small>
+  </div>;
 }
 
 export function AliExpressOrderAction({ orderId, onUpdated }: { orderId: number; onUpdated: () => void }) {
@@ -65,11 +90,20 @@ export function AliExpressOrderAction({ orderId, onUpdated }: { orderId: number;
       if (cause instanceof AdminOrderApiError && cause.status === 401) { logout(); router.replace('/login'); }
     } finally { busy.current = false; setSyncing(false); }
   }
+  async function refresh() {
+    if (busy.current) return;
+    busy.current = true; setSyncing(true); setError(null);
+    try { setState(await getAdminAliExpressOrder(orderId)); onUpdated(); }
+    catch { setError('Não foi possível atualizar o acompanhamento. Tente novamente.'); }
+    finally { busy.current = false; setSyncing(false); }
+  }
   if (error && !state) return <small role="alert">{error}</small>;
   if (!state?.applicable || (!state.paymentConfirmed && state.status !== 'CREATED')) return null;
   const finished = state.status === 'CREATED' || state.status === 'VERIFICATION_REQUIRED' || state.status === 'PROCESSING';
   return <div className="admin-aliexpress-order-action">
     <AliExpressOrderState state={state} />
+    <AliExpressDispatchDetails state={state} />
+    <button type="button" disabled={syncing || sending} onClick={() => void refresh()}>Atualizar acompanhamento</button>
     {state.status === 'CREATED' && <button type="button" disabled={syncing || sending} onClick={() => void sync()}>{syncing ? 'Consultando...' : 'Atualizar situação no AliExpress'}</button>}
     {!finished && <><button type="button" disabled={!state.canSend || sending || uncertain} onClick={() => setConfirming(true)}>Enviar ao AliExpress</button>{state.blockReason && <small>{state.blockReason}</small>}</>}
     {error && <small role="alert">{error}</small>}

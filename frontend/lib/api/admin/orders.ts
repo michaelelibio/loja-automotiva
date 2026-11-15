@@ -76,6 +76,38 @@ export function getAdminAliExpressOrder(id: number) { return aliExpressOrderRequ
 export function sendAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, true); }
 export function syncAdminAliExpressOrder(id: number) { return aliExpressOrderRequest(id, false, true); }
 
+async function recipientRequest(id: number, init?: RequestInit): Promise<import('@/lib/types/admin-order').AdminAliExpressRecipient> {
+  const token = tokenStorage.getToken();
+  if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
+  let response: Response;
+  try { response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress/recipient`, { ...init, cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'Content-Type': 'application/json' } : {}) } }); }
+  catch { throw new AdminOrderApiError('Resultado não confirmado. Atualize os dados antes de continuar.', 0); }
+  if (!response.ok) throw new AdminOrderApiError(response.status === 400 ? 'Confira o CPF, a data de nascimento e os campos obrigatórios.'
+    : response.status === 409 ? 'O pedido mudou ou exige reconciliação. Atualize os dados antes de continuar.'
+    : 'Não foi possível consultar ou salvar os dados do destinatário.', response.status);
+  const data = await response.json();
+  if (data.orderId !== id || typeof data.birthDatePresent !== 'boolean' || !/^[a-f0-9]{64}$/.test(data.contextDigest)
+    || data.maskedCpf !== null && !/^\*{3}\.\*{3}\.\*{3}-[0-9]{2}$/.test(data.maskedCpf))
+    throw new AdminOrderApiError('Resposta não confirmada. Atualize os dados.', 0);
+  return data;
+}
+export function getAdminAliExpressRecipient(id: number) { return recipientRequest(id); }
+export function updateAdminAliExpressRecipient(id: number, data: { cpf: string; birthDate: string; expectedContext: string }) {
+  return recipientRequest(id, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function reconcileAdminAliExpressRecipient(id: number, data: { expectedContext: string; expectedAttemptCount: number;
+  recipientRevision: number; recipientDataConfirmed: boolean; allPreviousAttemptsChecked: boolean; noSupplierOrderConfirmed: boolean }) {
+  const token = tokenStorage.getToken(); if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
+  let response: Response;
+  try { response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress/recipient/reconcile`, { method: 'POST', cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); }
+  catch { throw new AdminOrderApiError('Reconciliação não confirmada. Atualize os dados.', 0); }
+  if (!response.ok) throw new AdminOrderApiError('Não foi possível liberar a tentativa manual. Atualize e confira os dados, o histórico e o término da tentativa anterior.', response.status);
+  // Read the masked representation after reconciliation. Neither operation creates a supplier order.
+  return getAdminAliExpressRecipient(id);
+}
+
 export function assistedQuoteAction(id: number, action: string, data?: unknown): Promise<unknown> {
   return request(endpoint+'/'+id+'/quote'+(action ? '/'+action : ''), {method:'POST',headers:{'Content-Type':'application/json'},...(data ? {body:JSON.stringify(data)} : {})});
 }
