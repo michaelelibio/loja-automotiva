@@ -7,10 +7,10 @@ import java.util.Locale;
 record OrderEmailContent(String subject, String html, String text) {
     static OrderEmailContent create(String type, OrderEmailDetails order, String baseUrl) {
         String[] copy = switch (type) {
-            case "PAYMENT_APPROVED" -> new String[]{"Pagamento aprovado — GARAGE", "Pagamento aprovado", "Seu pagamento foi confirmado e o pedido seguirá para preparação."};
-            case "PROCESSING" -> new String[]{"Pedido em preparação — GARAGE", "Pedido em preparação", "Seu pedido entrou em preparação."};
-            case "SHIPPED" -> new String[]{"Seu pedido está a caminho — GARAGE", "Pedido enviado", "Seu pedido está a caminho."};
-            case "DELIVERED" -> new String[]{"Pedido entregue — GARAGE", "Pedido entregue", "A entrega do seu pedido foi confirmada."};
+            case "PAYMENT_APPROVED" -> new String[]{"Pagamento aprovado — inGarage", "Pagamento aprovado", "Seu pagamento foi confirmado e o pedido seguirá para preparação."};
+            case "PROCESSING" -> new String[]{"Pedido em preparação — inGarage", "Pedido em preparação", "Seu pedido entrou em preparação."};
+            case "SHIPPED" -> new String[]{"Seu pedido está a caminho — inGarage", "Pedido enviado", "Seu pedido está a caminho."};
+            case "DELIVERED" -> new String[]{"Pedido entregue — inGarage", "Pedido entregue", "A entrega do seu pedido foi confirmada."};
             default -> throw new IllegalArgumentException("Tipo de e-mail de pedido inválido");
         };
         String url = stripSlash(baseUrl) + "/conta/pedidos/" + order.orderId();
@@ -18,12 +18,12 @@ record OrderEmailContent(String subject, String html, String text) {
         String html = """
                 <!doctype html><html lang="pt-BR"><body style="margin:0;background:#111827;font-family:Arial,sans-serif;color:#111827">
                 <div style="max-width:640px;margin:0 auto;padding:32px 20px"><div style="background:#fff;border-radius:12px;padding:32px">
-                <h1 style="margin:0 0 20px;color:#dc2626">GARAGE</h1><h2>%s</h2><p>Olá, %s.</p><p>%s</p><p><strong>Pedido #%s</strong></p>%s
+                <h1 style="margin:0 0 20px;color:#dc2626">inGarage</h1><h2>%s</h2><p>Olá, %s.</p><p>%s</p><p><strong>Pedido #%s</strong></p>%s
                 <p style="margin:28px 0"><a href="%s" style="background:#dc2626;color:#fff;text-decoration:none;padding:13px 22px;border-radius:8px;display:inline-block">Ver pedido</a></p>
                 <p>Se o botão não funcionar, copie este link:</p><p style="word-break:break-all"><a href="%s">%s</a></p>
                 </div></div></body></html>
                 """.formatted(copy[1], escape(order.customerName()), copy[2], order.orderId(), detailsHtml(order), safeUrl, safeUrl, safeUrl);
-        String text = "GARAGE\n\n" + copy[1] + "\n\nOlá, " + order.customerName() + ".\n" + copy[2]
+        String text = "inGarage\n\n" + copy[1] + "\n\nOlá, " + order.customerName() + ".\n" + copy[2]
                 + "\n\nPedido #" + order.orderId() + "\n" + detailsText(order) + "\n\nVeja seu pedido: " + url;
         return new OrderEmailContent(copy[0], html, text);
     }
