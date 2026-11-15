@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -25,16 +26,16 @@ class ResendAccountEmailServiceTests {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.resend.com");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         ResendAccountEmailService service = new ResendAccountEmailService(
-                builder.build(), TEST_KEY, "GARAGE <onboarding@resend.dev>");
+                builder.build(), TEST_KEY, "inGarage <nao-responda@ingarage.com.br>");
 
         server.expect(once(), requestTo("https://api.resend.com/emails"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer " + TEST_KEY))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
-                        {"from":"GARAGE <onboarding@resend.dev>",
+                        {"from":"inGarage <nao-responda@ingarage.com.br>",
                          "to":["cliente@example.com"],
-                         "subject":"Confirme seu e-mail — GARAGE"}
+                         "subject":"Confirme seu e-mail — inGarage"}
                         """, false))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Confirmar e-mail")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("https://garage.example/verify-email?token=opaque")))
@@ -42,7 +43,10 @@ class ResendAccountEmailServiceTests {
 
         server.expect(once(), requestTo("https://api.resend.com/emails"))
                 .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.from").value("inGarage <nao-responda@ingarage.com.br>"))
+                .andExpect(jsonPath("$.subject").value("Redefinição de senha — inGarage"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Redefinir senha")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("https://garage.example/reset-password?token=opaque")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("ignore este e-mail")))
                 .andRespond(withSuccess("{\"id\":\"email-2\"}", MediaType.APPLICATION_JSON));
 

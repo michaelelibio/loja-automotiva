@@ -17,11 +17,13 @@ class ResendOrderEmailServiceTests {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.resend.com");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         ResendOrderEmailService service = new ResendOrderEmailService(
-                new ResendEmailClient(builder.build(), "test-key", "GARAGE <onboarding@resend.dev>"),
+                new ResendEmailClient(builder.build(), "test-key", "inGarage <nao-responda@ingarage.com.br>"),
                 "https://garage.example");
         server.expect(once(), requestTo("https://api.resend.com/emails"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.from").value("inGarage <nao-responda@ingarage.com.br>"))
+                .andExpect(jsonPath("$.subject").value("Seu pedido está a caminho — inGarage"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("cliente@example.com")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Pedido #42")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("https://garage.example/conta/pedidos/42")))
