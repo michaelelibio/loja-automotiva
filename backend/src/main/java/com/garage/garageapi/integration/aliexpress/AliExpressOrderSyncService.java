@@ -21,6 +21,7 @@ public class AliExpressOrderSyncService {
     private final AliExpressOrderService views;
     private final boolean enabled,confirmed;
     private final TransactionTemplate tx;
+    @org.springframework.beans.factory.annotation.Autowired private AliExpressDispatchStore store;
     public AliExpressOrderSyncService(OrderRepository orders,OrderFulfillmentRepository fulfillments,
             AliExpressOrderQueryClient client,AliExpressOrderQueryPermission permission,AliExpressTokenService tokens,
             AliExpressOrderService views,PlatformTransactionManager manager,
@@ -37,9 +38,10 @@ public class AliExpressOrderSyncService {
             throw new ResourceConflictException("Não há IDs AliExpress confirmados. Reconcilie a criação sem reenviar.");
         String access=tokens.accessToken();
         Claim claim=tx.execute(s->{
-            orders.findByIdForLifecycleUpdate(id).orElseThrow(()->new ResourceNotFoundException("Pedido não encontrado."));
-            var row=fulfillments.findByOrderIdForUpdate(id).orElseThrow();
+            var order=orders.findByIdForLifecycleUpdate(id).orElseThrow(()->new ResourceNotFoundException("Pedido não encontrado."));
+            var row=store.locked(order);
             String token=row.beginSupplierSync(Instant.now());
+            store.flush(row);
             return new Claim(token,row.getSupplierOrderIds());
         });
         List<AliExpressSupplierSnapshot.Part> parts=new ArrayList<>();
@@ -52,9 +54,10 @@ public class AliExpressOrderSyncService {
             parts.add(part);
         }
         tx.executeWithoutResult(s->{
-            orders.findByIdForLifecycleUpdate(id).orElseThrow();
-            var row=fulfillments.findByOrderIdForUpdate(id).orElseThrow();
+            var order=orders.findByIdForLifecycleUpdate(id).orElseThrow();
+            var row=store.locked(order);
             row.finishSupplierSync(claim.token(),claim.ids(),parts,Instant.now());
+            store.flush(row);
         });
         return views.view(id);
     }

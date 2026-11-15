@@ -35,6 +35,17 @@ public class AliExpressTokenService {
         }
         return cipher.decrypt(row.accessCiphertext(), authorizationId + ":access");
     }
+    /** Read token and buyer under the same authorization lock, including a possible same-buyer refresh. */
+    @Transactional
+    public DispatchAccess dispatchAccess() {
+        var row=repository.findLocked(authorizationId).orElseThrow(this::reauthorize);
+        String token=accessToken();
+        if(row.buyerUserId()==null || row.buyerUserId().isBlank())throw reauthorize();
+        return new DispatchAccess(token,AliExpressOAuthStateService.hash(row.buyerUserId()));
+    }
+    public record DispatchAccess(String token,String buyerHash) {
+        @Override public String toString() { return "DispatchAccess[REDACTED]"; }
+    }
     /** Diagnostic use only: no refresh, writes or pessimistic lock. Never return to an HTTP caller. */
     @Transactional(readOnly = true)
     public String existingAccessToken() {

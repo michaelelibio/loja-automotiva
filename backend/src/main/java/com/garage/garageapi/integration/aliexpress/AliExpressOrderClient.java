@@ -60,7 +60,11 @@ public class AliExpressOrderClient {
         else if(nonzero(response.path("code")) || nonzero(body.path("code")))failure=error(nonzero(response.path("code"))?response.path("code").asText():body.path("code").asText(),null,join(response.path("msg").asText(),body.path("msg").asText()),httpStatus,sensitive);
         else if(httpStatus<200 || httpStatus>=300)failure=error("HTTP_"+httpStatus,null,"AliExpress retornou erro HTTP.",httpStatus,sensitive);
         boolean success=result.path("is_success").isBoolean()?result.path("is_success").asBoolean():"true".equals(result.path("is_success").asText());
-        boolean rejected=ids.isEmpty() && failure!=null && !failure.code().startsWith("UNRECOGNIZED") && !failure.code().startsWith("HTTP_") && !(failure.code().toUpperCase(Locale.ROOT).contains("REPEAT") || Objects.toString(failure.subCode(),"").toUpperCase(Locale.ROOT).contains("REPEAT"));
+        // Only known pre-creation validation/auth failures prove no purchase was created.
+        // Generic/system errors, server failures and repeat-order errors always require reconciliation.
+        boolean rejected=httpStatus<500 && ids.isEmpty() && failure!=null &&
+                (Set.of("DELIVERY_METHOD_NOT_EXIST","PARM_ILLEGL","LOCAL_CREDENTIALS_MISSING","IllegalAccessToken").contains(failure.code())
+                || Set.of("isv.permission-denied","isv.insufficient-permission","isv.invalid-parameter","isv.missing-parameter").contains(Objects.toString(failure.subCode(),"")));
         if(failure==null && !success && result.has("is_success"))failure=error("CREATE_NOT_ACCEPTED",null,result.path("error_msg").asText(),httpStatus,sensitive);
         return new Result(List.copyOf(ids),rejected,complete && success && failure==null,failure);
     }

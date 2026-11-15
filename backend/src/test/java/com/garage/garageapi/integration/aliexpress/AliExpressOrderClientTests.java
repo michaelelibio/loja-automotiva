@@ -55,6 +55,11 @@ class AliExpressOrderClientTests {
         server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\"}}}",MediaType.APPLICATION_JSON));
         assertThat(query().rejected()).isTrue();server.verify();
     }
+    @Test void systemOrServerErrorsNeverProveThatNoOrderWasCreated() {
+        server.expect(anything()).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON)
+                .body("{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\"}}"));
+        assertThat(query().rejected()).isFalse();server.verify();
+    }
     @Test void partialOrderIdsAreRetainedWithoutConfirmingCreationOrRejection() {
         server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":false,\"order_list\":{\"number\":[12345678901234567]}}}}",MediaType.APPLICATION_JSON));
         var result=query();assertThat(result.orderIds()).containsExactly("12345678901234567");

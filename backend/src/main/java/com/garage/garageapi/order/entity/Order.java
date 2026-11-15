@@ -192,7 +192,8 @@ public class Order {
             throw new ResourceConflictException("Tarifa expirada ou contexto alterado. Novo aceite necessário.");
     }
     /** Canonical digest survives JSONB/NUMERIC round trips and binds the confirmed commercial snapshot. */
-    private String quoteContextDigest() {
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String quoteContextDigest() {
         var lines=items.stream().sorted(java.util.Comparator.comparing(OrderItem::getProductId)
                 .thenComparing(item -> java.util.Objects.toString(item.getProductVariantId(), "")))
                 .map(item -> java.util.Arrays.asList(item.getProductId(),item.getProductVariantId(),
@@ -329,6 +330,10 @@ public class Order {
         requireStatus(OrderStatus.PAID, OrderStatus.PROCESSING);
         status = OrderStatus.PROCESSING;
         processingAt = occurredAt;
+    }
+    public void startProcessingAfterSupplierCreation(Instant occurredAt) {
+        requireStatus(OrderStatus.PAID,OrderStatus.PROCESSING);
+        status=OrderStatus.PROCESSING;processingAt=occurredAt;
     }
 
     public void markShipped(Instant occurredAt) {

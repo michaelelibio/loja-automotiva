@@ -25,10 +25,13 @@ public class AdminAliExpressTestService {
     private final Set<Long> testOrderIds;
     private final boolean realEnabled;
     private final TransactionTemplate tx;
+    private final com.garage.garageapi.order.fulfillment.OrderFulfillmentRepository productionFulfillments;
     public AdminAliExpressTestService(OrderRepository orders,ProductVariantRepository variants,AdminAliExpressTestRunRepository runs,
             AliExpressTestReadiness readiness,AliExpressOrderClient client,AliExpressTokenService tokens,PlatformTransactionManager manager,Environment environment,
-            @Value("${aliexpress.admin-tests.order-ids:}") String ids,@Value("${aliexpress.admin-tests.real-enabled:false}") boolean realEnabled) {
+            @Value("${aliexpress.admin-tests.order-ids:}") String ids,@Value("${aliexpress.admin-tests.real-enabled:false}") boolean realEnabled,
+            com.garage.garageapi.order.fulfillment.OrderFulfillmentRepository productionFulfillments) {
         this.orders=orders;this.variants=variants;this.runs=runs;this.readiness=readiness;this.client=client;this.tokens=tokens;this.realEnabled=realEnabled;
+        this.productionFulfillments=productionFulfillments;
         testOrderIds=ids.isBlank()?Set.of():Set.copyOf(Arrays.stream(ids.split(",")).map(String::trim).map(Long::valueOf).toList());
         tx=new TransactionTemplate(manager);tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -82,6 +85,9 @@ public class AdminAliExpressTestService {
                 || !Objects.equals(p.orderSnapshotDigest(),current.payloadDigest()) || (token!=null && !Objects.equals(p.tokenSha256(),AliExpressOAuthStateService.hash(token))))
             throw new ResourceConflictException("Revisão ausente, expirada ou dados/OAuth alterados. Reabra a confirmação antes de criar.");}
     private View inside(Long id){var row=runs.findById(id).orElse(null);var blockers=new ArrayList<String>();boolean test=testOrderIds.contains(id);AliExpressTestFixture fixture=null;
+        var production=productionFulfillments.findByOrderId(id).orElse(null);
+        if(production!=null && (production.getAttemptCount()>0 || production.getSupplierOrderId()!=null || !production.getSupplierOrderIds().isEmpty()))
+            blockers.add("Tentativa ou referência de fornecedor no fluxo normal. Reconcilie antes de criar qualquer teste real.");
         if(!test)blockers.add("Pedido não identificado como teste administrativo autorizado.");if(!Long.valueOf(19).equals(id))blockers.add("Criação real exclusiva do pedido próprio #19.");if(!realEnabled)blockers.add("Criação administrativa desabilitada na configuração do serviço.");
         if(Long.valueOf(19).equals(id)){try{fixture=snapshot(id);}catch(ResourceConflictException ex){blockers.add(ex.getMessage());}}
         if(row!=null && row.realKey!=null)blockers.add("Tentativa já registrada. Não reenvie: consulte os IDs ou reconcilie em Meus pedidos na conta do OAuth.");

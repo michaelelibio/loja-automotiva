@@ -68,8 +68,13 @@ public class AliExpressOrderQueryClient {
             if (result.hasNonNull("order_id") && !id.equals(result.path("order_id").asText()))
                 return AliExpressSupplierSnapshot.unknown(id,"ORDER_MISMATCH");
             return AliExpressSupplierSnapshot.classify(id,result.path("order_status").asText(),
-                    result.path("logistics_status").isString() ? result.path("logistics_status").asText() : null);
+                    result.path("logistics_status").isString() ? result.path("logistics_status").asText() : null).withCosts(costs(result));
         } catch (Exception ignored) { return AliExpressSupplierSnapshot.unknown(id,"LOOKUP_FAILED"); }
+    }
+    static AliExpressSupplierCosts costs(JsonNode result) {
+        var money=result.path("order_amount");String amount=money.path("amount").asText(),currency=money.path("currency_code").asText();
+        if(!amount.matches("[0-9]{1,10}(\\.[0-9]{1,4})?") || !currency.matches("[A-Z]{3}"))return null;
+        return new AliExpressSupplierCosts("SUPPLIER_ORDER_API",currency,null,null,null,new java.math.BigDecimal(amount),Instant.now());
     }
     private static RestClient defaultClient() {
         var factory=new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))

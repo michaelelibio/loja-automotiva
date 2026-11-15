@@ -8,7 +8,12 @@ public record AliExpressSupplierSnapshot(String token, Instant startedAt, Instan
     public record View(Instant startedAt, Instant checkedAt, boolean inProgress, List<Part> parts) { }
     public View view() { return new View(startedAt,checkedAt,token!=null,parts); }
     public record Part(String orderId, String state, String orderStatus, String logisticsStatus,
-                       boolean verified, Instant checkedAt, String failureCode) { }
+                       boolean verified, Instant checkedAt, String failureCode,AliExpressSupplierCosts costs) {
+        public Part(String id,String state,String order,String logistics,boolean verified,Instant checkedAt,String failureCode) {
+            this(id,state,order,logistics,verified,checkedAt,failureCode,null);
+        }
+        public Part withCosts(AliExpressSupplierCosts costs) {return new Part(orderId,state,orderStatus,logisticsStatus,verified,checkedAt,failureCode,costs);}
+    }
     public static Part unknown(String id, String code) {
         return new Part(id,"UNKNOWN",null,null,false,Instant.now(),code);
     }

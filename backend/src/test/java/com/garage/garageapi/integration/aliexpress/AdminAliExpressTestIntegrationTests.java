@@ -68,7 +68,7 @@ class AdminAliExpressTestIntegrationTests {
         order=new Order(user,address,new BigDecimal("50"),new BigDecimal("10"),Duration.ofHours(24));order.addItem(new OrderItem(order,product,variant,1,new BigDecimal("50"),new BigDecimal("50")));
         order.snapshotRecipient(new com.garage.garageapi.order.recipient.AliExpressRecipientData.Normalized("52998224725",LocalDate.of(1990,1,1),"47999999999"));orders.saveAndFlush(order);assertThat(order.getId()).isEqualTo(19L);
     }
-    private AdminAliExpressTestService service(boolean enabled,Environment env){return new AdminAliExpressTestService(orders,variants,runs,readiness,client,tokens,manager,env,"19,20",enabled);}
+    private AdminAliExpressTestService service(boolean enabled,Environment env){return new AdminAliExpressTestService(orders,variants,runs,readiness,client,tokens,manager,env,"19,20",enabled,fulfillments);}
     private AdminAliExpressTestService.Confirmation confirmation(AdminAliExpressTestService service){var p=service.preflight(19L,"admin");return new AdminAliExpressTestService.Confirmation(AdminAliExpressTestService.CONFIRMATION,p.costs().id(),p.digest(),p.preflightId(),true);}
     private AdminAliExpressTestSyncService sync(AdminAliExpressTestService service){return new AdminAliExpressTestSyncService(service,runs,orders,queryClient,tokens,manager,true);}
     @Test void preparationUsesSavedOwnerOrderAndDoesNotCreateOrInventUnknownValues(){

@@ -7,14 +7,18 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class HomologationConfigurationTests {
-    @Test void controlledProfileDisablesSchemaWritesPaymentsAndSupplierOrders() throws Exception {
+    @Test void controlledProfileDefaultsToNoSchemaWritesPaymentsOrSupplierOrders() throws Exception {
         Properties profile=new Properties();
         try(var stream=new ClassPathResource("application-controlled.properties").getInputStream()) {profile.load(stream);}
         assertThat(profile.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
         assertThat(profile.getProperty("spring.sql.init.mode")).isEqualTo("never");
+        var defaults=new StandardEnvironment();
+        defaults.getPropertySources().remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
+        defaults.getPropertySources().remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
+        defaults.getPropertySources().addFirst(new PropertiesPropertySource("controlled",profile));
         for(String flag:List.of("app.payment.creation-enabled","app.seed.products.enabled",
                 "aliexpress.orders.enabled","aliexpress.orders.contract-confirmed","dsers.simulation.enabled"))
-            assertThat(profile.getProperty(flag)).as(flag).isEqualTo("false");
+            assertThat(defaults.getProperty(flag,Boolean.class)).as(flag).isFalse();
     }
     @Test void sandboxProfileNeverInheritsProductionDatabaseOrPaymentCredential() throws Exception {
         Properties profile=new Properties();

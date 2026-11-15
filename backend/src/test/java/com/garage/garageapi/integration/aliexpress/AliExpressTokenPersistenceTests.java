@@ -145,6 +145,14 @@ class AliExpressTokenPersistenceTests {
         assertThatThrownBy(tokens::accessToken).isInstanceOf(AliExpressIntegrationException.class);
         assertThat(tokens.buyerIdentity().userId()).isEqualTo("buyer-19");
     }
+    @Test void dispatchReadsTokenAndBuyerTogetherAndDoesNotExposeEitherInDiagnostics() {
+        tokens.store(new AliExpressTokenData("dispatch-private-access","refresh",3600L,7200L,null,null,"buyer-21","account-21"));
+        var context=tokens.dispatchAccess();
+        assertThat(context.token()).isEqualTo("dispatch-private-access");
+        assertThat(context.buyerHash()).isEqualTo(AliExpressOAuthStateService.hash("buyer-21"));
+        assertThat(context.toString()).doesNotContain("dispatch-private-access","buyer-21","account-21");
+        verifyNoInteractions(auth);
+    }
     static AliExpressTokenData data(String access,String refresh) {
         return new AliExpressTokenData(access,refresh,3600L,7200L,null,null,null,null);
     }

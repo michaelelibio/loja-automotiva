@@ -44,12 +44,16 @@ public class CheckoutProWebhookUpdater {
                     && (!"ACCEPTED".equals(quote.state()) || result.approvedAt()==null || quote.validUntil()==null
                         || !result.approvedAt().isBefore(quote.validUntil())
                         || order.getStatus()==OrderStatus.EXPIRED || order.getStatus()==OrderStatus.CANCELED);
-            if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
+            boolean newlyPaid=order.getStatus() == OrderStatus.PENDING_PAYMENT;
+            if (newlyPaid) {
                 order.markPaid();
                 emailNotificationService.afterCommit(order, OrderStatus.PAID);
-                fulfillmentNotificationService.afterCommit(order.getId());
             }
             if (refundRequired) order.holdAssistedPaymentForRefund();
+            boolean aliExpress=order.getItems().stream().anyMatch(i->"ALIEXPRESS".equalsIgnoreCase(i.getSupplier()));
+            if (!refundRequired && (newlyPaid || aliExpress && Boolean.TRUE.equals(result.liveMode()) && result.approvedAt()!=null)
+                    && (order.getStatus()==OrderStatus.PAID || order.getStatus()==OrderStatus.PROCESSING))
+                fulfillmentNotificationService.afterCommit(order.getId());
         }
     }
 

@@ -56,6 +56,8 @@ class CleanCheckoutIntegrationTests {
     @MockitoBean AliExpressOrderClient client;
     @MockitoBean AliExpressTokenService tokens;
     @MockitoBean AliExpressPlaceOrderPermission permission;
+    @MockitoBean AliExpressProductClient productClient;
+    @MockitoBean CheckoutProGateway mercadoPago;
     @MockitoBean ShippingProvider freight;
     User user; Address address; Product product; ProductVariant variant;
     static final BigDecimal PRICE = new BigDecimal("50.00");
@@ -63,7 +65,7 @@ class CleanCheckoutIntegrationTests {
     @BeforeEach void prepare() {
         fulfillments.deleteAll(); payments.deleteAll(); orders.deleteAll(); media.deleteAll(); variants.deleteAll();
         products.deleteAll(); addresses.deleteAll(); users.deleteAll();
-        reset(client, tokens, permission, freight);
+        reset(client, tokens, permission, freight,productClient,mercadoPago);
         user = users.save(User.local("Cliente Teste", "clean@example.test", "synthetic-hash"));
         address = addresses.save(new Address(user,"Casa","Cliente Teste","89229040","Rua Teste","10",null,"Centro","Joinville","SC",true));
         product = new Product("Produto","clean-product","Descrição","Descrição",PRICE,null,"Acessórios",0,null,true);
@@ -74,6 +76,9 @@ class CleanCheckoutIntegrationTests {
         variant.setSupplierStockQuantity(5); variants.saveAndFlush(variant);
         when(permission.verified()).thenReturn(true);
         when(tokens.accessToken()).thenReturn("synthetic-token");
+        when(tokens.dispatchAccess()).thenReturn(new AliExpressTokenService.DispatchAccess("synthetic-token",AliExpressOAuthStateService.hash("synthetic-buyer")));
+        when(productClient.get(anyString(),anyString(),anyString(),anyString(),anyString())).thenReturn(JsonMapper.builder().build().readTree(
+                "{\"ae_item_base_info_dto\":{\"product_status_type\":\"onSelling\"},\"ae_item_sku_info_dtos\":[{\"sku_id\":\"12000053109276547\",\"sku_attr\":\"14:771#Azul\",\"sku_available_stock\":5}]}"));
         when(client.create(anyMap(),anyString())).thenReturn(new AliExpressOrderClient.Result(List.of("900000000000001"),false));
     }
     private Jwt customer() { return Jwt.withTokenValue("synthetic").header("alg","none").subject(user.getId().toString()).build(); }
@@ -100,15 +105,16 @@ class CleanCheckoutIntegrationTests {
         String ref = "garage_order_"+order.getId()+"_payment_"+payment.getId();
         payment.applyCheckoutPreference("synthetic-preference",ref,"https://example.test/checkout"); payments.saveAndFlush(payment);
         var approved = new CheckoutProGateway.PaymentResult("synthetic-paid",ref,PaymentStatus.PAID,"approved",PRICE,"BRL","pix","pix",Instant.now(),true);
+        when(mercadoPago.findPayment("synthetic-paid")).thenReturn(approved);
         webhook.apply("synthetic-paid",approved); webhook.apply("synthetic-paid",approved);
         var verifiedPayment=payments.findById(payment.getId()).orElseThrow();
         assertThat(verifiedPayment.getProviderLiveMode()).isTrue();assertThat(verifiedPayment.getProviderVerifiedAt()).isNotNull();
         assertThat(orders.findById(order.getId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PAID);
         var linked = supplier.send(order.getId());
         assertThat(linked.supplierOrderIds()).containsExactly("900000000000001");
-        assertThat(linked.supplierStatus()).isEqualTo("AWAITING_MANUAL_PAYMENT");
+        assertThat(linked.supplierStatus()).isEqualTo("CREATED_UNPAID_UNVERIFIED");
         supplier.send(order.getId());
-        verify(client,times(1)).create(argThat(p -> p.keySet().equals(Set.of("logistics_address","product_items"))
+        verify(client,times(1)).create(argThat(p -> p.keySet().equals(Set.of("out_order_id","ds_extend_request","logistics_address","product_items"))
                 && ((List<?>)p.get("product_items")).stream().allMatch(line -> !((Map<?,?>)line).containsKey("logistics_service_name"))),eq("synthetic-token"));
         verifyNoInteractions(freight);
         mvc.perform(get("/api/admin/orders/"+order.getId()).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
