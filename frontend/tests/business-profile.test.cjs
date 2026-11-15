@@ -77,7 +77,7 @@ function pageHtml(route, profile) {
   const { default: Page } = load(`app/${route}/page.tsx`, {
     'next/link': (props) => React.createElement('a', props),
     '@/lib/store/business-profile': { readBusinessProfile: () => profile },
-    '@/components/InstitutionalPage': ({ title, introduction, sections }) => React.createElement('article', null, React.createElement('h1', null, title), introduction, sections.map((section) => React.createElement('section', { key: section.title }, React.createElement('h2', null, section.title), section.content))),
+    '@/components/InstitutionalPage': { InstitutionalPage: ({ title, introduction, sections }) => React.createElement('article', null, React.createElement('h1', null, title), introduction, sections.map((section) => React.createElement('section', { key: section.title }, React.createElement('h2', null, section.title), section.content))) },
   });
   return renderToStaticMarkup(React.createElement(Page));
 }

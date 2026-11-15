@@ -67,7 +67,7 @@ export function readBusinessProfile(environment: Environment = process.env): Bus
   // CNPJ may include letters in its first 12 positions. Owner confirmation is required in all cases.
   const taxId = taxIdType && rawTaxId && taxIdValid(rawTaxId, taxIdType) ? rawTaxId : null;
   const rawPhone = business('SUPPORT_PHONE', 20);
-  const values = {
+  const values: Omit<BusinessProfile, 'pendingFields' | 'ready'> = {
     legalName: business('LEGAL_NAME', 200), taxIdType, taxId,
     address: business('BUSINESS_ADDRESS', 500),
     supportEmail: businessConfirmed ? email(get('SUPPORT_EMAIL')) : null,
