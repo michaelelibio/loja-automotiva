@@ -1,10 +1,10 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ProductCard } from '@/components/ProductCard';
 import { ArrowUpRightIcon } from '@/components/Icons';
-import { fetchProducts, type Product } from '@/lib/products';
+import { fetchCatalog, fetchCategories, type CatalogResult } from '@/lib/catalog';
+import type { Category } from '@/lib/catalog-types';
 
 function HomeHero() {
   return <section className="home-hero" aria-labelledby="hero-title">
@@ -43,26 +43,21 @@ function BenefitIcon({ kind }: { kind: 'truck' | 'shield' | 'spark' | 'support' 
   return <svg className="home-benefit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>;
 }
 
-function FeaturedCategories({ products }: { products: Product[] }) {
-  const categories = [...new Set(products.map((product) => product.category))];
+function FeaturedCategories({ categories }: { categories: Category[] }) {
   if (!categories.length) return null;
   return <section className="home-categories" id="categorias" aria-labelledby="categories-title">
     <div className="home-section-heading"><h2 id="categories-title">Categorias em destaque</h2><Link href="/produtos">Ver todas as categorias <span aria-hidden="true">→</span></Link></div>
-    <div className="home-category-grid">{categories.map((category) => <Link className="home-category" key={category} href={`/produtos?categoria=${encodeURIComponent(category)}`}>
-      {products.find((product) => product.category === category)?.image && <Image src={products.find((product) => product.category === category)!.image} alt="" fill sizes="(max-width: 600px) 50vw, 25vw" unoptimized />}
-      <span>{category}</span><span className="home-category__arrow" aria-hidden="true">→</span>
+    <div className="home-category-grid">{categories.filter((c) => c.parentId === null).map((category) => <Link className="home-category" key={category.id} href={`/categorias/${category.path}`}>
+      <span>{category.name}</span><span className="home-category__arrow" aria-hidden="true">→</span>
     </Link>)}</div>
   </section>;
 }
 
-function FeaturedProducts({ products, apiError }: { products: Product[]; apiError: boolean }) {
-  const featured = products.filter((product) => product.featured);
-  const visible = (featured.length ? featured : products).slice(0, 6);
-  return <section className="products-section home-products" id="produtos" aria-labelledby="products-title">
-    <div className="section-heading"><div><p className="eyebrow">Seleção inGarage</p><h2 id="products-title">Produtos em destaque</h2></div><Link className="text-link desktop-link" href="/produtos">Ver todos <ArrowUpRightIcon /></Link></div>
-    {apiError && <div className="api-error-banner">Não foi possível carregar os produtos. Tente novamente mais tarde.</div>}
-    {visible.length ? <div className="products-grid">{visible.map((product) => <ProductCard key={product.id} product={product} />)}</div> : !apiError && <div className="empty-catalog"><h2>Nenhum produto disponível</h2><p>Volte em breve.</p></div>}
-    <Link className="text-link mobile-link" href="/produtos">Ver todos os produtos <ArrowUpRightIcon /></Link>
+function ProductShelf({ result, section, title }: { result: CatalogResult | null; section: string; title: string }) {
+  if (!result?.content.length) return null;
+  return <section className="products-section home-products" id={`vitrine-${section}`} aria-labelledby={`title-${section}`}>
+    <div className="section-heading"><div><p className="eyebrow">Seleção inGarage</p><h2 id={`title-${section}`}>{title}</h2></div><Link className="text-link" href={`/produtos?section=${section}`}>Ver todos <ArrowUpRightIcon /></Link></div>
+    <div className="products-grid">{result.content.map((product) => <ProductCard key={product.id} product={product} />)}</div>
   </section>;
 }
 
@@ -74,8 +69,7 @@ function PerformanceBanner() {
 }
 
 export default async function Home() {
-  let products: Product[] = [];
-  let apiError = false;
-  try { products = await fetchProducts(); } catch { apiError = true; }
-  return <main id="top"><div className="top-trust"><span>Envio para todo o Brasil</span><span>Compra segura</span><span className="top-trust__motto">Potência nos detalhes</span></div><Header /><HomeHero /><BenefitsBar /><FeaturedCategories products={products} /><FeaturedProducts products={products} apiError={apiError} /><PerformanceBanner /><Footer /></main>;
+  const sections = [['featured', 'Produtos em destaque'], ['beginner', 'Para começar'], ['professional', 'Uso profissional'], ['newest', 'Novidades'], ['bestsellers', 'Mais vendidos']];
+  const [categories, ...results] = await Promise.all([fetchCategories().catch(() => []), ...sections.map(([section]) => fetchCatalog({ section, size: '6' }).catch(() => null))]);
+  return <main id="top"><div className="top-trust"><span>Envio para todo o Brasil</span><span>Compra segura</span><span className="top-trust__motto">Potência nos detalhes</span></div><Header /><HomeHero /><BenefitsBar /><FeaturedCategories categories={categories as Category[]} />{results.every((r) => r === null) && <p className="api-error-banner" role="alert">Não foi possível carregar o catálogo. Tente novamente em instantes.</p>}{sections.map(([section,title], i) => <ProductShelf key={section} section={section} title={title} result={results[i] as CatalogResult | null} />)}<PerformanceBanner /><Footer /></main>;
 }

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AdminProductImage } from '@/components/admin/AdminProductImage';
 import { ProductActiveDialog } from '@/components/admin/ProductActiveDialog';
 import { AliExpressProductPreview } from '@/components/admin/AliExpressProductPreview';
+import { CatalogBulk } from '@/components/admin/CatalogBulk';
 import { useAuth } from '@/context/AuthContext';
 import { productMargin } from '@/lib/admin/product-finance';
 import { AdminProductApiError, getAdminProducts, setAdminProductActive } from '@/lib/api/admin/products';
@@ -30,6 +31,7 @@ export default function AdminProductsPage() {
   const [deactivating, setDeactivating] = useState<AdminProduct | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [requestKey, setRequestKey] = useState(0);
+  const [selected, setSelected] = useState<number[]>([]);
 
   useEffect(() => {
     let current = true;
@@ -69,7 +71,8 @@ export default function AdminProductsPage() {
   return <>
     <header className="admin-page-heading admin-products-heading"><div><p className="eyebrow">CATÁLOGO</p><h1>Produtos</h1><p>{result ? `${result.totalElements} produto${result.totalElements === 1 ? '' : 's'} encontrado${result.totalElements === 1 ? '' : 's'}` : 'Gerencie o catálogo da inGarage.'}</p></div><div className="admin-products-heading-actions"><Link className="secondary" href="/admin/produtos/importar">Importar da CJ</Link><Link href="/admin/produtos/novo">Novo produto</Link></div></header>
     <AliExpressProductPreview onImported={() => { setLoading(true); setError(null); setRequestKey((value) => value + 1); }} />
-    <p className="admin-muted">Ative somente os produtos AliExpress selecionados pela equipe para venda com entrega grátis. Desative os produtos que não devem ficar disponíveis para compra.</p>
+    <p className="admin-muted">Após importar, confira os dados, classifique e ative os produtos selecionados. Use as caixas da lista para classificar até 100 produtos em lote.</p>
+    <CatalogBulk ids={selected} onClear={() => setSelected([])} onSaved={() => { setLoading(true); setRequestKey((n) => n + 1); }} />
 
     {feedback && <p className="admin-action-feedback" role="status">{feedback}</p>}
     <section className="admin-products-panel">
@@ -85,8 +88,8 @@ export default function AdminProductsPage() {
       {!loading && !error && !denied && result && (result.content.length ? <>
         <div className="admin-products-list"><div className="admin-products-list-head"><span>Produto</span><span>Categoria</span><span>Preço / custo</span><span>Estoque</span><span>Margem estimada</span><span>Status</span><span className="sr-only">Ações</span></div>
           {result.content.map((product) => { const margin = productMargin(product.price, product.costPrice); return <article key={product.id}>
-            <div className="admin-product-identity"><AdminProductImage src={product.imageUrl} alt={product.name} /><div><strong>{product.name}</strong><span>SKU {product.sku}</span><small>{product.productType === 'KIT' ? 'Kit' : 'Produto individual'}{product.supplier ? <b className="admin-supplier-badge">{product.supplier}</b> : null}</small></div></div>
-            <div data-label="Categoria">{product.category}</div>
+            <div className="admin-product-identity"><input type="checkbox" aria-label={`Selecionar ${product.name}`} checked={selected.includes(product.id)} disabled={!selected.includes(product.id) && selected.length >= 100} onChange={(e) => setSelected((ids) => e.target.checked ? [...ids, product.id] : ids.filter((id) => id !== product.id))} /><AdminProductImage src={product.imageUrl} alt={product.name} /><div><strong>{product.name}</strong><span>SKU {product.sku}</span><small>{product.productType === 'KIT' ? 'Kit' : 'Produto individual'}{product.supplier ? <b className="admin-supplier-badge">{product.supplier}</b> : null}</small></div></div>
+            <div data-label="Categoria">{product.catalog?.category?.name ?? product.category}{product.catalog?.subcategory && <small>{product.catalog.subcategory.name}</small>}</div>
             <div data-label="Preço / custo"><strong>{currency.format(product.price)}</strong><span>Custo {currency.format(product.costPrice)}</span></div>
             <div data-label="Estoque">{product.fulfillmentType === 'DROPSHIPPING' ? <><strong>Não aplicável</strong><span>Dropshipping</span></> : <><strong>{product.stock}</strong><span>{product.stock === 1 ? 'unidade' : 'unidades'}</span></>}</div>
             <div data-label="Margem"><strong>{currency.format(margin.marginCents / 100)}</strong><span>{margin.percentage.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span></div>

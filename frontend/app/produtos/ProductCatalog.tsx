@@ -1,96 +1,33 @@
-'use client';
-
-import { useState } from 'react';
+import Link from 'next/link';
 import { ProductCard } from '@/components/ProductCard';
-import type { Product } from '@/lib/products';
-import { normalizeText } from '@/lib/text';
+import { catalogHref, type CatalogParams, type CatalogResult } from '@/lib/catalog';
+import { catalogLabels } from '@/lib/catalog-types';
+import { ResponsiveCatalogFilters } from '@/components/ResponsiveCatalogFilters';
 
-type PriceFilter = 'all' | 'under-50' | '50-100' | 'over-100';
-type SortOption = 'featured' | 'lowest' | 'highest';
-type ProductTypeFilter = 'all' | Product['productType'];
-
-const categories = ['Todas', 'Lavagem', 'Proteção', 'Detalhamento', 'Acessórios'] as const;
-
-export function ProductCatalog({ products, initialSearch = '', initialCategory = 'Todas' }: { products: Product[]; initialSearch?: string; initialCategory?: string }) {
-  const [search, setSearch] = useState(initialSearch);
-  const [category, setCategory] = useState<(typeof categories)[number]>(categories.find((item) => item === initialCategory) ?? 'Todas');
-  const [price, setPrice] = useState<PriceFilter>('all');
-  const [productType, setProductType] = useState<ProductTypeFilter>('all');
-  const [sort, setSort] = useState<SortOption>('featured');
-
-  const filteredProducts = products
-    .filter((product) => {
-      const normalizedSearch = normalizeText(search);
-      const searchableText = normalizeText(`${product.name} ${product.category} ${product.description}`);
-      const searchTerms = normalizedSearch.split(' ').filter(Boolean);
-      const matchesSearch = searchTerms.every((term) => searchableText.includes(term));
-      const matchesCategory = category === 'Todas' || normalizeText(product.category) === normalizeText(category);
-      const matchesType = productType === 'all' || product.productType === productType;
-      const matchesPrice = price === 'all'
-        || (price === 'under-50' && product.price < 50)
-        || (price === '50-100' && product.price >= 50 && product.price <= 100)
-        || (price === 'over-100' && product.price > 100);
-
-      return matchesSearch && matchesCategory && matchesType && matchesPrice;
-    })
-    .sort((first, second) => {
-      if (sort === 'lowest') return first.price - second.price;
-      if (sort === 'highest') return second.price - first.price;
-      return Number(second.featured) - Number(first.featured);
-    });
-
-  return (
-    <section className="catalog-section" aria-label="Catálogo de produtos">
-      <div className="catalog-toolbar">
-        <label className="catalog-search">
-          <span>Buscar produtos</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} type="search" placeholder="Nome do produto" />
-        </label>
-        <label className="catalog-select">
-          <span>Categoria</span>
-          <select value={category} onChange={(event) => setCategory(event.target.value as (typeof categories)[number])}>
-            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </label>
-        <label className="catalog-select">
-          <span>Tipo</span>
-          <select value={productType} onChange={(event) => setProductType(event.target.value as ProductTypeFilter)}>
-            <option value="all">Todos</option>
-            <option value="SINGLE">Produtos</option>
-            <option value="KIT">Kits</option>
-          </select>
-        </label>
-        <label className="catalog-select">
-          <span>Faixa de preço</span>
-          <select value={price} onChange={(event) => setPrice(event.target.value as PriceFilter)}>
-            <option value="all">Todos os preços</option>
-            <option value="under-50">Até R$ 49,90</option>
-            <option value="50-100">R$ 50 a R$ 100</option>
-            <option value="over-100">Acima de R$ 100</option>
-          </select>
-        </label>
-        <label className="catalog-select">
-          <span>Ordenar por</span>
-          <select value={sort} onChange={(event) => setSort(event.target.value as SortOption)}>
-            <option value="featured">Destaques</option>
-            <option value="lowest">Menor preço</option>
-            <option value="highest">Maior preço</option>
-          </select>
-        </label>
-      </div>
-
-      <div className="catalog-results-heading">
-        <p className="eyebrow">Nossa seleção</p>
-        <span>{filteredProducts.length} {filteredProducts.length === 1 ? 'produto encontrado' : 'produtos encontrados'}</span>
-      </div>
-
-      {filteredProducts.length > 0 ? (
-        <div className="products-grid catalog-grid">
-          {filteredProducts.map((product) => <ProductCard key={product.id} product={product} />)}
-        </div>
-      ) : (
-        <div className="empty-catalog"><h2>Nenhum produto encontrado</h2><p>Tente buscar por outro nome ou ajustar os filtros.</p></div>
-      )}
-    </section>
-  );
+export function ProductCatalog({ result, params, path = '/produtos' }: { result: CatalogResult; params: CatalogParams; path?: string }) {
+  const f = result.facets;
+  const current = catalogHref(path, params);
+  const select = (name: string, label: string, options: { value: string; label: string }[]) => options.length > 0 || params[name] ? <label key={name}>{label}<select name={name} defaultValue={params[name] ?? ''}><option value="">Todos</option>{params[name] && !options.some((o) => o.value === params[name]) && <option value={params[name]}>{catalogLabels[params[name]] ?? params[name]}</option>}{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label> : null;
+  const values = (items: string[]) => items.map((value) => ({ value, label: catalogLabels[value] ?? value }));
+  return <section className="catalog-layout">
+    <ResponsiveCatalogFilters><form method="get" action={path} className="catalog-filter-form">
+      <label>Buscar<input name="q" type="search" maxLength={200} defaultValue={params.q} placeholder="Nome, marca ou termo" /></label>
+      {path === '/produtos' ? select('category', 'Categoria', f.categories.filter((c) => c.parentId === null).map((c) => ({ value: c.path, label: `${c.name} (${c.count})` }))) : params.category && <input type="hidden" name="category" value={params.category} />}
+      {path === '/produtos' || !params.subcategory ? select('subcategory', 'Subcategoria', f.categories.filter((c) => c.parentId !== null && (!params.category || c.path.startsWith(`${params.category}/`))).map((c) => ({ value: c.path, label: `${c.name} (${c.count})` }))) : <input type="hidden" name="subcategory" value={params.subcategory} />}
+      {params.legacyCategory && <input type="hidden" name="legacyCategory" value={params.legacyCategory} />}
+      {select('brand', 'Marca', values(f.brands))}
+      <div className="catalog-price-fields"><label>Preço mínimo<input type="number" step="0.01" min="0" name="minPrice" defaultValue={params.minPrice} /></label><label>Preço máximo<input type="number" step="0.01" min="0" name="maxPrice" defaultValue={params.maxPrice} /></label></div>
+      {select('surface', 'Superfície', values(f.surfaces))}{select('purpose', 'Finalidade', values(f.purposes))}
+      {select('usage', 'Uso', values(f.usages))}{select('origin', 'Seleção comercial', values(f.origins))}{select('type', 'Tipo', values(f.types))}
+      {(f.hasConcentrated || params.concentrated) && select('concentrated', 'Concentrado', [{ value: 'true', label: 'Sim' }])}
+      {(f.hasRefill || params.refill) && select('refill', 'Refil', [{ value: 'true', label: 'Sim' }])}
+      {select('sort', 'Ordenar', [{ value: 'relevance', label: 'Relevância' },{ value: 'lowest', label: 'Menor preço' },{ value: 'highest', label: 'Maior preço' },{ value: 'newest', label: 'Novidades' }])}
+      {params.section && <input type="hidden" name="section" value={params.section} />}
+      <button className="primary-button" type="submit">Aplicar filtros</button><Link href={path}>Limpar filtros</Link>
+    </form></ResponsiveCatalogFilters>
+    <div className="catalog-results"><p role="status">{result.totalElements} produto{result.totalElements === 1 ? '' : 's'} encontrado{result.totalElements === 1 ? '' : 's'}</p>
+      {result.content.length ? <div className="products-grid">{result.content.map((product) => <ProductCard key={product.id} product={product} returnTo={current} />)}</div> : <div className="empty-catalog"><h2>Nenhum produto encontrado</h2><p>Ajuste a busca ou remova alguns filtros.</p><Link href={path}>Limpar filtros</Link></div>}
+      {result.totalPages > 1 && <nav className="catalog-pagination" aria-label="Paginação">{result.page > 0 && <Link href={catalogHref(path, params, { page: String(result.page - 1) })}>← Anterior</Link>}<span>Página {result.page + 1} de {result.totalPages}</span>{result.page + 1 < result.totalPages && <Link href={catalogHref(path, params, { page: String(result.page + 1) })}>Próxima →</Link>}</nav>}
+    </div>
+  </section>;
 }

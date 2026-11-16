@@ -16,7 +16,8 @@ public record AdminProductResponse(
         BigDecimal supplierExchangeRate, Instant supplierCostUpdatedAt,
         FulfillmentType fulfillmentType, Boolean availableForSale,
         Instant createdAt, Instant updatedAt,
-        List<AdminProductVariantResponse> variants
+        List<AdminProductVariantResponse> variants,
+        com.garage.garageapi.catalog.CatalogProductView catalog
 ) {
     public static AdminProductResponse from(Product product) {
         return new AdminProductResponse(product.getId(), product.getName(), product.getSlug(),
@@ -27,6 +28,7 @@ public record AdminProductResponse(
                 product.getSupplierCostUsd(), product.getSupplierExchangeRate(),
                 product.getSupplierCostUpdatedAt(), product.getFulfillmentType(),
                 product.isAvailableForSale(), product.getCreatedAt(), product.getUpdatedAt(),
-                product.getVariants().stream().map(AdminProductVariantResponse::from).toList());
+                product.getVariants().stream().map(AdminProductVariantResponse::from).toList(),
+                com.garage.garageapi.catalog.CatalogProductView.from(product,true));
     }
 }

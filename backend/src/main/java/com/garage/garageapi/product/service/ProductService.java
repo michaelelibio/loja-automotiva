@@ -18,6 +18,11 @@ public class ProductService {
         return legacy() || ("ALIEXPRESS".equalsIgnoreCase(p.getSupplier())
                 && p.getFulfillmentType() == com.garage.garageapi.product.entity.FulfillmentType.DROPSHIPPING);
     }
+    public org.springframework.data.jpa.domain.Specification<com.garage.garageapi.product.entity.Product> publicSelection() {
+        return (root,q,cb)->legacy()?cb.isTrue(root.get("active")):cb.and(cb.isTrue(root.get("active")),
+                cb.equal(root.get("fulfillmentType"),com.garage.garageapi.product.entity.FulfillmentType.DROPSHIPPING),
+                cb.equal(cb.upper(root.get("supplier")),"ALIEXPRESS"));
+    }
     private final ProductRepository productRepository;
 
     public ProductService(ProductRepository productRepository) {
@@ -26,10 +31,7 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<ProductResponse> findAll(Pageable pageable) {
-        if (legacy()) return productRepository.findAllByActiveTrue(pageable).map(ProductResponse::from);
-        return productRepository.findAll((root, query, cb) -> cb.and(cb.isTrue(root.get("active")),
-                cb.equal(cb.upper(root.get("supplier")), "ALIEXPRESS"),
-                cb.equal(root.get("fulfillmentType"), com.garage.garageapi.product.entity.FulfillmentType.DROPSHIPPING)), pageable).map(ProductResponse::from);
+        return productRepository.findAll(publicSelection(),pageable).map(ProductResponse::from);
     }
 
     @Transactional(readOnly = true)

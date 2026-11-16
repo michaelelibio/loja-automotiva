@@ -26,6 +26,8 @@ import java.util.Locale;
 
 @Service
 public class AdminProductService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.catalog.CatalogService catalogService;
     private final ProductRepository productRepository;
     private final StockService stockService;
     private final UserService userService;
@@ -83,6 +85,7 @@ public class AdminProductService {
                 product.getLongDescription(), product.getPrice(), product.getOldPrice(),
                 request.costPrice(), product.getCategory(),
                 product.getImageUrl(), product.getActive(), product.getProductType(), sku);
+        catalogService.apply(product, request.catalog());
         productRepository.saveAndFlush(product);
         stockService.recordInitialStock(product, request.stock(), admin);
         return AdminProductResponse.from(product);
@@ -90,19 +93,20 @@ public class AdminProductService {
 
     @Transactional
     public AdminProductResponse update(Long id, AdminProductUpdateRequest request) {
-        Product product = find(id);
+        Product product = findLocked(id);
         String sku = normalizeSku(request.sku());
         validateUnique(request.slug(), sku, id);
         product.updateAdmin(request.name().trim(), request.slug(), request.description(),
                 request.longDescription(), request.price(), request.oldPrice(), request.costPrice(),
                 request.category().trim(), request.imageUrl(), request.active(),
                 request.productType(), sku);
+        catalogService.apply(product, request.catalog());
         return AdminProductResponse.from(product);
     }
 
     @Transactional
     public AdminProductResponse setActive(Long id, boolean active) {
-        Product product = find(id);
+        Product product = findLocked(id);
         product.setActive(active);
         return AdminProductResponse.from(product);
     }
@@ -115,6 +119,11 @@ public class AdminProductService {
     private Product find(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto nÃ£o encontrado: " + id));
+    }
+
+    private Product findLocked(Long id) {
+        return productRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado: " + id));
     }
 
     private void validateUnique(String slug, String sku, Long id) {

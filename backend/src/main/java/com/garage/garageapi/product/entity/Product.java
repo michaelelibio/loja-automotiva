@@ -27,6 +27,38 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name = "products")
 public class Product {
+    @jakarta.persistence.ManyToOne(fetch=FetchType.LAZY) @jakarta.persistence.JoinColumn(name="catalog_category_id")
+    private com.garage.garageapi.catalog.CatalogCategory catalogCategory;
+    @jakarta.persistence.ManyToOne(fetch=FetchType.LAZY) @jakarta.persistence.JoinColumn(name="catalog_subcategory_id")
+    private com.garage.garageapi.catalog.CatalogCategory catalogSubcategory;
+    @Column(length=100) private String brand;
+    @jakarta.persistence.ElementCollection @jakarta.persistence.CollectionTable(name="product_catalog_surfaces",joinColumns=@jakarta.persistence.JoinColumn(name="product_id"))
+    @Column(name="entry_value",length=100,nullable=false) @BatchSize(size=50) private java.util.Set<String> surfaces=new java.util.LinkedHashSet<>();
+    @jakarta.persistence.ElementCollection @jakarta.persistence.CollectionTable(name="product_catalog_purposes",joinColumns=@jakarta.persistence.JoinColumn(name="product_id"))
+    @Column(name="entry_value",length=100,nullable=false) @BatchSize(size=50) private java.util.Set<String> purposes=new java.util.LinkedHashSet<>();
+    @jakarta.persistence.ElementCollection @jakarta.persistence.CollectionTable(name="product_catalog_search_terms",joinColumns=@jakarta.persistence.JoinColumn(name="product_id"))
+    @Column(name="entry_value",length=100,nullable=false) @BatchSize(size=50) private java.util.Set<String> searchTerms=new java.util.LinkedHashSet<>();
+    @Column(name="catalog_usage",length=20) private String usage;
+    private Boolean concentrated;
+    private Boolean refill;
+    @Column(nullable=false) @ColumnDefault("false") private boolean featured;
+    @Column(nullable=false) @ColumnDefault("false") private boolean beginner;
+    @Column(name="commercial_origin",length=20) private String commercialOrigin;
+    @Column(name="published_at") private Instant publishedAt;
+    public void classify(com.garage.garageapi.catalog.CatalogCategory category,com.garage.garageapi.catalog.CatalogCategory subcategory,
+            com.garage.garageapi.catalog.CatalogProductRequest r) {
+        catalogCategory=category;catalogSubcategory=subcategory;brand=r.brand()==null||r.brand().isBlank()?null:r.brand().trim();
+        replace(surfaces,r.surfaces());replace(purposes,r.purposes());replace(searchTerms,r.searchTerms());
+        usage=r.usage();concentrated=r.concentrated();refill=r.refill();featured=Boolean.TRUE.equals(r.featured());beginner=Boolean.TRUE.equals(r.beginner());commercialOrigin=r.commercialOrigin();
+    }
+    private static void replace(java.util.Set<String> target,List<String> source){target.clear();if(source!=null)source.stream().map(String::trim).forEach(target::add);}
+    public com.garage.garageapi.catalog.CatalogCategory getCatalogCategory(){return catalogCategory;}
+    public com.garage.garageapi.catalog.CatalogCategory getCatalogSubcategory(){return catalogSubcategory;}
+    public String getBrand(){return brand;} public List<String> getSurfaces(){return List.copyOf(surfaces);}
+    public List<String> getPurposes(){return List.copyOf(purposes);} public List<String> getSearchTerms(){return List.copyOf(searchTerms);}
+    public String getUsage(){return usage;} public Boolean getConcentrated(){return concentrated;} public Boolean getRefill(){return refill;}
+    public boolean isFeatured(){return featured;} public boolean isBeginner(){return beginner;}
+    public String getCommercialOrigin(){return commercialOrigin;} public Instant getPublishedAt(){return publishedAt;}
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -152,7 +184,7 @@ public class Product {
         this.oldPrice = oldPrice;
         this.category = category;
         this.imageUrl = imageUrl;
-        this.active = active;
+        setActive(active);
         this.productType = productType == null ? this.productType : productType;
     }
 
@@ -171,6 +203,7 @@ public class Product {
         Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = createdAt;
+        if (Boolean.TRUE.equals(active) && publishedAt==null) publishedAt=now;
     }
 
     @PreUpdate
@@ -192,7 +225,10 @@ public class Product {
         stockQuantity = Math.addExact(stockQuantity, quantity);
     }
 
-    public void setActive(boolean active) { this.active = active; }
+    public void setActive(boolean active) {
+        if(active && !Boolean.TRUE.equals(this.active) && publishedAt==null)publishedAt=Instant.now();
+        this.active = active;
+    }
 
     public void configureFulfillment(FulfillmentType fulfillmentType) {
         this.fulfillmentType = fulfillmentType == null ? FulfillmentType.LOCAL_STOCK : fulfillmentType;

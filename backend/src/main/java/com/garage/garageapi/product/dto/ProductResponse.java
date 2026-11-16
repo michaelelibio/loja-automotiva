@@ -27,7 +27,8 @@ public record ProductResponse(
         Boolean requiresVariantSelection,
         List<ProductVariantResponse> variants,
         List<ProductMediaResponse> media,
-        boolean requiresAliExpressRecipientData
+        boolean requiresAliExpressRecipientData,
+        com.garage.garageapi.catalog.CatalogProductView catalog
 ) {
     public static ProductResponse from(Product product) {
         List<ProductVariantResponse> activeVariants = product.getVariants().stream()
@@ -44,7 +45,8 @@ public record ProductResponse(
                                 .thenComparing(ProductMedia::getId,
                                         Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(ProductMediaResponse::from).toList(),
-                product.getFulfillmentType()==FulfillmentType.DROPSHIPPING && "ALIEXPRESS".equalsIgnoreCase(product.getSupplier())
+                product.getFulfillmentType()==FulfillmentType.DROPSHIPPING && "ALIEXPRESS".equalsIgnoreCase(product.getSupplier()),
+                com.garage.garageapi.catalog.CatalogProductView.from(product,false)
         );
     }
 }

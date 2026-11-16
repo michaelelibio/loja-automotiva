@@ -14,7 +14,8 @@ function hasValidImage(url: string) {
   return typeof url === 'string' && url.trim().length > 0 && /^https?:\/\//i.test(url);
 }
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product, returnTo }: { product: Product; returnTo?: string }) {
+  const href = `/produtos/${product.slug}${returnTo ? `?voltar=${encodeURIComponent(returnTo)}` : ''}`;
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -44,7 +45,7 @@ export function ProductCard({ product }: { product: Product }) {
     <article className="product-card">
       <div className="product-image-wrapper">
         <Link
-          href={`/produtos/${product.slug}`}
+          href={href}
           className={`product-image ${showImage ? '' : 'placeholder'}`}
           style={{ backgroundColor: product.accent }}
           aria-label={`Ver detalhes de ${product.name}`}
@@ -52,7 +53,7 @@ export function ProductCard({ product }: { product: Product }) {
           {showImage && <img className="product-card-image" src={product.image} alt="" onError={() => setFailedImage(product.image)} />}
           <span className="product-labels">
             {product.productType === 'KIT' && <span className="product-type-badge">Kit</span>}
-            <span className="product-category">{product.category}</span>
+            {(product.catalog?.category?.name || product.category) && <span className="product-category">{product.catalog?.category?.name ?? product.category}</span>}
           </span>
           <span className="product-link" aria-hidden="true">
             <ArrowUpRightIcon />
@@ -73,9 +74,10 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
 
       <div className="product-info">
-        <Link href={`/produtos/${product.slug}`} className="product-card-title">
+        <Link href={href} className="product-card-title">
           <h3>{product.name}</h3>
         </Link>
+        {product.catalog?.brand && <small>{product.catalog.brand}</small>}
         <div className="price-row">
           <strong>{currency.format(product.price)}</strong>
           {product.oldPrice && <span>{currency.format(product.oldPrice)}</span>}

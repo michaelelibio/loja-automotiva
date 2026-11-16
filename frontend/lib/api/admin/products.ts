@@ -11,7 +11,7 @@ export class AdminProductApiError extends Error {
   }
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const token = tokenStorage.getToken();
   if (!token) throw new AdminProductApiError('Sessão não encontrada.', 401);
   const response = await fetch(url, {

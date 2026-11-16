@@ -1,11 +1,12 @@
-import { products as fallbackProducts } from '@/data/products';
+import type { CatalogMetadata } from '@/lib/catalog-types';
 
 export type Product = {
   id: string;
   productType: 'SINGLE' | 'KIT';
   slug: string;
   name: string;
-  category: 'Lavagem' | 'Proteção' | 'Detalhamento' | 'Acessórios';
+  category: string;
+  catalog?: CatalogMetadata;
   price: number;
   oldPrice?: number;
   description: string;
@@ -61,12 +62,13 @@ export type BackendProductResponse = {
     attributes: Record<string, string> | null; imageUrl: string | null }>;
   media?: Array<{ id: number; type: 'IMAGE' | 'VIDEO'; url: string;
     position: number; altText: string | null }>;
+  catalog?: CatalogMetadata;
   [key: string]: unknown;
 };
 
 type BackendProduct = BackendProductResponse;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const productsEndpoint = `${API_BASE_URL}/api/products`;
 
 function parseNumber(value: unknown, fallback = 0): number {
@@ -87,15 +89,6 @@ function parseText(value: unknown): string {
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number' || typeof value === 'boolean') return String(value).trim();
   return '';
-}
-
-function normalizeCategory(value: unknown, fallback: Product['category']): Product['category'] {
-  const raw = parseText(value).toLocaleLowerCase('pt-BR');
-  if (raw.includes('lav')) return 'Lavagem';
-  if (raw.includes('prote')) return 'Proteção';
-  if (raw.includes('detal') || raw.includes('estética')) return 'Detalhamento';
-  if (raw.includes('acess')) return 'Acessórios';
-  return fallback;
 }
 
 function normalizeProductType(value: unknown, fallback: Product['productType'] = 'SINGLE'): Product['productType'] {
@@ -144,22 +137,22 @@ function normalizeMedia(value: unknown): ProductMedia[] {
 
 function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): Product {
   const payloadId = parseText(payload.id ?? payload.productId ?? payload.sku);
-  const fallbackSource = fallback ?? fallbackProducts.find((item) => item.slug === payload.slug || item.id === payloadId || item.name === payload.name);
-
-  const id = payloadId || parseText(payload.slug) || fallbackSource?.id || '';
-  const slug = parseText(payload.slug ?? payload.urlSlug ?? payload.name) || id || fallbackSource?.slug || '';
-  const name = parseText(payload.name ?? payload.title) || fallbackSource?.name || 'Produto sem nome';
-  const productType = normalizeProductType(payload.productType, fallbackSource?.productType);
-  const category = normalizeCategory(payload.category ?? payload.type ?? payload.genre, fallbackSource?.category ?? 'Acessórios');
-  const price = parseNumber(payload.price ?? payload.value ?? payload.amount, fallbackSource?.price ?? 0);
-  const oldPrice = parseNumber(payload.oldPrice ?? payload.previousPrice ?? payload.listPrice, fallbackSource?.oldPrice ?? undefined);
-  const description = parseText(payload.description ?? payload.shortDescription) || fallbackSource?.description || 'Descrição indisponível';
-  const longDescription = parseText(payload.longDescription ?? payload.details) || fallbackSource?.longDescription || description;
+  // API omissions must never inherit commercial or technical facts from example products.
+  void fallback;
+  const id = payloadId || parseText(payload.slug);
+  const slug = parseText(payload.slug ?? payload.urlSlug) || id;
+  const name = parseText(payload.name ?? payload.title);
+  const productType = normalizeProductType(payload.productType);
+  const category = parseText(payload.category);
+  const price = parseNumber(payload.price ?? payload.value ?? payload.amount);
+  const oldPrice = payload.oldPrice == null ? undefined : parseNumber(payload.oldPrice);
+  const description = parseText(payload.description ?? payload.shortDescription);
+  const longDescription = parseText(payload.longDescription ?? payload.details) || description;
   const features = Array.isArray(payload.features)
     ? payload.features.filter((item): item is string => typeof item === 'string')
     : typeof payload.features === 'string'
       ? [payload.features]
-      : fallbackSource?.features ?? [];
+      : [];
 
   const stock = typeof payload.stock === 'number' && Number.isFinite(payload.stock)
     ? payload.stock
@@ -167,24 +160,20 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
       ? payload.quantity
       : typeof payload.stockQuantity === 'number' && Number.isFinite(payload.stockQuantity)
         ? payload.stockQuantity
-        : fallbackSource?.stock ?? 1;
+        : 0;
   const fulfillmentType = payload.fulfillmentType === 'DROPSHIPPING' ? 'DROPSHIPPING' : 'LOCAL_STOCK';
   const availableForSale = typeof payload.availableForSale === 'boolean'
     ? payload.availableForSale
     : Boolean(payload.active) && (fulfillmentType === 'DROPSHIPPING' || stock > 0);
 
-  const accent = parseText(payload.accent ?? payload.color ?? payload.themeColor) || fallbackSource?.accent || '#f2f2f2';
-  const image = parseText(payload.image ?? payload.imageUrl ?? payload.mainImage ?? payload.thumbnail) || fallbackSource?.image || '';
+  const accent = parseText(payload.accent ?? payload.color ?? payload.themeColor) || '#f2f2f2';
+  const image = parseText(payload.image ?? payload.imageUrl ?? payload.mainImage ?? payload.thumbnail);
   const media = normalizeMedia(payload.media);
   const galleryImages = media.filter((item) => item.type === 'IMAGE').map((item) => item.url);
   const images = normalizeImages(galleryImages.length > 0
     ? galleryImages : payload.images ?? payload.gallery ?? payload.photos,
-  image || fallbackSource?.image || '');
-  const featured = typeof payload.featured === 'boolean'
-    ? payload.featured
-    : typeof payload.highlighted === 'boolean'
-      ? payload.highlighted
-      : fallbackSource?.featured ?? false;
+  image);
+  const featured = payload.catalog?.featured ?? payload.featured === true;
   const variants = Array.isArray(payload.variants) ? payload.variants.flatMap((variant) => {
     const variantId = parseText(variant?.id);
     if (!variantId) return [];
@@ -192,7 +181,7 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
       sku: parseText(variant.sku) || undefined,
       attributes: variant.attributes && typeof variant.attributes === 'object' ? variant.attributes : {},
       imageUrl: parseText(variant.imageUrl) || undefined }];
-  }) : fallbackSource?.variants ?? [];
+  }) : [];
   const requiresVariantSelection = typeof payload.requiresVariantSelection === 'boolean'
     ? payload.requiresVariantSelection : variants.length > 0;
 
@@ -207,7 +196,7 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     name,
     category,
     price,
-    oldPrice: Number.isFinite(oldPrice) ? oldPrice : undefined,
+    oldPrice: oldPrice != null && oldPrice > price ? oldPrice : undefined,
     description,
     longDescription,
     features,
@@ -222,6 +211,7 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     requiresVariantSelection,
     requiresAliExpressRecipientData: payload.requiresAliExpressRecipientData === true,
     variants,
+    catalog: payload.catalog,
   };
 }
 
@@ -238,7 +228,7 @@ async function request<T>(url: string): Promise<T> {
 }
 
 export async function fetchProducts(): Promise<Product[]> {
-  const data = await request<unknown>(productsEndpoint);
+  const data = await request<unknown>(`${productsEndpoint}?size=100&sort=id,asc`);
   const responseObject = data && typeof data === 'object' ? data as Record<string, unknown> : null;
   const items = Array.isArray(data)
     ? data
@@ -250,11 +240,22 @@ export async function fetchProducts(): Promise<Product[]> {
     throw new Error('Resposta inválida da API de produtos.');
   }
 
+  // Cart, favorites and checkout must still resolve products discovered beyond the first catalog page.
+  const pages = responseObject?.totalPages;
+  if (typeof pages === 'number' && Number.isSafeInteger(pages) && pages > 1) {
+    if (pages > 10000) throw new Error('Catálogo muito extenso para esta consulta.');
+    for (let page = 1; page < pages; page++) {
+      const next = await request<{ content: unknown[] }>(`${productsEndpoint}?size=100&sort=id,asc&page=${page}`);
+      if (!Array.isArray(next.content)) throw new Error('Resposta inválida da API de produtos.');
+      items.push(...next.content);
+    }
+  }
+
   return items
     .map((item) => {
       try {
         const backendProduct = item && typeof item === 'object' ? item as BackendProduct : {} as BackendProduct;
-        return normalizeBackendProduct(backendProduct, fallbackProducts.find((fallback) => fallback.slug === backendProduct.slug || fallback.id === String(backendProduct.id)));
+        return normalizeBackendProduct(backendProduct);
       } catch (error) {
         console.warn('Produto da API ignorado por compatibilidade:', error);
         return null;
@@ -276,7 +277,7 @@ export async function fetchProductBySlug(slug: string): Promise<Product | null> 
     }
 
     const data = await response.json();
-    return normalizeBackendProduct(data, fallbackProducts.find((fallback) => fallback.slug === slug));
+    return normalizeBackendProduct(data);
   } catch {
     const products = await fetchProducts();
     return products.find((product) => product.slug === slug) ?? null;

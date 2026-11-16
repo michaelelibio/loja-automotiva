@@ -1,7 +1,9 @@
+import type { CatalogInput, CatalogMetadata } from '@/lib/catalog-types';
 export type AdminProductType = 'SINGLE' | 'KIT';
 export type AdminFulfillmentType = 'LOCAL_STOCK' | 'DROPSHIPPING';
 
 export type AdminProduct = {
+  catalog?: CatalogMetadata;
   id: number;
   name: string;
   slug: string;
@@ -38,6 +40,7 @@ export type AdminProductPage = {
 };
 
 export type AdminProductPayload = {
+  catalog?: CatalogInput;
   name: string;
   slug: string;
   description: string | null;

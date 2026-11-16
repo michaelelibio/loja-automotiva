@@ -3,6 +3,9 @@
 import { FormEvent, useRef, useState } from 'react';
 import { apiMoneyToCents, centsToInput, moneyToCents, productMargin } from '@/lib/admin/product-finance';
 import type { AdminProduct, AdminProductPayload, AdminProductType } from '@/lib/types/admin-product';
+import { CatalogFields } from './CatalogFields';
+import { catalogInput } from '@/lib/catalog-types';
+import { cleanCatalog } from '@/lib/api/admin/catalog';
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const usd = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'USD' });
@@ -32,6 +35,7 @@ export function AdminProductForm({ product, submitting, apiError, apiFields = {}
 }) {
   const [values, setValues] = useState<FormValues>(() => initialValues(product));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [catalog, setCatalog] = useState(() => catalogInput(product?.catalog));
   const slugEdited = useRef(Boolean(product));
 
   function field<K extends keyof FormValues>(key: K, value: FormValues[K]) {
@@ -57,6 +61,7 @@ export function AdminProductForm({ product, submitting, apiError, apiFields = {}
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(values.sku)) nextErrors.sku = 'Use letras, números, ponto, sublinhado ou hífen.';
     if (Object.keys(nextErrors).length) { setErrors(nextErrors); return; }
     await onSubmit({
+      catalog: cleanCatalog(catalog),
       name: values.name.trim(), slug: values.slug, description: values.description.trim() || null, longDescription: values.longDescription.trim() || null,
       price: priceCents! / 100, oldPrice: oldPriceCents === null ? null : oldPriceCents / 100, costPrice: costCents! / 100,
       stock, active: values.active, category: values.category.trim(), sku: values.sku.trim(), imageUrl: values.imageUrl.trim() || null, productType: values.productType,
@@ -76,13 +81,14 @@ export function AdminProductForm({ product, submitting, apiError, apiFields = {}
         <label className="wide">Nome<input maxLength={150} value={values.name} onChange={(event) => { const name = event.target.value; field('name', name); if (!slugEdited.current) field('slug', slugify(name)); }} aria-invalid={Boolean(visibleErrors.name)} />{visibleErrors.name && <small>{visibleErrors.name}</small>}</label>
         <label>SKU<input maxLength={100} value={values.sku} onChange={(event) => field('sku', event.target.value)} aria-invalid={Boolean(visibleErrors.sku)} />{visibleErrors.sku && <small>{visibleErrors.sku}</small>}</label>
         <label>Slug<input maxLength={180} value={values.slug} onChange={(event) => { slugEdited.current = true; field('slug', event.target.value); }} aria-invalid={Boolean(visibleErrors.slug)} />{visibleErrors.slug && <small>{visibleErrors.slug}</small>}</label>
-        <label>Categoria<input maxLength={100} value={values.category} onChange={(event) => field('category', event.target.value)} aria-invalid={Boolean(visibleErrors.category)} />{visibleErrors.category && <small>{visibleErrors.category}</small>}</label>
+        <label>Categoria anterior (legado)<input maxLength={100} value={values.category} onChange={(event) => field('category', event.target.value)} aria-invalid={Boolean(visibleErrors.category)} /><small>Preservada por compatibilidade. Use a classificação abaixo para a navegação.</small>{visibleErrors.category && <small>{visibleErrors.category}</small>}</label>
         <label>Tipo<select value={values.productType} onChange={(event) => field('productType', event.target.value as AdminProductType)}><option value="SINGLE">Produto individual</option><option value="KIT">Kit</option></select></label>
         <label className="wide">Descrição<textarea maxLength={1000} rows={3} value={values.description} onChange={(event) => field('description', event.target.value)} />{visibleErrors.description && <small>{visibleErrors.description}</small>}</label>
         <label className="wide">Descrição detalhada<textarea maxLength={5000} rows={7} value={values.longDescription} onChange={(event) => field('longDescription', event.target.value)} />{visibleErrors.longDescription && <small>{visibleErrors.longDescription}</small>}</label>
       </div>
     </section>
 
+    <CatalogFields value={catalog} onChange={setCatalog} errors={apiFields} />
     {product?.supplier && <section className="admin-card admin-supplier-card">
       <div className="admin-form-section-heading"><div><p className="eyebrow">INTEGRAÇÃO</p><h2>Fornecedor</h2></div></div>
       <dl className="admin-supplier-grid">

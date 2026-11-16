@@ -8,6 +8,7 @@ import { useCart } from '@/context/CartContext';
 import { CartIcon, SearchIcon } from './Icons';
 import { useAuth } from '@/context/AuthContext';
 import { BrandLogo } from './BrandLogo';
+import { CategoryNavigation } from './CategoryNavigation';
 
 export function Header() {
   const { totalItems } = useCart();
@@ -88,12 +89,12 @@ export function Header() {
 
       <nav className="main-nav" aria-label="Navegação principal">
         <Link href="/produtos">Produtos</Link>
-        <Link href="/#categorias">Categorias</Link>
         <Link href="/#sobre">Sobre nós</Link>
         <Link href="/contato">Contato</Link>
       </nav>
 
       <div className="header-actions">
+        <CategoryNavigation />
         <form className="search-box" action="/produtos" method="get">
           <SearchIcon />
           <input type="search" name="busca" placeholder="Buscar produto" aria-label="Buscar produto" />

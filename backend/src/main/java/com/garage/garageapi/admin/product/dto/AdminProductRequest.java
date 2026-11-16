@@ -25,5 +25,10 @@ public record AdminProductRequest(
         @NotBlank @Size(max = 100)
         @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9._-]*$") String sku,
         @Size(max = 500) String imageUrl,
-        ProductType productType
-) { }
+        ProductType productType,
+        @jakarta.validation.Valid com.garage.garageapi.catalog.CatalogProductRequest catalog
+) {
+    public AdminProductRequest(String name,String slug,String description,String longDescription,BigDecimal price,BigDecimal oldPrice,BigDecimal costPrice,Integer stock,Boolean active,String category,String sku,String imageUrl,ProductType productType) {
+        this(name,slug,description,longDescription,price,oldPrice,costPrice,stock,active,category,sku,imageUrl,productType,null);
+    }
+}
