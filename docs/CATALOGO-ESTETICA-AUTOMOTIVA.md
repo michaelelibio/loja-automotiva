@@ -1,6 +1,6 @@
 # Catálogo de estética automotiva
 
-Implementação local. Nenhuma migração, publicação ou alteração de dados de produção foi executada nesta tarefa.
+A entrega original foi local, sem alterações de produção. Em 16/11/2026, a migração foi aplicada em produção e o backend recuperado no mesmo commit publicado, conforme [relatório da recuperação](RECUPERACAO-CATALOGO-20261116.md).
 
 ## Estrutura e compatibilidade
 
@@ -50,7 +50,7 @@ O SQL é aditivo e o seed usa `ON CONFLICT(path) DO NOTHING`, sem sobrescrever e
 
 ## Pendências para disponibilização
 
-Aplicar a migração e publicar backend/frontend em outra tarefa autorizada. Cadastrar as classificações e informações técnicas confirmadas dos produtos reais. A publicação comercial CJ no perfil `controlled` depende de uma mudança própria nas políticas de checkout/frete existentes; não foi liberada por esta tarefa de catálogo.
+A migração de produção foi aplicada e o backend validado em 16/11/2026. Cadastrar as classificações e informações técnicas confirmadas dos produtos reais. A publicação comercial CJ no perfil `controlled` depende de uma mudança própria nas políticas de checkout/frete existentes; não foi liberada pela implementação ou recuperação do catálogo. A publicação do frontend não foi alterada na recuperação.
 
 ## Arquivos principais alterados
 
