@@ -14,6 +14,24 @@ class AliExpressProductNormalizerTests {
         try(var stream = AliExpressProductNormalizerTests.class.getResourceAsStream("/aliexpress-product.json")) { return JSON.readTree(stream); }
     }
     private final AliExpressProductNormalizer normalizer = new AliExpressProductNormalizer();
+    static JsonNode propertylessSource() throws Exception {
+        var source = (ObjectNode) source();
+        var sku = (ObjectNode) source.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0);
+        sku.remove("sku_attr"); sku.remove("ae_sku_property_dtos");
+        source.set("ae_item_sku_info_dtos", JSON.createArrayNode().add(sku));
+        return source;
+    }
+    @Test void confirmsEmptySelectionOnlyForOnePropertylessSku() throws Exception {
+        var preview = normalizer.normalize(propertylessSource(), "1005008752784588", "US");
+        assertThat(preview.variants().get(0).rawSkuAttr()).isEmpty();
+        assertThat(preview.variants().get(0).availableStock()).isEqualTo(10);
+        var multiple = (ObjectNode) source();
+        ((ObjectNode) multiple.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).remove("sku_attr");
+        assertThat(normalizer.normalize(multiple,"1005008752784588","US").variants().get(0).rawSkuAttr()).isNull();
+        var attributed = (ObjectNode) propertylessSource();
+        ((ObjectNode) attributed.path("ae_item_sku_info_dtos").get(0)).set("ae_sku_property_dtos", JSON.readTree("[{\"sku_property_id\":14}]"));
+        assertThat(normalizer.normalize(attributed,"1005008752784588","US").variants().get(0).rawSkuAttr()).isNull();
+    }
     static JsonNode confirmedResponse() throws Exception {
         try (var stream = AliExpressProductNormalizerTests.class.getResourceAsStream("/aliexpress-product-1005010661577657.json")) {
             return JSON.readTree(stream);

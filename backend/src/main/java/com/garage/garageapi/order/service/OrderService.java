@@ -117,11 +117,7 @@ public class OrderService {
         for (Map.Entry<PurchaseKey, Integer> entry : requestedLines.entrySet()) {
             Product product = productsById.get(entry.getKey().productId());
             ProductVariant variant = resolveVariant(product, entry.getKey().variantId());
-            if (variant == null || !"ALIEXPRESS".equalsIgnoreCase(variant.getSupplier())
-                    || !java.util.Objects.equals(product.getSupplierProductId(), variant.getSupplierProductId())
-                    || variant.getRawVariantKey() == null || variant.getRawVariantKey().isBlank()
-                    || variant.getSupplierStockQuantity() == null || variant.getSupplierStockQuantity() < entry.getValue()
-                    || product.getPrice() == null || product.getPrice().signum() <= 0)
+            if (!com.garage.garageapi.product.entity.AliExpressPurchasability.canPurchase(product, variant, entry.getValue()))
                 throw new ResourceConflictException("Produto, variante ou estoque indisponível para compra.");
             BigDecimal unitPrice = money(product.getPrice());
             BigDecimal itemSubtotal = money(unitPrice.multiply(BigDecimal.valueOf(entry.getValue())));

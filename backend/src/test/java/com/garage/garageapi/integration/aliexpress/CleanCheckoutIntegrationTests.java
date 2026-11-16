@@ -88,7 +88,52 @@ class CleanCheckoutIntegrationTests {
                 new CreateOrderRequest.AddressConsent(address.getRecipientName(),address.getZipCode(),address.getStreet(),address.getNumber(),
                         address.getComplement(),address.getNeighborhood(),address.getCity(),address.getState()));
     }
-    @Test void completeCheckoutPaymentAndSupplierLinkAreIdempotentAndVisibleInAdmin() throws Exception {
+    private void propertyless(String key) {
+        variant.updateSupplierData("ALIEXPRESS",variant.getSupplierVariantId(),product.getSupplierProductId(),null,
+                "Único",Map.of(),key,new BigDecimal("90.00"),"BRL",null,null,null,null,null);
+        variants.saveAndFlush(variant);
+    }
+    @Test void confirmedSingleSkuCanCheckoutWithoutProviderCallsOrLocalStockReservation() {
+        propertyless("");
+        var created = checkout.create(customer(),request(UUID.randomUUID().toString()));
+        assertThat(created.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        assertThat(orders.count()).isEqualTo(1); assertThat(payments.count()).isZero();
+        assertThat(variants.findById(variant.getId()).orElseThrow().getSupplierStockQuantity()).isEqualTo(5);
+        verifyNoInteractions(client,tokens,mercadoPago,freight);
+    }
+    @Test void missingLegacySelectionIsUnavailableInCatalogEligibilityAndCheckout() throws Exception {
+        propertyless(null);
+        mvc.perform(get("/api/products/"+product.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.availableForSale").value(false)).andExpect(jsonPath("$.variants.length()").value(0));
+        assertEligibilityRejected(List.of(Map.of("productId",product.getId(),"variantId",variant.getId(),"quantity",1)));
+        assertThatThrownBy(() -> checkout.create(customer(),request(UUID.randomUUID().toString()))).hasMessageContaining("indisponível");
+        assertThat(orders.count()).isZero(); verifyNoInteractions(client,tokens,mercadoPago,freight);
+    }
+    @Test void eligibilityRejectsAggregatedStockExhaustionAndForeignOrDeletedVariants() throws Exception {
+        var line = Map.of("productId",product.getId(),"variantId",variant.getId(),"quantity",3);
+        assertEligibilityRejected(List.of(line,line));
+        var other = products.saveAndFlush(new Product("Outro","other-sku",null,null,PRICE,null,"Acessórios",0,null,true));
+        assertEligibilityRejected(List.of(Map.of("productId",other.getId(),"variantId",variant.getId(),"quantity",1)));
+        variants.delete(variant); variants.flush();
+        mvc.perform(post("/api/orders/delivery-eligibility").with(jwt().jwt(j -> j.subject(user.getId().toString())))
+                .contentType("application/json").content(eligibilityBody(List.of(line)))).andExpect(status().isNotFound());
+        assertThat(orders.count()).isZero(); verifyNoInteractions(client,tokens,mercadoPago,freight);
+    }
+    private String eligibilityBody(List<?> items) {
+        return JsonMapper.builder().build().writeValueAsString(Map.of("addressId",address.getId(),"cart",Map.of("zipCode",address.getZipCode(),"items",items)));
+    }
+    private void assertEligibilityRejected(List<?> items) throws Exception {
+        mvc.perform(post("/api/orders/delivery-eligibility").with(jwt().jwt(j -> j.subject(user.getId().toString())))
+                .contentType("application/json").content(eligibilityBody(items))).andExpect(status().isConflict());
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans={false,true})
+    void completeCheckoutPaymentAndSupplierLinkAreIdempotentAndVisibleInAdmin(boolean propertylessSku) throws Exception {
+        if (propertylessSku) {
+            propertyless("");
+            when(productClient.get(anyString(),anyString(),anyString(),anyString(),anyString())).thenReturn(JsonMapper.builder().build().readTree(
+                    "{\"ae_item_base_info_dto\":{\"product_status_type\":\"onSelling\"},\"ae_item_sku_info_dtos\":[{\"sku_id\":\"12000053109276547\",\"sku_price\":\"90.00\",\"currency_code\":\"BRL\",\"sku_available_stock\":5}]}"));
+        }
         var request = request(UUID.randomUUID().toString());
         var created = checkout.create(customer(), request);
         assertThat(checkout.create(customer(), request).id()).isEqualTo(created.id());
@@ -115,7 +160,8 @@ class CleanCheckoutIntegrationTests {
         assertThat(linked.supplierStatus()).isEqualTo("CREATED_UNPAID_UNVERIFIED");
         supplier.send(order.getId());
         verify(client,times(1)).create(argThat(p -> p.keySet().equals(Set.of("out_order_id","ds_extend_request","logistics_address","product_items"))
-                && ((List<?>)p.get("product_items")).stream().allMatch(line -> !((Map<?,?>)line).containsKey("logistics_service_name"))),eq("synthetic-token"));
+                && ((List<?>)p.get("product_items")).stream().allMatch(line -> !((Map<?,?>)line).containsKey("logistics_service_name")
+                    && (!propertylessSku || !((Map<?,?>)line).containsKey("sku_attr")))),eq("synthetic-token"));
         verifyNoInteractions(freight);
         mvc.perform(get("/api/admin/orders/"+order.getId()).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PROCESSING"));

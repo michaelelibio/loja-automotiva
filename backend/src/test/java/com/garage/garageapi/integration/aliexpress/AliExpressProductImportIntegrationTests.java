@@ -50,6 +50,31 @@ class AliExpressProductImportIntegrationTests {
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-provider-token"))));
         assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
     }
+    @Test void propertylessSingleSkuImportPersistsConfirmedEmptyKeyAndSupplierStock() throws Exception {
+        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(AliExpressProductNormalizerTests.propertylessSource());
+        var preview = service.preview(ID,"US","USD","en");
+        service.importProduct(new AliExpressAdminController.ImportRequest(ID,"US","USD","en",preview.fingerprint(),
+                "Single SKU","Acessórios",Map.of("201",BigDecimal.ONE),Map.of()));
+        var product = products.findAll().get(0);
+        var variant = variants.findAll().get(0);
+        assertThat(variant.getRawVariantKey()).isEmpty();
+        assertThat(variant.getSupplierStockQuantity()).isEqualTo(10);
+        assertThat(product.getPrice()).isEqualByComparingTo(BigDecimal.ONE);
+        product.setActive(true); products.saveAndFlush(product);
+        mvc.perform(get("/api/products/"+product.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.availableForSale").value(true)).andExpect(jsonPath("$.variants[0].id").value(variant.getId()));
+        verifyNoInteractions(freightDiagnostic,checkoutFreight);
+    }
+    @Test void ambiguousMissingSelectionCannotBeImportedEvenWhenOnlyOneVariantIsSelected() throws Exception {
+        var raw=AliExpressProductNormalizerTests.source();
+        ((tools.jackson.databind.node.ObjectNode)raw.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).remove("sku_attr");
+        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(raw);
+        var preview=service.preview(ID,"US","USD","en");
+        assertThatThrownBy(()->service.importProduct(new AliExpressAdminController.ImportRequest(ID,"US","USD","en",preview.fingerprint(),
+                "Ambiguous","Acessórios",Map.of("201",BigDecimal.ONE),Map.of())))
+                .isInstanceOf(AliExpressIntegrationException.class);
+        assertThat(products.count()).isZero();assertThat(variants.count()).isZero();
+    }
     @Test void confirmedBrazilPreviewPreservesAttributesPricesAndStockWithoutPersistence() throws Exception {
         when(client.get("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token"))
                 .thenReturn(AliExpressProductNormalizerTests.confirmedResponse().path("aliexpress_ds_product_get_response").path("result"));

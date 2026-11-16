@@ -13,7 +13,7 @@ export function CartView() {
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && !error) reconcileItems(products.map((product) => product.id));
+    if (!loading && !error) reconcileItems(products);
   }, [loading, error, products, reconcileItems]);
   const availableProducts = error ? [] : products;
   const cartProducts = items.flatMap((item) => {

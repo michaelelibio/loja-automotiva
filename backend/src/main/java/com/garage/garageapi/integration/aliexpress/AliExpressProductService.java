@@ -60,6 +60,7 @@ public class AliExpressProductService {
         if (!ids.containsAll(salePrices.keySet()) || !salePrices.keySet().containsAll(overrides.keySet()) || overrides.size() > 1000)
             throw new AliExpressIntegrationException(INVALID_INPUT);
         var selected = source.variants().stream().filter(v -> salePrices.containsKey(v.skuId())).toList();
+        if (selected.stream().anyMatch(v -> v.rawSkuAttr() == null)) throw new AliExpressIntegrationException(INCOMPLETE);
         String sku = "AE-" + source.productId();
         String slug = "aliexpress-" + source.productId();
         if (products.existsBySlug(slug) || products.existsBySkuIgnoreCase(sku)) throw new AliExpressIntegrationException(DUPLICATE);

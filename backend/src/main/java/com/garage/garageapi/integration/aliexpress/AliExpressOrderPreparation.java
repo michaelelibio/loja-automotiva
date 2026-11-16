@@ -47,7 +47,8 @@ public class AliExpressOrderPreparation {
             if (variant==null || !"ALIEXPRESS".equalsIgnoreCase(variant.getSupplier())
                     || !Objects.equals(variant.getProduct().getId(),item.getProductId())
                     || !item.getSupplierProductId().equals(variant.getSupplierProductId())
-                    || !item.getSupplierVariantId().equals(variant.getSupplierVariantId()) || !text(variant.getRawVariantKey()))
+                    || !item.getSupplierVariantId().equals(variant.getSupplierVariantId())
+                    || !com.garage.garageapi.product.entity.AliExpressPurchasability.hasSelection(variant))
                 return "Identificadores originais da variante ausentes ou divergentes. Não é seguro criar a compra.";
         }
         if (!enabled || !contractConfirmed) return "Criação real bloqueada até validar o contrato AliExpress, o endereço BR e a idempotência do app.";
@@ -66,7 +67,7 @@ public class AliExpressOrderPreparation {
             var variant=variants.findById(item.getProductVariantId()).orElseThrow();
             Map<String,Object> line=new LinkedHashMap<>();
             line.put("product_id",new java.math.BigInteger(item.getSupplierProductId()));line.put("product_count",item.getQuantity());
-            line.put("sku_attr",variant.getRawVariantKey());
+            if (text(variant.getRawVariantKey())) line.put("sku_attr",variant.getRawVariantKey());
             if (quote!=null && Objects.equals(order.quoteContextDigest(),quote.contextDigest())
                     && quote.validUntil()!=null && java.time.Instant.now().isBefore(quote.validUntil())) {
                 var quoted=quote.lines().stream().filter(l->l.skuId().equals(item.getSupplierVariantId()) && l.productId().equals(item.getSupplierProductId()))

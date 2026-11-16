@@ -31,7 +31,7 @@ public class DeliveryEligibilityController {
         var user = users.findCurrentUser(jwt);
         var address = addresses.findByIdAndUserId(request.addressId(), user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Endereço não encontrado."));
-        var option = delivery.select(products.resolveItems(request.cart()));
+        var option = delivery.select(products.resolvePurchasableItems(request.cart()));
         return new ShippingQuoteResponse(List.of(ShippingOptionResponse.from(option)));
     }
 }

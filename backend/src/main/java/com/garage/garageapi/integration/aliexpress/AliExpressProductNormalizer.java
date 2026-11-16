@@ -37,6 +37,7 @@ public class AliExpressProductNormalizer {
             List<String> images = images(text(result.path("ae_multimedia_info_dto"), "image_urls", diagnostic), warnings, diagnostic);
             List<AliExpressProductPreview.Variant> variants = new ArrayList<>();
             Set<String> skuIds = new HashSet<>();
+            Set<String> propertylessSkuIds = new HashSet<>();
             diagnostic.stage = "variants";
             diagnostic.field = "ae_item_sku_info_dtos";
             for (JsonNode sku : array(result.path("ae_item_sku_info_dtos"), "ae_item_sku_info_d_t_o", diagnostic)) {
@@ -52,7 +53,9 @@ public class AliExpressProductNormalizer {
                 // Keep property IDs as keys. Labels and raw sku_attr may disagree; never derive IDs from labels.
                 diagnostic.stage = "variant_properties";
                 diagnostic.field = "ae_sku_property_dtos";
-                for (JsonNode prop : array(sku.path("ae_sku_property_dtos"), "ae_sku_property_d_t_o", diagnostic)) {
+                var skuProperties = array(sku.path("ae_sku_property_dtos"), "ae_sku_property_d_t_o", diagnostic);
+                if (skuProperties.isEmpty()) propertylessSkuIds.add(skuId);
+                for (JsonNode prop : skuProperties) {
                     diagnostic.propertyIndex++;
                     String propertyId = text(prop, "sku_property_id", diagnostic);
                     String valueId = text(prop, "property_value_id", diagnostic);
@@ -92,6 +95,14 @@ public class AliExpressProductNormalizer {
             diagnostic.variantIndex = -1;
             diagnostic.actualType = "ARRAY";
             if (variants.isEmpty() || variants.size() > 1000) throw diagnostic.fail(variants.isEmpty() ? "no_variants" : "too_many_variants");
+            // A propertyless single SKU legitimately has no sku_attr. Preserve
+            // that confirmed absence as empty, distinct from missing legacy data.
+            if (variants.size() == 1 && variants.get(0).rawSkuAttr() == null
+                    && propertylessSkuIds.contains(variants.get(0).skuId())) {
+                var v = variants.get(0);
+                variants.set(0, new AliExpressProductPreview.Variant(v.skuId(), v.skuCode(), "",
+                        v.attributes(), v.images(), v.price(), v.regularPrice(), v.currency(), v.availableStock()));
+            }
             String currency = variants.get(0).currency();
             diagnostic.field = "currency_code";
             diagnostic.actualType = "NOT_INSPECTED";

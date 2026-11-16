@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import type { Product } from '@/lib/products';
+import { reconcileCartItems } from '@/lib/cart-reconciliation';
 
 export type CartItem = {
   productId: string;
@@ -19,7 +20,7 @@ type CartContextValue = {
   decreaseItem: (productId: string, variantId?: string) => void;
   removeItem: (productId: string, variantId?: string) => void;
   clearCart: () => void;
-  reconcileItems: (validProductIds: string[]) => void;
+  reconcileItems: (products: Product[]) => void;
 };
 
 const storageKey = 'garage-cart';
@@ -197,10 +198,9 @@ export function CartProvider({ children }: Readonly<{ children: React.ReactNode 
     decreaseItem: (productId, variantId) => setItems((current) => current.flatMap((item) => itemKey(item.productId, item.variantId) === itemKey(productId, variantId) ? (item.quantity > 1 ? [{ ...item, quantity: item.quantity - 1 }] : []) : [item])),
     removeItem: (productId, variantId) => setItems((current) => current.filter((item) => itemKey(item.productId, item.variantId) !== itemKey(productId, variantId))),
     clearCart: () => setItems([]),
-    reconcileItems: (validProductIds) => {
-      const validIds = new Set(validProductIds.map(normalizeProductId).filter((id): id is string => id !== null));
+    reconcileItems: (products) => {
       setItems((current) => {
-        const reconciled = current.filter((item) => validIds.has(item.productId));
+        const reconciled = reconcileCartItems(current, products);
         return reconciled.length === current.length ? current : reconciled;
       });
     },

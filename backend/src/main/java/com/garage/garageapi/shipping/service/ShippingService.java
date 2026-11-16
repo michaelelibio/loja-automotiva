@@ -48,6 +48,14 @@ public class ShippingService {
     }
 
     public List<ShippingProvider.Item> resolveItems(ShippingQuoteRequest request) {
+        return resolveItems(request, false);
+    }
+
+    public List<ShippingProvider.Item> resolvePurchasableItems(ShippingQuoteRequest request) {
+        return resolveItems(request, true);
+    }
+
+    private List<ShippingProvider.Item> resolveItems(ShippingQuoteRequest request, boolean requirePurchasable) {
         Map<ItemKey, Integer> lines = aggregate(request.items());
         Map<Long, Integer> quantities = aggregateProducts(lines);
         List<Product> products = new ArrayList<>(productRepository.findAllById(quantities.keySet()));
@@ -58,6 +66,8 @@ public class ShippingService {
         List<ShippingProvider.Item> items = lines.entrySet().stream().map(entry -> {
             Product product = productsById.get(entry.getKey().productId());
             ProductVariant variant = resolveVariant(product, entry.getKey().variantId());
+            if (requirePurchasable && !com.garage.garageapi.product.entity.AliExpressPurchasability.canPurchase(product, variant, entry.getValue()))
+                throw new ResourceConflictException("Produto, variante ou estoque indisponível para compra.");
             return item(product, variant, entry.getValue());
         }).toList();
         return items;

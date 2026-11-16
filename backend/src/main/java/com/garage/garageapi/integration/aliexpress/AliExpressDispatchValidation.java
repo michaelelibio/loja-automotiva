@@ -53,7 +53,15 @@ public class AliExpressDispatchValidation {
             if(skus.isArray())for(var candidate:skus)if(line.skuId().equals(candidate.path("sku_id").asText())){sku=candidate;break;}
             if(sku==null)throw new ResourceConflictException("Variante indisponível no fornecedor.");
             int needed=quantities.get(line.productId()+":"+line.skuId());
-            if (!Objects.equals(line.skuAttr(),sku.path("sku_attr").asText()) || !sku.path("sku_available_stock").asText().matches("[0-9]{1,9}")
+            String currentAttr = sku.path("sku_attr").isNull() ? "" : sku.path("sku_attr").asText().trim();
+            var properties = sku.path("ae_sku_property_dtos");
+            boolean noProperties = properties.isMissingNode() || properties.isNull()
+                    || properties.isArray() && properties.isEmpty()
+                    || properties.isObject() && properties.path("ae_sku_property_d_t_o").isArray()
+                        && properties.path("ae_sku_property_d_t_o").isEmpty();
+            boolean emptySelectionConfirmed = skus.size() == 1 && noProperties;
+            if (!Objects.equals(line.skuAttr(), currentAttr) || currentAttr.isEmpty() && !emptySelectionConfirmed
+                    || !sku.path("sku_available_stock").asText().matches("[0-9]{1,9}")
                     || Integer.parseInt(sku.path("sku_available_stock").asText())<needed)
                 throw new ResourceConflictException("Variante divergente ou estoque insuficiente no AliExpress.");
             String money=sku.path("offer_sale_price").asText();

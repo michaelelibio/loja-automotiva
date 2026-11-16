@@ -55,7 +55,7 @@ export function CheckoutForm() {
   }, [authLoading, sessionError, isAuthenticated]);
 
   useEffect(() => {
-    if (!productsLoading && !productsError) reconcileItems(products.map((product) => product.id));
+    if (!productsLoading && !productsError) reconcileItems(products);
   }, [productsLoading, productsError, products, reconcileItems]);
 
   const availableProducts = productsError ? [] : products;

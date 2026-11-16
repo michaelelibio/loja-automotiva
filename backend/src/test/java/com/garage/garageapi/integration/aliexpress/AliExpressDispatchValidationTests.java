@@ -64,4 +64,24 @@ class AliExpressDispatchValidationTests {
                 List.of(new AliExpressDispatchQuote.Line("1005007170269840","123","14:1",1,new BigDecimal("10.50"),"SERVICE")),
                 new BigDecimal("10.50"),BigDecimal.ZERO,BigDecimal.ZERO,new BigDecimal("10.50"),Instant.now(),Instant.now().plusSeconds(600),"admin","supplier-quote");
     }
+    @ParameterizedTest @ValueSource(strings={"absent","null","empty","multiple","properties","stock"})
+    void emptySelectionRequiresOneLivePropertylessSkuAndSufficientStock(String kind) {
+        var mapper=tools.jackson.databind.json.JsonMapper.builder().build();
+        var raw=mapper.readTree("{\"ae_item_base_info_dto\":{\"product_status_type\":\"onSelling\"},\"ae_item_sku_info_dtos\":[{\"sku_id\":\"123\",\"sku_available_stock\":5}]}");
+        var list=(tools.jackson.databind.node.ArrayNode)raw.path("ae_item_sku_info_dtos");
+        var sku=(tools.jackson.databind.node.ObjectNode)list.get(0);
+        if("null".equals(kind))sku.putNull("sku_attr");
+        if("empty".equals(kind))sku.put("sku_attr","");
+        if("multiple".equals(kind))list.add(mapper.readTree("{\"sku_id\":\"456\"}"));
+        if("properties".equals(kind))sku.set("ae_sku_property_dtos",mapper.readTree("[{\"sku_property_id\":14}]"));
+        if("stock".equals(kind))sku.put("sku_available_stock",0);
+        when(products.get(anyString(),anyString(),anyString(),anyString(),anyString())).thenReturn(raw);
+        var q=quote();
+        var single=new AliExpressDispatchQuote(q.contextDigest(),q.buyerHash(),q.appHash(),
+                List.of(new AliExpressDispatchQuote.Line("1005007170269840","123","",1,null,null)),
+                null,null,null,null,Instant.now(),null,null,null);
+        if(Set.of("multiple","properties","stock").contains(kind))
+            assertThatThrownBy(()->validation.verifyProducts(single,"synthetic-token")).isInstanceOf(ResourceConflictException.class);
+        else assertThatCode(()->validation.verifyProducts(single,"synthetic-token")).doesNotThrowAnyException();
+    }
 }
