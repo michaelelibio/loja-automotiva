@@ -104,7 +104,7 @@ test('pending payments have no send button and missing prerequisites disable the
 test('financial alerts permit creation and unknown costs are never displayed as zero', () => {
   const { AliExpressOrderState, AliExpressDispatchDetails } = load('components/admin/AliExpressOrderAction.tsx', mocks);
   const blocked={...state,canSend:true,blockReason:null,attemptCount:0,maxAttempts:3,
-    validationAttemptCount:2,nextValidationAt:'2026-11-15T15:00:00Z',automaticEnabled:false,dispatchQuote:null,
+    validationAttemptCount:2,nextValidationAt:'2026-11-15T15:00:00Z',automaticEnabled:true,dispatchQuote:null,
     financialWarnings:['Impostos desconhecidos.','Custo superior ao valor recebido.'],
     supplierCosts:{source:'LIVE_PRODUCT_API',currency:'BRL',productTotal:100,shippingTotal:null,taxTotal:null,total:null,observedAt:null}};
   const html=renderToStaticMarkup(React.createElement(React.Fragment,null,
@@ -112,7 +112,23 @@ test('financial alerts permit creation and unknown costs are never displayed as 
   assert.match(html,/Aguardando criação automática/);assert.match(html,/Alertas financeiros — criação permitida/);
   assert.match(html,/Desconhecido/);assert.doesNotMatch(html,/Criação automática bloqueada|R\$[^0-9<]*0,00/);
   assert.match(html,/Tentativas de criação: 0\/3/);assert.match(html,/Validações: 2/);assert.match(html,/Nova validação prevista/);
-  assert.match(html,/Processamento automático desativado/);assert.match(html,/exclusivamente manual/);
+  assert.doesNotMatch(html,/Processamento automático desativado/);assert.match(html,/exclusivamente manual/);
+});
+
+test('paused automation does not promise dispatch and the activation cutoff explains historical exclusions', () => {
+  const { AliExpressOrderState, AliExpressDispatchDetails } = load('components/admin/AliExpressOrderAction.tsx', mocks);
+  for (const reason of ['Processamento automático desativado na configuração do backend.',
+    'Automação pausada: falta definir a data inicial dos novos pedidos.',
+    'Pedido anterior à ativação automática. Reconcilie o fornecedor antes de um envio manual.']) {
+    const pending={...state,status:'PENDING',canSend:true,blockReason:null,automaticEnabled:false,automaticBlockReason:reason,
+      automaticOrdersCreatedFrom:'2026-11-15T22:00:00Z'};
+    const html=renderToStaticMarkup(React.createElement(React.Fragment,null,
+      React.createElement(AliExpressOrderState,{state:pending}),React.createElement(AliExpressDispatchDetails,{state:pending})));
+    assert.match(html,/Criação automática bloqueada/);assert.ok(html.includes(reason));
+    assert.doesNotMatch(html,/Aguardando criação automática/);
+    assert.match(html,/Pedidos anteriores exigem reconciliação e envio manual/);
+    assert.match(html,/exclusivamente manual/);
+  }
 });
 
 test('uncertain response retains supplier references and does not claim successful creation', () => {

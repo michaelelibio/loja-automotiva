@@ -18,7 +18,8 @@ public class AliExpressDispatchConfiguration {
         return executor;
     }
     @Bean AliExpressDispatchWorker aliExpressDispatchWorker(OrderFulfillmentRepository repository,
-            AliExpressOrderService service,@org.springframework.beans.factory.annotation.Qualifier("aliExpressDispatchExecutor") ThreadPoolTaskExecutor executor) {
-        return new AliExpressDispatchWorker(repository,service,executor);
+            AliExpressOrderService service,@org.springframework.beans.factory.annotation.Qualifier("aliExpressDispatchExecutor") ThreadPoolTaskExecutor executor,
+            AliExpressAutomationPolicy automation) {
+        return new AliExpressDispatchWorker(repository,service,executor,automation);
     }
 }

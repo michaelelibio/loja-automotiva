@@ -12,6 +12,8 @@ export type AdminAliExpressOrder = {
   attemptCount?: number; maxAttempts?: number; validationAttemptCount?: number; nextValidationAt?: string | null;
   contextDigest?: string;
   automaticEnabled?: boolean;
+  automaticBlockReason?: string | null;
+  automaticOrdersCreatedFrom?: string | null;
   financialWarnings?: string[];
   supplierCosts?: { source: string; currency: string | null; productTotal: number | null; shippingTotal: number | null;
     taxTotal: number | null; total: number | null; observedAt: string | null } | null;

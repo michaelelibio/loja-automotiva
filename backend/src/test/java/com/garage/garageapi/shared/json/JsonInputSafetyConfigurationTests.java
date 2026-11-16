@@ -52,8 +52,7 @@ class JsonInputSafetyConfigurationTests {
         context.run(app -> {
             ObjectMapper mapper = app.getBean(ObjectMapper.class);
             assertThatThrownBy(() -> mapper.readValue(body("9".repeat(129)), CreateOrderRequest.class))
-                    .isInstanceOf(JacksonException.class)
-                    .hasRootCauseInstanceOf(StreamConstraintsException.class);
+                    .isInstanceOf(StreamConstraintsException.class);
             assertThatThrownBy(() -> mapper.readTree("[".repeat(65) + "0" + "]".repeat(65)))
                     .isInstanceOf(StreamConstraintsException.class);
         });

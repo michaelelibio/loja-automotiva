@@ -14,13 +14,15 @@ public interface OrderFulfillmentRepository extends JpaRepository<OrderFulfillme
         where f.provider = 'ALIEXPRESS' and f.status = 'PENDING' and f.attemptCount = 0
           and f.dispatchManualHold = false and f.order.paymentReviewRequired = false
           and f.supplierOrderId is null and f.order.status in ('PAID','PROCESSING')
+          and f.order.createdAt >= :createdFrom
           and (f.lastError is null or f.dispatchNextCheckAt <= :now)
           and exists (select p.id from Payment p where p.order = f.order and p.method = 'MERCADO_PAGO'
             and p.status = 'PAID' and p.providerLiveMode = true and p.providerVerifiedAt is not null
             and p.paidAt is not null and p.providerPaymentId is not null)
         order by f.updatedAt, f.order.id
         """)
-    java.util.List<Long> findAutomaticDispatchCandidates(@Param("now") java.time.Instant now, org.springframework.data.domain.Pageable pageable);
+    java.util.List<Long> findAutomaticDispatchCandidates(@Param("now") java.time.Instant now,
+            @Param("createdFrom") java.time.Instant createdFrom, org.springframework.data.domain.Pageable pageable);
     @Query("select o.paymentReviewRequired from Order o where o.id = :orderId")
     Optional<Boolean> paymentReviewRequired(@Param("orderId") Long orderId);
     Optional<OrderFulfillment> findByOrderId(Long orderId);

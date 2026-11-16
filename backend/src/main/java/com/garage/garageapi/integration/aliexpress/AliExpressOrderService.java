@@ -28,22 +28,24 @@ public class AliExpressOrderService {
     private final AliExpressDispatchValidation validation;
     private final AliExpressDispatchStore store;
     private final TransactionTemplate tx;
-    @org.springframework.beans.factory.annotation.Value("${aliexpress.orders.auto-dispatch-enabled:false}")
-    private boolean automaticEnabled;
+    private final AliExpressAutomationPolicy automation;
     public AliExpressOrderService(OrderRepository orders,PaymentRepository payments,OrderFulfillmentRepository fulfillments,
             AliExpressOrderPreparation preparation,AliExpressOrderClient client,AliExpressTokenService tokens,
-            PlatformTransactionManager manager,AliExpressDispatchValidation validation,AdminAliExpressTestRunRepository administrativeRuns,AliExpressDispatchStore store) {
+            PlatformTransactionManager manager,AliExpressDispatchValidation validation,AdminAliExpressTestRunRepository administrativeRuns,AliExpressDispatchStore store,
+            AliExpressAutomationPolicy automation) {
         this.orders=orders;this.payments=payments;this.fulfillments=fulfillments;this.preparation=preparation;
-        this.client=client;this.tokens=tokens;this.validation=validation;this.administrativeRuns=administrativeRuns;this.store=store;
+        this.client=client;this.tokens=tokens;this.validation=validation;this.administrativeRuns=administrativeRuns;this.store=store;this.automation=automation;
         tx=new TransactionTemplate(manager);tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
     public View view(Long id) { return tx.execute(s->viewInside(id)); }
 
     /** Repeated webhooks and recovery scans never retry a submitted or definitively rejected purchase. */
     public void sendAutomatically(Long id) {
+        if(!automation.enabled())return;
         if(!view(id).paymentConfirmed())return;
         boolean due=tx.execute(s->{
             var order=orders.findByIdForLifecycleUpdate(id).orElseThrow();
+            if(automation.blockedReason(order)!=null)return false;
             if(order.isPaymentReviewRequired())return false;
             if(!preparation.hasAliExpress(order))return false;
             var row=store.locked(order);return row.automaticDispatchDue(Instant.now());
@@ -100,6 +102,7 @@ public class AliExpressOrderService {
             if(current.status()==FulfillmentStatus.CREATED)return null;
             if(!current.canSend())throw new ResourceConflictException(current.blockReason());
             var row=store.locked(order);
+            if(automatic && automation.blockedReason(order)!=null)return null;
             if(automatic && !row.automaticDispatchDue(Instant.now()))return null;
             if(!Objects.equals(snapshot.contextDigest(),order.quoteContextDigest()) || !Objects.equals(technical.contextDigest(),order.quoteContextDigest())
                     || !technical.lines().equals(preparation.technicalSnapshot(order,access.buyerHash(),validation.appHash()).lines())
@@ -161,7 +164,9 @@ public class AliExpressOrderService {
                 row==null?List.of():row.getSupplierOrderIds(),row==null?null:row.getLastError(),row==null?null:row.getProcessingStartedAt(),
                 row==null?null:row.getCreatedExternallyAt(),row==null || row.getSupplierSync()==null?null:row.getSupplierSync().view(),
                 row==null?0:row.getAttemptCount(),MAX_ATTEMPTS,row==null?0:row.getDispatchCheckCount(),row==null?null:row.getDispatchNextCheckAt(),
-                order.quoteContextDigest(),quote,automaticEnabled,costs,costs.warnings(order.getTotal()));
+                order.quoteContextDigest(),quote,automation.enabled(),costs,costs.warnings(order.getTotal()),
+                applicable ? automation.blockedReason(order)!=null ? automation.blockedReason(order) : reason : null,
+                automation.ordersCreatedFrom());
     }
     private record Claim(String token,Map<String,Object> payload,int attempt) { }
     private record Preflight(String contextDigest,Long paymentId,String providerPaymentId,java.math.BigDecimal total) { }
@@ -169,5 +174,6 @@ public class AliExpressOrderService {
             String blockReason,String supplierStatus,List<String> supplierOrderIds,String lastError,Instant submittedAt,Instant createdExternallyAt,
             AliExpressSupplierSnapshot.View supplierSync,int attemptCount,int maxAttempts,int validationAttemptCount,Instant nextValidationAt,
             String contextDigest,AliExpressDispatchQuote dispatchQuote,boolean automaticEnabled,
-            AliExpressSupplierCosts supplierCosts,List<String> financialWarnings) { }
+            AliExpressSupplierCosts supplierCosts,List<String> financialWarnings,
+            String automaticBlockReason,Instant automaticOrdersCreatedFrom) { }
 }

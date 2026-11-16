@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AliExpressDispatchConfigurationTests {
-    private final ApplicationContextRunner context=new ApplicationContextRunner().withUserConfiguration(AliExpressDispatchConfiguration.class)
+    private final ApplicationContextRunner context=new ApplicationContextRunner().withUserConfiguration(AliExpressDispatchConfiguration.class,AliExpressAutomationPolicy.class)
             .withBean(OrderFulfillmentRepository.class,()->mock(OrderFulfillmentRepository.class))
             .withBean(AliExpressOrderService.class,()->mock(AliExpressOrderService.class));
     @Test void automationIsOffByDefaultAndOptInCreatesBoundedWorker() {

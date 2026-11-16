@@ -13,12 +13,15 @@ public class AliExpressDispatchWorker {
     private final OrderFulfillmentRepository repository;
     private final AliExpressOrderService service;
     private final TaskExecutor executor;
+    private final AliExpressAutomationPolicy automation;
     @org.springframework.beans.factory.annotation.Autowired(required=false)
     private AliExpressDispatchRecordRepository secondary;
-    public AliExpressDispatchWorker(OrderFulfillmentRepository repository,AliExpressOrderService service,TaskExecutor executor) {
-        this.repository=repository;this.service=service;this.executor=executor;
+    public AliExpressDispatchWorker(OrderFulfillmentRepository repository,AliExpressOrderService service,TaskExecutor executor,
+            AliExpressAutomationPolicy automation) {
+        this.repository=repository;this.service=service;this.executor=executor;this.automation=automation;
     }
     public void enqueue(Long orderId) {
+        if(!automation.enabled())return;
         try {executor.execute(()->{
             try {service.sendAutomatically(orderId);}
             catch(RuntimeException ignored){log.warn("AliExpress dispatch deferred; orderId={}; recovery=scheduled",orderId);}
@@ -26,7 +29,9 @@ public class AliExpressDispatchWorker {
     }
     @Scheduled(fixedDelayString="${aliexpress.orders.dispatch-poll-ms:60000}",initialDelayString="${aliexpress.orders.dispatch-poll-ms:60000}")
     public void recoverPending() {
-        for(Long id:repository.findAutomaticDispatchCandidates(Instant.now(),PageRequest.of(0,20)))enqueue(id);
-        if(secondary!=null)for(Long id:secondary.recoveryCandidates(Instant.now(),PageRequest.of(0,20)))enqueue(id);
+        if(!automation.enabled())return;
+        Instant now=Instant.now(),createdFrom=automation.ordersCreatedFrom();
+        for(Long id:repository.findAutomaticDispatchCandidates(now,createdFrom,PageRequest.of(0,20)))enqueue(id);
+        if(secondary!=null)for(Long id:secondary.recoveryCandidates(now,createdFrom,PageRequest.of(0,20)))enqueue(id);
     }
 }

@@ -25,8 +25,10 @@ export function AliExpressOrderState({ state }: { state: AdminAliExpressOrder })
   </div>;
   if (state.status === 'FAILED') return <p role="alert">{state.lastError || 'O AliExpress recusou a criação do pedido.'}</p>;
   if (state.status === 'PENDING') return <div role="status">
-    <strong>{state.blockReason || state.lastError ? 'Criação automática bloqueada' : 'Aguardando criação automática no AliExpress'}</strong>
-    <p>{state.lastError || state.blockReason || 'O backend encaminhará o pedido após validar o pagamento e os dados do fornecedor.'}</p>
+    <strong>{state.automaticEnabled === false || state.automaticBlockReason || state.blockReason || state.lastError ? 'Criação automática bloqueada' : 'Aguardando criação automática no AliExpress'}</strong>
+    <p>{state.automaticBlockReason || state.lastError || state.blockReason || (state.automaticEnabled === false
+      ? 'Processamento automático desativado na configuração do backend.'
+      : 'O backend encaminhará o pedido após validar o pagamento e os dados do fornecedor.')}</p>
   </div>;
   return null;
 }
@@ -36,7 +38,9 @@ export function AliExpressDispatchDetails({ state }: { state: AdminAliExpressOrd
   const costs = state.supplierCosts;
   const money = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   return <div>
-    {state.automaticEnabled === false && state.status === 'PENDING' && <p>Processamento automático desativado na configuração do backend.</p>}
+    {state.status === 'PENDING' && state.automaticBlockReason && <p>{state.automaticBlockReason}</p>}
+    {state.automaticEnabled === false && state.status === 'PENDING' && !state.automaticBlockReason && <p>Processamento automático desativado na configuração do backend.</p>}
+    {state.automaticOrdersCreatedFrom && state.status === 'PENDING' && <p>Somente pedidos criados a partir de {new Date(state.automaticOrdersCreatedFrom).toLocaleString('pt-BR')} entram na automação. Pedidos anteriores exigem reconciliação e envio manual.</p>}
     <small>Tentativas de criação: {state.attemptCount ?? 0}/{state.maxAttempts ?? 3}. Validações: {state.validationAttemptCount ?? 0}.</small>
     {state.nextValidationAt && <p>Nova validação prevista para {new Date(state.nextValidationAt).toLocaleString('pt-BR')}.</p>}
     {quote && <p>Cotação registrada: produto {money(quote.productTotal)}, frete {money(quote.shippingTotal)}, impostos {money(quote.taxTotal)}, total {money(quote.total)}. Válida até {new Date(quote.validUntil).toLocaleString('pt-BR')}.</p>}

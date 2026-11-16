@@ -35,7 +35,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties={"aliexpress.orders.enabled=true","aliexpress.orders.contract-confirmed=true",
-        "aliexpress.orders.sync-enabled=true","aliexpress.orders.sync-contract-confirmed=true"})
+        "aliexpress.orders.sync-enabled=true","aliexpress.orders.sync-contract-confirmed=true",
+        "aliexpress.orders.auto-dispatch-enabled=true","aliexpress.orders.auto-dispatch-created-from=2000-01-01T00:00:00Z"})
 @AutoConfigureMockMvc
 class AliExpressOrderIntegrationTests {
     @Autowired AliExpressOrderService service;
@@ -61,6 +62,8 @@ class AliExpressOrderIntegrationTests {
     @MockitoBean com.garage.garageapi.payment.gateway.CheckoutProGateway mercadoPago;
     @MockitoBean AliExpressDispatchWorker worker;
     @Autowired AliExpressDispatchValidation validation;
+    @Autowired AliExpressAutomationPolicy automation;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired com.garage.garageapi.payment.service.CheckoutProWebhookUpdater webhook;
     @Autowired AdminAliExpressTestRunRepository adminRuns;
     @Autowired AliExpressDispatchQuoteService quoteService;
@@ -318,16 +321,61 @@ class AliExpressOrderIntegrationTests {
     }
     @Test void recoveryScanFindsCommittedPaidOrderWhenAfterCommitCallbackWasLost() {
         var order=fixture(true,true,"ALIEXPRESS");
-        new AliExpressDispatchWorker(fulfillments,service,Runnable::run).recoverPending();
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
         assertThat(service.view(order.getId()).status()).isEqualTo(FulfillmentStatus.CREATED);
-        new AliExpressDispatchWorker(fulfillments,service,Runnable::run).recoverPending();
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
+        verify(client,times(1)).create(anyMap(),anyString());
+    }
+    @Test void historicalPaidOrderIsExcludedFromRecoveryAndDirectAutomaticEntry() {
+        var order=fixture(true,true,"ALIEXPRESS");
+        makeHistorical(order);
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
+        service.sendAutomatically(order.getId());
+        assertThat(service.view(order.getId()).automaticBlockReason()).contains("Reconcilie");
+        assertThat(service.view(order.getId()).attemptCount()).isZero();
+        verifyNoInteractions(client,tokens,mercadoPago,productClient);
+    }
+    @Test void approvalWebhookForHistoricalOrderDoesNotSendTheOldPurchase() {
+        var order=fixture(false,true,"ALIEXPRESS");
+        makeHistorical(order);
+        doAnswer(inv->{service.sendAutomatically(inv.getArgument(0));return null;}).when(worker).enqueue(anyLong());
+        var result=mercadoPago.findPayment("synthetic-payment");
+        webhook.apply("synthetic-payment",result);webhook.apply("synthetic-payment",result);
+        assertThat(service.view(order.getId()).paymentConfirmed()).isTrue();
+        assertThat(service.view(order.getId()).status()).isEqualTo(FulfillmentStatus.PENDING);
+        assertThat(service.view(order.getId()).attemptCount()).isZero();
+        verifyNoInteractions(client,tokens,productClient);
+    }
+    @Test void historicalMixedOrderCannotEnterTheSecondaryRecoveryStream() {
+        var order=mixedFixture();
+        makeHistorical(order);
+        var recovery=new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation);
+        ReflectionTestUtils.setField(recovery,"secondary",secondary);recovery.recoverPending();
+        service.sendAutomatically(order.getId());
+        assertThat(secondary.findById(order.getId())).isEmpty();
+        assertThat(fulfillments.findByOrderId(order.getId()).orElseThrow().getProvider()).isEqualTo("MULTIPLE");
+        verifyNoInteractions(client,tokens,mercadoPago,productClient);
+    }
+    @Test void committedPreflightFailureIsRecoveredByANewWorkerWithoutDuplicateCreation() {
+        var order=fixture(true,true,"ALIEXPRESS");var approved=mercadoPago.findPayment("synthetic-payment");
+        when(mercadoPago.findPayment("synthetic-payment"))
+                .thenThrow(new com.garage.garageapi.payment.gateway.PaymentProviderException("private-provider-body"))
+                .thenReturn(approved);
+        service.sendAutomatically(order.getId());
+        assertThat(service.view(order.getId()).attemptCount()).isZero();
+        assertThat(service.view(order.getId()).lastError()).doesNotContain("private-provider-body");
+        var row=fulfillments.findByOrderId(order.getId()).orElseThrow();
+        ReflectionTestUtils.setField(row,"dispatchNextCheckAt",Instant.now().minusSeconds(1));fulfillments.saveAndFlush(row);
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
+        assertThat(service.view(order.getId()).status()).isEqualTo(FulfillmentStatus.CREATED);
         verify(client,times(1)).create(anyMap(),anyString());
     }
     @Test void automatedDispatchNeverRetriesRejectedOrUnknownPurchase() {
         var order=fixture(true,true,"ALIEXPRESS");
         when(client.create(anyMap(),anyString())).thenReturn(new AliExpressOrderClient.Result(List.of(),true));
         service.sendAutomatically(order.getId());service.sendAutomatically(order.getId());
-        new AliExpressDispatchWorker(fulfillments,service,Runnable::run).recoverPending();
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
         assertThat(service.view(order.getId()).status()).isEqualTo(FulfillmentStatus.FAILED);
         verify(client,times(1)).create(anyMap(),anyString());
     }
@@ -435,22 +483,28 @@ class AliExpressOrderIntegrationTests {
     }
     @Test void mixedOrderTimeoutSurvivesReloadAndRecoveryNeverRecreatesIt() {
         var order=mixedFixture();when(client.create(anyMap(),anyString())).thenReturn(AliExpressOrderClient.Result.unknown());
-        var worker=new AliExpressDispatchWorker(fulfillments,service,Runnable::run);ReflectionTestUtils.setField(worker,"secondary",secondary);
+        var worker=new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation);ReflectionTestUtils.setField(worker,"secondary",secondary);
         worker.recoverPending();worker.recoverPending();service.sendAutomatically(order.getId());
         assertThat(service.view(order.getId()).status()).isEqualTo(FulfillmentStatus.VERIFICATION_REQUIRED);
         assertThat(secondary.findById(order.getId()).orElseThrow().restore().getAttemptCount()).isEqualTo(1);
         assertThat(fulfillments.findByOrderId(order.getId()).orElseThrow().getStatus()).isEqualTo(FulfillmentStatus.PENDING);
         verify(client,times(1)).create(anyMap(),anyString());
     }
-    @Test void lossAndUnquotedShippingAreAlertsOnly() {
+    @ParameterizedTest @ValueSource(booleans={false,true})
+    void lossAndUnquotedShippingAreAlertsOnly(boolean automatic) {
         var order=fixture(true,true,"ALIEXPRESS");
         ReflectionTestUtils.setField(order,"shippingLegs",null);orders.saveAndFlush(order);
         when(productClient.get(anyString(),anyString(),anyString(),anyString(),anyString())).thenReturn(
             tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"ae_item_base_info_dto\":{\"product_status_type\":\"onSelling\"},\"ae_item_sku_info_dtos\":[{\"sku_id\":\"12000053109276547\",\"sku_attr\":\"14:771#Azul\",\"sku_available_stock\":10,\"offer_sale_price\":\"999.00\",\"currency_code\":\"BRL\"}]}"));
-        var view=service.send(order.getId());assertThat(view.status()).isEqualTo(FulfillmentStatus.CREATED);
+        if(automatic)service.sendAutomatically(order.getId());else service.send(order.getId());
+        var view=service.view(order.getId());assertThat(view.status()).isEqualTo(FulfillmentStatus.CREATED);
         assertThat(view.supplierCosts().productTotal()).isEqualByComparingTo("999.00");assertThat(view.supplierCosts().total()).isNull();
         assertThat(view.financialWarnings()).anyMatch(w->w.contains("superior"));
         verify(client).create(anyMap(),anyString());
+    }
+    private void makeHistorical(Order order) {
+        // created_at is immutable through JPA; modify only this isolated synthetic test fixture.
+        jdbc.update("update orders set created_at=? where id=?",java.sql.Timestamp.from(Instant.parse("1999-12-31T23:59:59Z")),order.getId());
     }
     private Order mixedFixture() {
         var order=fixture(true,true,"ALIEXPRESS");
