@@ -41,3 +41,22 @@ export async function deleteAddress(id: number): Promise<void> {
 export async function setPrimaryAddress(id: number): Promise<Address> {
   return parse<Address>(await fetch(`${endpoint}/${encodeURIComponent(id)}/primary`, { method: 'PATCH', headers: headers() }));
 }
+
+export type RecipientProfile = { saved:boolean; recipientName:string; recipient:import('@/lib/checkout/recipient').AliExpressRecipientInput|null };
+async function recipientRequest(id:number,method:string,body?:unknown,signal?:AbortSignal):Promise<RecipientProfile|null> {
+  let response:Response;
+  const requestHeaders=headers(body!==undefined);
+  try { response=await fetch(`${endpoint}/${encodeURIComponent(id)}/recipient`,{method,headers:requestHeaders,cache:'no-store',signal,...(body!==undefined?{body:JSON.stringify(body)}:{})}); }
+  catch { throw new AddressApiError('Não foi possível acessar os dados salvos. Tente novamente.',0); }
+  if(!response.ok)throw new AddressApiError('Não foi possível acessar os dados salvos. Confira sua sessão e tente novamente.',response.status);
+  if(response.status===204)return null;
+  let data:RecipientProfile;
+  try{data=await response.json() as RecipientProfile;}catch{throw new AddressApiError('Não foi possível carregar os dados salvos.',502);}
+  if(!data||typeof data!=='object'||typeof data.saved!=='boolean'||typeof data.recipientName!=='string'
+    || data.saved && (!data.recipient || ['cpf','birthDate','phone'].some(key=>typeof data.recipient?.[key as keyof typeof data.recipient]!=='string')))
+    throw new AddressApiError('Não foi possível carregar os dados salvos.',502);
+  return data;
+}
+export async function getRecipientProfile(id:number,signal?:AbortSignal) { return recipientRequest(id,'GET',undefined,signal); }
+export async function saveRecipientProfile(id:number,recipientName:string,recipient:import('@/lib/checkout/recipient').AliExpressRecipientInput) { await recipientRequest(id,'PUT',{recipientName,recipient}); }
+export async function deleteRecipientProfile(id:number) { await recipientRequest(id,'DELETE'); }

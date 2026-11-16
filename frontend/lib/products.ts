@@ -31,6 +31,9 @@ export type ProductVariant = {
   sku?: string;
   attributes: Record<string, string>;
   imageUrl?: string;
+  price?: number;
+  stockQuantity?: number | null;
+  availableForSale?: boolean;
 };
 
 export type ProductMedia = {
@@ -59,7 +62,8 @@ export type BackendProductResponse = {
   requiresVariantSelection?: boolean;
   requiresAliExpressRecipientData?: boolean;
   variants?: Array<{ id: number; name: string | null; sku: string | null;
-    attributes: Record<string, string> | null; imageUrl: string | null }>;
+    attributes: Record<string, string> | null; imageUrl: string | null;
+    price?: number; stockQuantity?: number | null; availableForSale?: boolean }>;
   media?: Array<{ id: number; type: 'IMAGE' | 'VIDEO'; url: string;
     position: number; altText: string | null }>;
   catalog?: CatalogMetadata;
@@ -180,7 +184,10 @@ function normalizeBackendProduct(payload: BackendProduct, fallback?: Product): P
     return [{ id: variantId, name: parseText(variant.name) || parseText(variant.sku) || `Opção ${variantId}`,
       sku: parseText(variant.sku) || undefined,
       attributes: variant.attributes && typeof variant.attributes === 'object' ? variant.attributes : {},
-      imageUrl: parseText(variant.imageUrl) || undefined }];
+      imageUrl: parseText(variant.imageUrl) || undefined,
+      price: typeof variant.price === 'number' ? variant.price : price,
+      stockQuantity: typeof variant.stockQuantity === 'number' ? variant.stockQuantity : null,
+      availableForSale: typeof variant.availableForSale === 'boolean' ? variant.availableForSale : availableForSale }];
   }) : [];
   const requiresVariantSelection = typeof payload.requiresVariantSelection === 'boolean'
     ? payload.requiresVariantSelection : variants.length > 0;

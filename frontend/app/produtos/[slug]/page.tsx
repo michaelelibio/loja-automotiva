@@ -34,7 +34,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           {product.catalog?.subcategory && <><span>/</span><Link href={`/categorias/${product.catalog.subcategory.path}`}>{product.catalog.subcategory.name}</Link></>}
           <span>/</span><strong>{product.name}</strong>
         </nav>
-        <ProductDetailClient product={product} />
+        <ProductDetailClient key={product.id} product={product} />
         {product.catalog && <dl className="catalog-product-metadata">
           {product.catalog.brand && <div><dt>Marca</dt><dd>{product.catalog.brand}</dd></div>}
           {product.catalog.surfaces.length > 0 && <div><dt>Superfícies</dt><dd>{product.catalog.surfaces.join(', ')}</dd></div>}

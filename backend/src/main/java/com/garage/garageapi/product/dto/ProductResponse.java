@@ -33,15 +33,14 @@ public record ProductResponse(
     public static ProductResponse from(Product product) {
         List<ProductVariantResponse> activeVariants = product.getVariants().stream()
                 .filter(variant -> Boolean.TRUE.equals(variant.getActive()))
-                .filter(variant -> !com.garage.garageapi.product.entity.AliExpressPurchasability.applies(product)
-                        || com.garage.garageapi.product.entity.AliExpressPurchasability.canPurchase(product, variant, 1))
                 .map(ProductVariantResponse::from).toList();
         return new ProductResponse(
                 product.getId(), product.getName(), product.getSlug(), product.getDescription(),
                 product.getLongDescription(), product.getPrice(), product.getOldPrice(), product.getCategory(),
                 product.getStockQuantity(), product.getImageUrl(), product.getActive(), product.getProductType(),
                 product.getFulfillmentType(), product.isAvailableForSale()
-                    && (!com.garage.garageapi.product.entity.AliExpressPurchasability.applies(product) || !activeVariants.isEmpty()),
+                    && (!com.garage.garageapi.product.entity.AliExpressPurchasability.applies(product)
+                        || activeVariants.stream().anyMatch(ProductVariantResponse::availableForSale)),
                 !product.getVariants().isEmpty(), activeVariants,
                 product.getMedia().stream().filter(media -> Boolean.TRUE.equals(media.getActive()))
                         .sorted(Comparator.comparing(ProductMedia::getPosition)

@@ -16,6 +16,12 @@ function load(relative, mocks = {}) {
 const helper = load('lib/checkout/recipient.ts');
 const recipient = { cpf: '529.982.247-25', birthDate: '29/02/2000', phone: '(47) 99999-9999' };
 const address = { id: 7, recipientName: 'Cliente Teste', zipCode: '89229040', street: 'Rua Original', number: '10', neighborhood: 'Centro', city: 'Joinville', state: 'SC', complement: null };
+
+test('switching authenticated accounts remounts checkout and cannot inherit personal form state',()=>{
+  let current={id:7};
+  const {CheckoutSession}=load('app/checkout/CheckoutForm.tsx',{'@/context/AuthContext':{useAuth:()=>({user:current})}});
+  assert.equal(CheckoutSession().key,'7');current={id:8};assert.equal(CheckoutSession().key,'8');current=null;assert.equal(CheckoutSession().key,'guest');
+});
 test('masks CPF, Brazilian birth date and phone without changing the represented values', () => {
   assert.equal(helper.maskCpf('52998224725'), recipient.cpf);
   assert.equal(helper.maskBirthDate('29022000'), recipient.birthDate);
@@ -57,24 +63,26 @@ function find(tree, predicate) {
   for (const child of React.Children.toArray(tree.props?.children)) { const found = find(child, predicate); if (found) return found; }
   return null;
 }
-function checkout(ali, personal = recipient, freightError = null) {
+function checkout(ali, personal = recipient, freightError = null, options = {}) {
   const states = [[address], 7, false, null, freightError ? [] : [{ code: 'CATALOG_FREE', name: 'Entrega gr?tis', price: 0 }], 'CATALOG_FREE', false, freightError, 0, false, null, personal, {}, JSON.stringify({ addressId: 7, address, zipCode: address.zipCode, items: [{ productId: 1, variantId: 2, quantity: 1 }] })];
-  let index = 0, payload, calls = 0;
+  let index = 0, refIndex = 0, payload, calls = 0, saved=0; const refs=[];
   const { CheckoutForm } = load('app/checkout/CheckoutForm.tsx', {
-    react: { ...React, useMemo: (fn) => fn(), useRef: (initial) => ({current:initial}), useEffect() {}, useState(initial) { const current = index++; if (!(current in states)) states[current] = initial; return [states[current], (value) => { states[current] = value; }]; } },
+    react: { ...React, useMemo: (fn) => fn(), useRef: (initial) => refs[refIndex++] ?? (refs[refIndex-1]={current:initial}), useEffect() {}, useState(initial) { const current = index++; if (!(current in states)) states[current] = initial; return [states[current], (value) => { states[current] = typeof value==='function'?value(states[current]):value; }]; } },
     'next/link': (props) => React.createElement('a', props), 'next/navigation': { useRouter: () => ({ replace() {}, push() {} }) },
     '@/context/AuthContext': { useAuth: () => ({ isAuthenticated: true, isLoading: false }) },
     '@/context/CartContext': { useCart: () => ({ items: [{ productId: '1', variantId: '2', quantity: 1 }], isHydrated: true, clearCart() {}, reconcileItems() {} }) },
     '@/lib/useProducts': { useProducts: () => ({ products: [{ id: '1', name: 'Produto', price: 50, variants: [{ id: '2', name: 'Azul' }], image: '', requiresAliExpressRecipientData: ali }], loading: false, error: null }) },
-    '@/data/products': { products: [] }, '@/lib/api/addresses': {}, '@/lib/api/shipping': {},
-    '@/lib/api/orders': { async createOrder(value) { calls++; payload = value; return { id: 17 }; } },
+    '@/data/products': { products: [] }, '@/lib/api/addresses': {async saveRecipientProfile(){saved++;}}, '@/lib/api/shipping': {},
+    '@/lib/api/orders': { async createOrder(value) { calls++; payload = value; if(options.wait)await options.wait; return { id: 17 }; } },
   });
-  return { tree: CheckoutForm(), calls: () => calls, payload: () => payload };
+  return { get tree(){index=0;refIndex=0;return CheckoutForm();}, calls: () => calls, payload: () => payload, saved:()=>saved };
 }
 test('AliExpress checkout includes the three personal fields only after validation', async () => {
   const h = checkout(true);
   assert.ok(find(h.tree, (node) => node.type?.name === 'AliExpressRecipientFields'));
   await find(h.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.equal(h.calls(),0);
+  await find(h.tree,node=>node.type==='button'&&node.props.children==='Confirmar pedido').props.onClick();
   assert.equal(h.calls(), 1); assert.deepEqual(h.payload().recipient, recipient);
   assert.equal(h.payload().shippingCode, 'CATALOG_FREE'); assert.equal(h.payload().expectedTotal, 50); assert.equal(h.payload().expectedAddress.street, address.street); assert.equal(h.payload().addressId, 7); assert.ok(!('shippingAddress' in h.payload()));
   const invalid = checkout(true, { ...recipient, cpf: '00000000000' });
@@ -85,7 +93,23 @@ test('other suppliers keep the existing checkout and never send unnecessary pers
   const h = checkout(false);
   assert.equal(find(h.tree, (node) => node.type?.name === 'AliExpressRecipientFields'), null);
   await find(h.tree, (node) => node.type === 'form').props.onSubmit({ preventDefault() {} });
+  assert.equal(h.calls(),0);
+  await find(h.tree,node=>node.type==='button'&&node.props.children==='Confirmar pedido').props.onClick();
   assert.equal(h.calls(), 1); assert.ok(!('recipient' in h.payload()));
+});
+
+test('review is explicit, cancellation does not create an order and repeated confirmation is single flight', async()=>{
+  let release;const wait=new Promise(resolve=>{release=resolve;});const h=checkout(true,recipient,null,{wait});
+  find(h.tree,node=>node.type==='form').props.onSubmit({preventDefault(){}});
+  assert.equal(h.calls(),0);
+  const cancel=find(h.tree,node=>node.type==='button'&&node.props.children==='Voltar e editar');cancel.props.onClick();
+  assert.equal(h.calls(),0);
+  assert.equal(find(h.tree,node=>node.type==='button'&&node.props.children==='Confirmar pedido'),null);
+  find(h.tree,node=>node.type==='form').props.onSubmit({preventDefault(){}});
+  const confirm=find(h.tree,node=>node.type==='button'&&node.props.children==='Confirmar pedido');
+  const first=confirm.props.onClick();const repeated=confirm.props.onClick();
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(h.calls(),1);assert.equal(h.saved(),1);
+  release();await Promise.all([first,repeated]);assert.equal(h.calls(),1);
 });
 
 test('unconfirmed delivery blocks checkout without creating an assisted request', async () => {

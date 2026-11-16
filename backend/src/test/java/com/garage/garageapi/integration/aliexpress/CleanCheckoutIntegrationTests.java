@@ -104,7 +104,7 @@ class CleanCheckoutIntegrationTests {
     @Test void missingLegacySelectionIsUnavailableInCatalogEligibilityAndCheckout() throws Exception {
         propertyless(null);
         mvc.perform(get("/api/products/"+product.getId())).andExpect(status().isOk())
-                .andExpect(jsonPath("$.availableForSale").value(false)).andExpect(jsonPath("$.variants.length()").value(0));
+                .andExpect(jsonPath("$.availableForSale").value(false)).andExpect(jsonPath("$.variants[0].availableForSale").value(false));
         assertEligibilityRejected(List.of(Map.of("productId",product.getId(),"variantId",variant.getId(),"quantity",1)));
         assertThatThrownBy(() -> checkout.create(customer(),request(UUID.randomUUID().toString()))).hasMessageContaining("indisponível");
         assertThat(orders.count()).isZero(); verifyNoInteractions(client,tokens,mercadoPago,freight);

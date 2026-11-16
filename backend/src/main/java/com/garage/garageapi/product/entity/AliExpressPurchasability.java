@@ -15,7 +15,15 @@ public final class AliExpressPurchasability {
         // null means unverified/missing. Empty is deliberately persisted only for
         // a provider-confirmed single SKU without selection attributes.
         String key = variant.getRawVariantKey();
-        return key != null && (!key.isBlank() || key.isEmpty() && variant.getAttributes().isEmpty());
+        if(key==null)return false;
+        if(key.isEmpty())return variant.getAttributes().isEmpty();
+        if(key.isBlank())return false;
+        for(var entry:variant.getAttributes().entrySet()) {
+            if(!entry.getKey().matches("[0-9]+:valueId"))continue;
+            String pair=entry.getKey().substring(0,entry.getKey().indexOf(':'))+":"+entry.getValue();
+            if(java.util.Arrays.stream(key.split(";")).noneMatch(value->value.equals(pair)||value.startsWith(pair+"#")))return false;
+        }
+        return true;
     }
 
     public static boolean canPurchase(Product product, ProductVariant variant, int quantity) {

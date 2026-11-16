@@ -194,7 +194,24 @@ h2 { font-size: clamp(36px, 4.5vw, 61px); letter-spacing: -.055em; line-height: 
 .summary-total { border-top: 1px solid var(--line); padding-top: 16px; }
 .summary-total strong { font-family: var(--font-space-grotesk); font-size: 24px; }
 .summary-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
-.checkout-button { align-items: center; background: var(--ink); border: 0; border-radius: 12px; color: white; cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 700; justify-content: center; height: 54px; padding: 0 22px; text-transform: uppercase; }
+.checkout-button { align-items: center; background: var(--brand-orange); border: 0; border-radius: 12px; color: var(--ink); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 700; justify-content: center; height: 54px; padding: 0 22px; text-transform: uppercase; }
+.purchase-primary { align-items:center; background:var(--brand-orange); border:0; border-radius:8px; color:var(--ink); cursor:pointer; display:inline-flex; font-size:13px; font-weight:700; gap:12px; justify-content:center; min-height:48px; padding:12px 20px; text-align:center; text-decoration:none; }
+.purchase-primary:hover,.checkout-button:hover:not(:disabled),.add-cart-button:hover:not(:disabled) { background:var(--brand-orange-hover); }
+.purchase-primary:focus-visible,.checkout-button:focus-visible,.add-cart-button:focus-visible { outline:3px solid var(--ink); outline-offset:3px; }
+.purchase-primary:disabled { cursor:wait; opacity:.55; }
+.purchase-dialog { background:white; border:1px solid var(--line); border-radius:16px; color:var(--ink); inset:0; margin:auto; max-height:calc(100dvh - 32px); max-width:560px; overflow:auto; padding:clamp(22px,5vw,36px); width:calc(100% - 32px); }
+.purchase-dialog::backdrop { background:rgb(0 0 0 / .6); }
+.purchase-dialog h2 { font-size:clamp(22px,4vw,28px); line-height:1.2; margin:0 25px 20px 0; }
+.purchase-dialog p { font-size:14px; line-height:1.65; margin:12px 0; overflow-wrap:anywhere; }
+.purchase-dialog-close { background:transparent; border:0; cursor:pointer; font-size:28px; min-height:44px; min-width:44px; position:absolute; right:8px; top:8px; }
+.purchase-dialog-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:24px; }
+.purchase-dialog-actions > * { flex:1; }
+.purchase-review-items { display:grid; gap:14px; list-style:none; margin:20px 0; padding:0; }
+.purchase-review-items li { border-bottom:1px solid var(--line); display:grid; font-size:14px; gap:5px; overflow-wrap:anywhere; padding-bottom:14px; }
+.recipient-remember { align-items:flex-start; display:flex; font-size:14px; gap:10px; margin:18px 0 8px; }
+.recipient-remember input { accent-color:var(--brand-orange); height:20px; width:20px; }
+.recipient-save-note,.variant-single { color:var(--muted); font-size:13px; line-height:1.6; }
+@media(max-width:520px) { .purchase-dialog-actions { flex-direction:column; } .purchase-dialog-actions > * { width:100%; } }
 .checkout-success { color: #2d6a3b; font-size: 13px; line-height: 1.6; margin: 0; }
 @media (max-width: 900px) {
   .checkout-columns { grid-template-columns: 1fr; }
@@ -1717,3 +1734,6 @@ body { overflow-x: hidden; }
 @media(max-width: 1000px) { .catalog-results .products-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .catalog-layout { gap: 20px; grid-template-columns: 210px minmax(0,1fr); } }
 @media(max-width: 700px) { .catalog-layout { display: block; padding: 15px 5% 50px; } .catalog-filter-panel { margin-bottom: 25px; } .catalog-results .products-grid { gap: 14px; } .category-navigation-menu { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 18px; gap: 20px; } .category-navigation summary { font-size: 12px; } .catalog-product-metadata { grid-template-columns: 1fr 1fr; } .catalog-category-list article { flex-wrap: wrap; gap: 10px; } }
 @media(max-width: 700px) { .catalog-filter-title { display: none; } .catalog-filter-toggle { display: flex; justify-content: space-between; width: 100%; font-weight: 700; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; } .catalog-filter-panel #catalog-filter-content { display: none; } .catalog-filter-panel.expanded #catalog-filter-content { display: block; padding-top: 20px; } }
+
+/* Purchase actions keep readable contrast on the inGarage orange. */
+.purchase-block .add-cart-button,.cart-summary .add-cart-button,.checkout-summary .checkout-button,.empty-cart .button-light { color:var(--ink); }

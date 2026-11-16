@@ -16,6 +16,8 @@ import java.util.Locale;
 
 @Service
 public class AddressService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.garage.garageapi.address.recipient.RecipientProfileRepository recipientProfiles;
     private final AddressRepository addressRepository;
     private final UserService userService;
 
@@ -49,6 +51,7 @@ public class AddressService {
     public AddressResponse update(Jwt jwt, Long id, AddressRequest request) {
         User user = userService.findCurrentUser(jwt);
         Address address = ownedAddress(id, user.getId());
+        String previousRecipientBinding=com.garage.garageapi.address.recipient.RecipientProfileService.binding(address);
         if (Boolean.TRUE.equals(request.isPrimary())) {
             clearPrimary(user.getId());
             address.setPrimary(true);
@@ -58,6 +61,8 @@ public class AddressService {
                 request.number().trim(), normalizeOptional(request.complement()),
                 normalizeRequired(request.neighborhood()), normalizeRequired(request.city()),
                 normalizeState(request.state()));
+        if(!previousRecipientBinding.equals(com.garage.garageapi.address.recipient.RecipientProfileService.binding(address)))
+            recipientProfiles.deleteById(id);
         return AddressResponse.from(addressRepository.saveAndFlush(address));
     }
 
@@ -84,7 +89,7 @@ public class AddressService {
     }
 
     private Address ownedAddress(Long id, Long userId) {
-        return addressRepository.findByIdAndUserId(id, userId)
+        return addressRepository.findOwnedForUpdate(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Endereço não encontrado: " + id));
     }
 

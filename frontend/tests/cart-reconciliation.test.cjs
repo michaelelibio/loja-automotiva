@@ -3,10 +3,13 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
-const mod = { exports: {} };
-new Function('exports', 'module', ts.transpileModule(fs.readFileSync(require('node:path').join(__dirname,'../lib/cart-reconciliation.ts'),'utf8'),
-  { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(mod.exports, mod);
-const { reconcileCartItems } = mod.exports;
+function load(name) {
+  const mod={exports:{}};
+  new Function('exports','module','require',ts.transpileModule(fs.readFileSync(require('node:path').join(__dirname,'../lib/'+name+'.ts'),'utf8'),
+    {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(mod.exports,mod,id=>id==='@/lib/product-options'?load('product-options'):require(id));
+  return mod.exports;
+}
+const { reconcileCartItems } = load('cart-reconciliation');
 const product = { id:'15', availableForSale:true, requiresVariantSelection:true, variants:[{id:'35'}] };
 test('keeps the exact imported variant and quantity without replacing or changing the SKU', () => {
   const item={productId:'15',variantId:'35',quantity:2};
