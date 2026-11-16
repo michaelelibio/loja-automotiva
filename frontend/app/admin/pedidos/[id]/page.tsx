@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { AliExpressRecipientEditor } from '@/components/admin/AliExpressRecipientEditor';
+import { AliExpressManualOrderData } from '@/components/admin/AliExpressManualOrderData';
 import { AliExpressOrderAction } from '@/components/admin/AliExpressOrderAction';
 import { AliExpressTestActions } from '@/components/admin/AliExpressTestActions';
 import { AdminOrderApiError, getAdminOrder, getAdminOrderFulfillment, retryAdminOrderFulfillment, updateAdminOrderStatus } from '@/lib/api/admin/orders';
@@ -64,6 +65,7 @@ export default function AdminOrderDetailPage() {
         getAdminOrder(id).then(setOrder).catch(() => setFeedback({ type: 'error', message: 'Atualize o pedido para conferir os dados salvos.' }));
         getAdminOrderFulfillment(id).then(setFulfillment).catch(() => {});
       }} />}
+      {order.items.some(item => item.supplier?.toUpperCase() === 'ALIEXPRESS') && <AliExpressManualOrderData key={`${order.id}:${recipientRevision}`} orderId={order.id} />}
       <AliExpressTestActions key={order.id} orderId={order.id} />
       {(fulfillment?.provider === 'ALIEXPRESS' || order.items.some(item => item.supplier?.toUpperCase() === 'ALIEXPRESS')) && <section className="admin-card"><h2>Pedidos AliExpress</h2><AliExpressOrderAction key={`${order.id}:${recipientRevision}`} orderId={order.id} onUpdated={async () => {
         const [updated, delivery] = await Promise.all([getAdminOrder(id), getAdminOrderFulfillment(id)]); setOrder(updated); setFulfillment(delivery);

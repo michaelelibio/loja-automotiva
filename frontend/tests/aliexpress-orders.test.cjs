@@ -19,6 +19,50 @@ afterEach(() => { global.fetch = originalFetch; });
 const mocks = { 'next/navigation': { useRouter: () => ({ replace() {} }) }, '@/context/AuthContext': { useAuth: () => ({ logout() {} }) } };
 const state = { orderId: 123, applicable: true, paymentConfirmed: true, canSend: true, status: 'PENDING', blockReason: null,
   supplierStatus: null, supplierOrderIds: [], lastError: null, submittedAt: null, createdExternallyAt: null };
+
+test('manual data is an authenticated no-store read and never exposes supplier error bodies', async () => {
+  const api = load('lib/api/admin/orders.ts', { '@/lib/auth/tokenStorage': { getToken: () => 'synthetic-admin' } });
+  const calls = [];
+  global.fetch = async (url, init) => { calls.push({url, init}); return Response.json({orderId:27, items:[], supplierOrderIds:[], complete:true, pendingFields:[]}); };
+  await api.getAdminAliExpressManualData(27);
+  assert.ok(calls[0].url.endsWith('/27/aliexpress/recipient/manual-data'));
+  assert.equal(calls[0].init.method,'GET'); assert.equal(calls[0].init.cache,'no-store');
+  assert.equal(calls[0].init.headers.Authorization,'Bearer synthetic-admin'); assert.equal(calls[0].init.body,undefined);
+  global.fetch = async () => new Response('52998224725 01/01/1990 private-message', {status:403});
+  await assert.rejects(api.getAdminAliExpressManualData(27), e => e.status===403 && !/52998224725|1990|private-message/.test(e.message));
+  global.fetch = async () => Response.json({orderId:28, items:[], supplierOrderIds:[], complete:true, pendingFields:[]});
+  await assert.rejects(api.getAdminAliExpressManualData(27));
+});
+
+function manualDataHarness() {
+  const states=[],refs=[],effects=[];let cursor=0,refCursor=0,first=true,calls=0,resolve;
+  const {ManualDataPanel}=load('components/admin/AliExpressManualOrderData.tsx',{
+    '@/context/AuthContext':{useAuth:()=>({logout(){}})},
+    '@/lib/api/admin/orders':{AdminOrderApiError:class extends Error{},getAdminAliExpressManualData(){calls++;return new Promise(r=>{resolve=r;});}},
+    react:{...React,useState(value){const i=cursor++;if(!(i in states))states[i]=value;return[states[i],v=>{states[i]=v;}];},
+      useRef(value){const i=refCursor++;return refs[i]??={current:value};},useCallback:fn=>fn,useEffect(effect){if(first)effects.push(effect);}}
+  });
+  const render=()=>{cursor=0;refCursor=0;const tree=ManualDataPanel({orderId:27});first=false;return tree;};
+  return{render,effects,get calls(){return calls;},resolve:()=>resolve({orderId:27,recipientName:'Cliente Teste',cpf:'52998224725',birthDate:'01/01/1990',phone:'47999999999',country:'BR',phoneCountry:'+55',items:[],supplierOrderIds:[],complete:true,pendingFields:[]})};
+}
+test('manual data stays hidden until explicit reveal, allows one read and clears when hidden',async()=>{
+  const h=manualDataHarness();let tree=h.render();
+  assert.equal(h.calls,0); assert.ok(!renderToStaticMarkup(tree).includes('52998224725'));
+  find(tree,n=>n.type==='button').props.onClick();find(tree,n=>n.type==='button').props.onClick();assert.equal(h.calls,1);
+  h.resolve();await new Promise(r=>setImmediate(r));tree=h.render();
+  assert.ok(renderToStaticMarkup(tree).includes('52998224725'));assert.ok(renderToStaticMarkup(tree).includes('01/01/1990'));
+  find(tree,n=>n.type==='button').props.onClick();assert.ok(!renderToStaticMarkup(h.render()).includes('52998224725'));
+});
+test('leaving the tab invalidates pending protected reads so late responses cannot reveal personal data',async()=>{
+  const oldWindow=global.window,oldDocument=global.document;const events={};
+  try{
+    global.window={addEventListener:(name,fn)=>{events[name]=fn;},removeEventListener(){}};
+    global.document={addEventListener(){},removeEventListener(){}};
+    const h=manualDataHarness();const tree=h.render();const cleanup=h.effects[0]();
+    find(tree,n=>n.type==='button').props.onClick();events.blur();h.resolve();await new Promise(r=>setImmediate(r));
+    assert.ok(!renderToStaticMarkup(h.render()).includes('52998224725'));cleanup();
+  }finally{global.window=oldWindow;global.document=oldDocument;}
+});
 test('manual API calls use ADMIN token and never forward client payment, address or personal data', async () => {
   const api = load('lib/api/admin/orders.ts', { '@/lib/auth/tokenStorage': { getToken: () => 'test-admin-token' } });
   const calls = [];

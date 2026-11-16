@@ -26,6 +26,14 @@ export type AdminAliExpressRecipient = {
   pendingFields: string[]; canEdit: boolean; canReconcile: boolean; manualHold: boolean; manualRetryReady: boolean;
   attemptCount: number; lastAttemptAt: string | null; contextDigest: string; recipientRevision: number | null; correctedAt: string | null;
 };
+export type AdminAliExpressManualData = {
+  orderId: number; recipientName: string; cpf: string | null; birthDate: string | null; phone: string | null;
+  phoneCountry: string; country: string; zipCode: string; street: string; number: string; complement: string | null;
+  neighborhood: string; city: string; state: string; complete: boolean; pendingFields: string[];
+  supplierOrderIds: string[];
+  items: Array<{ productName: string; variantName: string | null; supplierProductId: string | null;
+    supplierVariantId: string | null; supplierSku: string | null; quantity: number }>;
+};
 
 export type SupplierOrderPart = { orderId: string; state: string; orderStatus: string | null;
   logisticsStatus: string | null; verified: boolean; checkedAt: string; failureCode: string | null };

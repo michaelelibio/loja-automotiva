@@ -40,7 +40,13 @@ export function CartView() {
           </article>
         ))}
       </div>
-      <aside className="cart-summary"><div><span>Subtotal geral</span><strong>{currency.format(total)}</strong></div><Link className="add-cart-button" href="/checkout">Finalizar compra <span>↗</span></Link><Link className="purchase-primary" href="/produtos">Continuar comprando <span>↗</span></Link></aside>
+      <aside className="cart-summary">
+        <div><span>Subtotal geral</span><strong>{currency.format(total)}</strong></div>
+        <nav className="cart-summary-actions" aria-label="Próximos passos da compra">
+          <Link className="cart-checkout-action" href="/checkout">Finalizar compra <span aria-hidden="true">↗</span></Link>
+          <Link className="cart-continue-action" href="/produtos">Continuar comprando <span aria-hidden="true">↗</span></Link>
+        </nav>
+      </aside>
     </section>
   );
 }

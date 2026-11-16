@@ -150,6 +150,22 @@ h2 { font-size: clamp(36px, 4.5vw, 61px); letter-spacing: -.055em; line-height: 
 .cart-summary > div strong { font-family: var(--font-space-grotesk); font-size: 25px; }
 .cart-summary .add-cart-button { align-items: center; background: var(--signal); border: 0; color: var(--ink); cursor: pointer; display: flex; font-size: 12px; font-weight: 700; gap: 25px; height: 52px; justify-content: space-between; padding: 0 18px; width: 100%; }
 .cart-summary .text-link { justify-self: start; margin-top: 25px; }
+.cart-summary-actions { display: flex; flex-direction: column; gap: 12px; }
+.cart-summary-actions > a { align-items: center; border: 1px solid var(--brand-orange); border-radius: 8px; display: flex; font-size: 12px; font-weight: 700; gap: 12px; justify-content: space-between; min-height: 52px; padding: 14px 18px; text-decoration: none; width: 100%; }
+.cart-summary-actions .cart-checkout-action { background: var(--brand-orange); color: var(--brand-white); }
+.cart-summary-actions .cart-continue-action { background: transparent; color: var(--ink); }
+.cart-summary-actions .cart-checkout-action:hover { background: var(--brand-orange-hover); border-color: var(--brand-orange-hover); }
+.cart-summary-actions .cart-continue-action:hover { background: #fff4eb; }
+.cart-summary-actions > a:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.admin-manual-fields { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.admin-manual-fields dt { color: var(--muted); font-size: 12px; }
+.admin-manual-fields dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.admin-manual-order-data p, .admin-manual-order-data a { overflow-wrap: anywhere; }
+.admin-manual-order-data p { line-height: 1.5; margin: 12px 0; }
+.admin-manual-order-data > button { background: var(--brand-orange); border: 1px solid var(--brand-orange); border-radius: 6px; color: var(--brand-white); cursor: pointer; font-weight: 700; min-height: 44px; padding: 10px 16px; }
+.admin-manual-order-data > button:disabled { cursor: wait; opacity: .6; }
+.admin-manual-order-data > button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.admin-manual-order-data article { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
 .empty-cart { display: block; min-height: 420px; text-align: center; }
 .empty-cart .eyebrow { margin-top: 20px; }
 .empty-cart h2 { font-size: clamp(38px, 5vw, 61px); margin: 0 auto 34px; }

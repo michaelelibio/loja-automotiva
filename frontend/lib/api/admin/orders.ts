@@ -93,6 +93,21 @@ async function recipientRequest(id: number, init?: RequestInit): Promise<import(
   return data;
 }
 export function getAdminAliExpressRecipient(id: number) { return recipientRequest(id); }
+export async function getAdminAliExpressManualData(id: number): Promise<import('@/lib/types/admin-order').AdminAliExpressManualData> {
+  const token = tokenStorage.getToken();
+  if (!token) throw new AdminOrderApiError('Sua sessão expirou. Entre novamente.', 401);
+  let response: Response;
+  try { response = await fetch(`${endpoint}/${encodeURIComponent(id)}/aliexpress/recipient/manual-data`, {
+    method: 'GET', cache: 'no-store', headers: { Authorization: `Bearer ${token}` },
+  }); } catch { throw new AdminOrderApiError('Não foi possível consultar os dados protegidos do pedido.', 0); }
+  if (!response.ok) throw new AdminOrderApiError('Não foi possível consultar os dados protegidos do pedido.', response.status);
+  try {
+    const data: import('@/lib/types/admin-order').AdminAliExpressManualData = await response.json();
+    if (data.orderId !== id || !Array.isArray(data.items) || !Array.isArray(data.supplierOrderIds)
+      || !Array.isArray(data.pendingFields) || typeof data.complete !== 'boolean') throw new Error();
+    return data;
+  } catch { throw new AdminOrderApiError('Resposta não confirmada. Atualize o pedido.', 0); }
+}
 export function updateAdminAliExpressRecipient(id: number, data: { cpf: string; birthDate: string; expectedContext: string }) {
   return recipientRequest(id, { method: 'PATCH', body: JSON.stringify(data) });
 }

@@ -371,6 +371,63 @@ class AliExpressOrderIntegrationTests {
         assertThat(service.view(order.getId()).status()).isEqualTo(FulfillmentStatus.CREATED);
         verify(client,times(1)).create(anyMap(),anyString());
     }
+    @Test void manualDataRequiresCurrentActiveAdminAndCannotBeReadByCustomerOrStaleRole() throws Exception {
+        var order=fixture(true,true,"ALIEXPRESS");String url="/api/admin/orders/"+order.getId()+"/aliexpress/recipient/manual-data";
+        mvc.perform(get(url)).andExpect(status().isUnauthorized());
+        var owner=jwt().jwt(j->j.subject(order.getUser().getId().toString()));
+        mvc.perform(get(url).with(owner)).andExpect(status().isForbidden());
+        mvc.perform(get(url).with(owner.authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))).andExpect(status().isForbidden());
+        var actor=users.saveAndFlush(User.local("Admin Teste","manual-admin@example.test","synthetic"));
+        ReflectionTestUtils.setField(actor,"role",com.garage.garageapi.user.entity.UserRole.ADMIN);users.saveAndFlush(actor);
+        var token=jwt().jwt(j->j.subject(actor.getId().toString())).authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        mvc.perform(get(url).with(token)).andExpect(status().isOk());
+        ReflectionTestUtils.setField(actor,"active",false);users.saveAndFlush(actor);
+        mvc.perform(get(url).with(token)).andExpect(status().isForbidden());
+        verifyNoInteractions(client,tokens,mercadoPago,productClient);
+    }
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void manualDataReadsOnlyOrderSnapshotWithPrivateCacheAndNoSideEffectsOrPersonalLogs(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        var order=fixture(true,true,"ALIEXPRESS");
+        var actor=users.saveAndFlush(User.local("Admin Teste","manual-admin@example.test","synthetic"));
+        ReflectionTestUtils.setField(actor,"role",com.garage.garageapi.user.entity.UserRole.ADMIN);users.saveAndFlush(actor);
+        var currentAddress=addresses.findAll().get(0);ReflectionTestUtils.setField(currentAddress,"recipientName","Outra Pessoa");addresses.saveAndFlush(currentAddress);
+        var token=jwt().jwt(j->j.subject(actor.getId().toString())).authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        mvc.perform(get("/api/admin/orders/"+order.getId()+"/aliexpress/recipient/manual-data").with(token)).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control",org.hamcrest.Matchers.allOf(org.hamcrest.Matchers.containsString("private"),org.hamcrest.Matchers.containsString("no-store"))))
+                .andExpect(result->assertThat(result.getResponse().getHeaders("Vary")).contains("Authorization"))
+                .andExpect(jsonPath("$.recipientName").value("Cliente Teste")).andExpect(jsonPath("$.cpf").value("52998224725"))
+                .andExpect(jsonPath("$.birthDate").value("01/01/1990")).andExpect(jsonPath("$.phone").value("47999999999"))
+                .andExpect(jsonPath("$.country").value("BR")).andExpect(jsonPath("$.street").value("Rua Teste"))
+                .andExpect(jsonPath("$.items[0].supplierProductId").value("1005010661577657"))
+                .andExpect(jsonPath("$.items[0].supplierVariantId").value("12000053109276547"))
+                .andExpect(jsonPath("$.items[0].quantity").value(1)).andExpect(jsonPath("$.supplierOrderIds").isEmpty());
+        assertThat(output.getAll()).doesNotContain("52998224725","01/01/1990","47999999999");
+        var details=recipientAdmin.manualData(order.getId(),org.springframework.security.oauth2.jwt.Jwt.withTokenValue("test").header("alg","none").subject(actor.getId().toString()).build());
+        assertThat(details.toString()).doesNotContain("52998224725","01/01/1990","47999999999");
+        assertThat(fulfillments.findByOrderId(order.getId()).orElseThrow().getAttemptCount()).isZero();
+        assertThat(recipientAudits.count()).isZero();assertThat(orders.findById(order.getId()).orElseThrow().getStatus()).isEqualTo(OrderStatus.PAID);
+        verifyNoInteractions(client,tokens,mercadoPago,productClient);
+    }
+    @Test void cpfMismatchSurvivesRecoveryAndRepeatedEventsWithoutResendingOrChangingRecipient() {
+        var order=fixture(true,true,"ALIEXPRESS");
+        when(client.create(anyMap(),anyString())).thenReturn(new AliExpressOrderClient.Result(List.of(),false,false,
+                new AliExpressOrderClient.ProviderError("B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_NOT_MATCH",null,"CPF mismatch",200)));
+        service.sendAutomatically(order.getId());
+        new AliExpressDispatchWorker(fulfillments,service,Runnable::run,automation).recoverPending();
+        service.sendAutomatically(order.getId());
+        var state=service.view(order.getId());
+        assertThat(state.status()).isEqualTo(FulfillmentStatus.VERIFICATION_REQUIRED);
+        assertThat(state.attemptCount()).isEqualTo(1);assertThat(state.canSend()).isFalse();
+        assertThat(state.lastError()).contains("B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_NOT_MATCH").doesNotContain("52998224725");
+        assertThat(state.supplierOrderIds()).isEmpty();
+        assertThatThrownBy(()->service.send(order.getId())).isInstanceOf(com.garage.garageapi.shared.exception.ResourceConflictException.class);
+        var saved=orders.findById(order.getId()).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(saved.getRecipientCpf()).isEqualTo("52998224725");
+        assertThat(saved.getRecipientBirthDate()).isEqualTo(LocalDate.of(1990,1,1));
+        verify(client,times(1)).create(anyMap(),anyString());
+    }
     @Test void automatedDispatchNeverRetriesRejectedOrUnknownPurchase() {
         var order=fixture(true,true,"ALIEXPRESS");
         when(client.create(anyMap(),anyString())).thenReturn(new AliExpressOrderClient.Result(List.of(),true));

@@ -55,6 +55,21 @@ class AliExpressOrderClientTests {
         server.expect(anything()).andRespond(withSuccess("{\"aliexpress_trade_buy_placeorder_response\":{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\"}}}",MediaType.APPLICATION_JSON));
         assertThat(query().rejected()).isTrue();server.verify();
     }
+    @Test void cpfMismatchPreservesCodeAndRequiresReconciliationWithoutTransportRetry() {
+        server.expect(anything()).andExpect(request->{
+            var params=new HashMap<String,String>();
+            for(String pair:((MockClientHttpRequest)request).getBodyAsString().split("&")) {
+                var parts=pair.split("=",2);params.put(URLDecoder.decode(parts[0],StandardCharsets.UTF_8),URLDecoder.decode(parts[1],StandardCharsets.UTF_8));
+            }
+            var payload=tools.jackson.databind.json.JsonMapper.builder().build().readTree(params.get("param_place_order_request4_open_api_d_t_o"));
+            assertThat(payload.path("logistics_address").path("cpf").asText()).isEqualTo("52998224725");
+            assertThat(payload.path("ds_extend_request").path("trade_extra_param").path("birthday").asText()).isEqualTo("29022000");
+        }).andRespond(withSuccess("{\"result\":{\"is_success\":false,\"error_code\":\"B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_NOT_MATCH\"}}",MediaType.APPLICATION_JSON));
+        var result=client.create(Map.of("logistics_address",Map.of("cpf","52998224725"),
+                "ds_extend_request",Map.of("trade_extra_param",Map.of("birthday","29022000"))),"synthetic-token");
+        assertThat(result.providerError().code()).isEqualTo("B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_NOT_MATCH");
+        assertThat(result.orderIds()).isEmpty();assertThat(result.confirmed()).isFalse();assertThat(result.rejected()).isFalse();server.verify();
+    }
     @Test void systemOrServerErrorsNeverProveThatNoOrderWasCreated() {
         server.expect(anything()).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON)
                 .body("{\"result\":{\"is_success\":false,\"error_code\":\"DELIVERY_METHOD_NOT_EXIST\"}}"));

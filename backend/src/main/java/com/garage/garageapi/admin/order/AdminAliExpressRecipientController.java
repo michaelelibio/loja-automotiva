@@ -17,6 +17,11 @@ public class AdminAliExpressRecipientController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header("Pragma","no-cache").body(view);
     }
     @GetMapping public ResponseEntity<AliExpressRecipientAdminService.View> view(@PathVariable Long orderId) {return response(service.view(orderId));}
+    @GetMapping("/manual-data") public ResponseEntity<AliExpressRecipientAdminService.ManualData> manualData(@PathVariable Long orderId,
+            @AuthenticationPrincipal Jwt actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).header("Pragma","no-cache")
+                .header("Vary","Authorization").body(service.manualData(orderId,actor));
+    }
     @PatchMapping public ResponseEntity<AliExpressRecipientAdminService.View> correct(@PathVariable Long orderId,
             @Valid @RequestBody AliExpressRecipientAdminService.Correction request,@AuthenticationPrincipal Jwt actor) {
         return response(service.correct(orderId,request,actor.getSubject()));

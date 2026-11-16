@@ -17,9 +17,11 @@ public class AliExpressRecipientAdminService {
     private final AliExpressDispatchStore store;
     private final AliExpressRecipientAdminAuditRepository audits;
     private final AdminAliExpressTestRunRepository administrativeRuns;
+    private final com.garage.garageapi.user.service.UserService users;
     public AliExpressRecipientAdminService(OrderRepository orders,AliExpressDispatchStore store,
-            AliExpressRecipientAdminAuditRepository audits,AdminAliExpressTestRunRepository administrativeRuns) {
-        this.orders=orders;this.store=store;this.audits=audits;this.administrativeRuns=administrativeRuns;
+            AliExpressRecipientAdminAuditRepository audits,AdminAliExpressTestRunRepository administrativeRuns,
+            com.garage.garageapi.user.service.UserService users) {
+        this.orders=orders;this.store=store;this.audits=audits;this.administrativeRuns=administrativeRuns;this.users=users;
     }
     public record Correction(String cpf,String birthDate,
             String expectedContext) {
@@ -37,6 +39,27 @@ public class AliExpressRecipientAdminService {
 
     @Transactional(readOnly=true) public View view(Long id) {
         var order=load(id);return view(order,store.find(id));
+    }
+    public record ManualItem(String productName,String variantName,String supplierProductId,String supplierVariantId,
+            String supplierSku,Integer quantity) { }
+    public record ManualData(Long orderId,String recipientName,String cpf,String birthDate,String phone,String phoneCountry,
+            String country,String zipCode,String street,String number,String complement,String neighborhood,String city,String state,
+            List<ManualItem> items,List<String> supplierOrderIds,boolean complete,List<String> pendingFields) {
+        @Override public String toString() {return "AliExpressManualData[REDACTED]";}
+    }
+    /** Explicit administrative read of the order snapshot; never updates, reconciles or creates. */
+    @Transactional(readOnly=true) public ManualData manualData(Long id,org.springframework.security.oauth2.jwt.Jwt actor) {
+        if(users.findCurrentUser(actor).getRole()!=com.garage.garageapi.user.entity.UserRole.ADMIN)
+            throw new org.springframework.security.access.AccessDeniedException("Permissão administrativa necessária.");
+        var order=load(id);var row=store.find(id);var status=AliExpressRecipientData.status(order);
+        var items=AliExpressOrderPreparation.aliItems(order).stream().map(i->new ManualItem(i.getProductName(),i.getVariantName(),
+                i.getSupplierProductId(),i.getSupplierVariantId(),i.getSupplierSku(),i.getQuantity())).toList();
+        var ids=new LinkedHashSet<String>();
+        if(row!=null) {ids.addAll(row.getSupplierOrderIds());if(row.getSupplierOrderId()!=null)ids.add(row.getSupplierOrderId());}
+        return new ManualData(id,order.getRecipientName(),order.getRecipientCpf(),order.getRecipientBirthDate()==null?null:
+                order.getRecipientBirthDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/uuuu")),
+                order.getRecipientPhone(),"+55","BR",order.getZipCode(),order.getStreet(),order.getNumber(),order.getComplement(),
+                order.getNeighborhood(),order.getCity(),order.getState(),items,List.copyOf(ids),status.complete(),status.pendingFields());
     }
     @Transactional public View correct(Long id,Correction request,String actor) {
         var order=orders.findByIdForLifecycleUpdate(id).orElseThrow(()->new ResourceNotFoundException("Pedido não encontrado."));
