@@ -1,6 +1,7 @@
 package com.garage.garageapi.catalog;
 
 import com.garage.garageapi.product.entity.Product;
+import com.garage.garageapi.product.entity.AliExpressPurchasability;
 import com.garage.garageapi.product.dto.ProductResponse;
 import com.garage.garageapi.product.repository.ProductRepository;
 import com.garage.garageapi.product.service.ProductService;
@@ -54,7 +55,7 @@ public class CatalogService {
     public List<CategoryView> categoryList(boolean admin) {
         var counts=new HashMap<Long,Long>();
         if(!admin)for(var p:products.findAll(productService.publicSelection())) {
-            if(!p.isAvailableForSale())continue;
+            if(!available(p))continue;
             if(p.getCatalogCategory()!=null&&p.getCatalogCategory().visible())counts.merge(p.getCatalogCategory().getId(),1L,Long::sum);
             if(p.getCatalogSubcategory()!=null&&p.getCatalogSubcategory().visible())counts.merge(p.getCatalogSubcategory().getId(),1L,Long::sum);
         }
@@ -115,6 +116,10 @@ public class CatalogService {
     }
     private static String like(String s){return "%"+normalized(s).replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";}
     private static boolean text(String s){return s!=null&&!s.isBlank();}
+    private static boolean available(Product p) {
+        return p.isAvailableForSale() && (!AliExpressPurchasability.applies(p)
+                || p.getVariants().stream().anyMatch(v->AliExpressPurchasability.canPurchase(p,v,1)));
+    }
 
     @Transactional(readOnly=true)
     public Result browse(Query r) {
@@ -152,7 +157,7 @@ public class CatalogService {
         var ordering=Sort.by(Sort.Order.desc("featured"),Sort.Order.asc("name"),Sort.Order.asc("id"));
         if(sort.equals("lowest"))ordering=Sort.by("price","id");
         if(sort.equals("highest"))ordering=Sort.by(Sort.Order.desc("price"),Sort.Order.asc("id"));
-        if(sort.equals("newest")||"newest".equals(r.section())) {
+        if(sort.equals("newest")||sort.equals("relevance")&&"newest".equals(r.section())) {
             spec=spec.and((root,q,cb)->{if(q.getResultType()!=Long.class)q.orderBy(cb.asc(cb.selectCase().when(cb.isNull(root.get("publishedAt")),1).otherwise(0)),cb.desc(root.get("publishedAt")),cb.desc(root.get("id")));return cb.conjunction();});
             ordering=Sort.unsorted();
         }
@@ -164,14 +169,27 @@ public class CatalogService {
                 .when(cb.equal(normalized(root.get("brand"),cb),search),2).otherwise(3)),cb.desc(root.get("featured")),cb.asc(root.get("id")));return cb.conjunction();});
             ordering=Sort.unsorted();
         }
-        int page=r.page()==null?0:r.page(),size=r.size()==null?24:r.size();
+        if("bestsellers".equals(r.section())&&sort.equals("relevance")&&!sales.isEmpty()) {
+            spec=spec.and((root,q,cb)->{
+                if(q.getResultType()!=Long.class) {
+                    var rank=cb.<Long,Long>selectCase(root.get("id"));
+                    sales.forEach(rank::when);
+                    q.orderBy(cb.desc(rank.otherwise(0L)),cb.asc(root.get("id")));
+                }
+                return cb.conjunction();
+            });
+            ordering=Sort.unsorted();
+        }
+        int page=r.page()==null?0:r.page(),size=r.size()==null?12:r.size();
         // Facets reflect this complete selection, not just the displayed page.
-        var matching=products.findAll(spec);
-        List<ProductResponse> content;long count=matching.size();
-        if("bestsellers".equals(r.section()))content=matching.stream().sorted(Comparator.<Product>comparingLong(p->sales.getOrDefault(p.getId(),0L)).reversed().thenComparing(Product::getId))
-                .skip((long)page*size).limit(size).map(ProductResponse::from).toList();
-        else content=products.findAll(spec,PageRequest.of(page,size,ordering)).map(ProductResponse::from).getContent();
-        return new Result(content,page,size,count,(int)((count+size-1)/size),facets(matching));
+        var candidates=products.findAll(spec);
+        var unavailable=candidates.stream().filter(p->!available(p)).map(Product::getId).toList();
+        var matching=candidates.stream().filter(CatalogService::available).toList();
+        // Reuse the existing SKU purchasability rules before SQL paging and counting.
+        // Filtering only the displayed page would leave gaps and incorrect totals.
+        if(!unavailable.isEmpty())spec=spec.and((root,q,cb)->cb.not(root.get("id").in(unavailable)));
+        var selected=products.findAll(spec,PageRequest.of(page,size,ordering));
+        return new Result(selected.map(ProductResponse::from).getContent(),page,size,selected.getTotalElements(),selected.getTotalPages(),facets(matching));
     }
     private Facets facets(List<Product> ps) {
         var counts=new HashMap<Long,Long>();

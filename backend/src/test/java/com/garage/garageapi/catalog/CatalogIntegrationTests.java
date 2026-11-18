@@ -2,6 +2,7 @@ package com.garage.garageapi.catalog;
 
 import com.garage.garageapi.product.entity.Product;
 import com.garage.garageapi.product.entity.FulfillmentType;
+import com.garage.garageapi.product.entity.ProductVariant;
 import com.garage.garageapi.product.repository.ProductRepository;
 import com.garage.garageapi.product.dto.ProductResponse;
 import com.garage.garageapi.user.entity.User;
@@ -19,6 +20,8 @@ import com.garage.garageapi.integration.aliexpress.AliExpressOrderClient;
 import com.garage.garageapi.payment.gateway.CheckoutProGateway;
 import com.garage.garageapi.shared.exception.ResourceConflictException;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -62,6 +65,88 @@ class CatalogIntegrationTests {
             .andExpect(jsonPath("$.facets.brands[0]").value("Ágil")).andExpect(jsonPath("$.content[0].costPrice").doesNotExist());
         mvc.perform(get("/api/catalog").param("q","espuma ativa").param("category",root.getPath()).param("size","1").param("sort","lowest").param("page","1"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(2)).andExpect(jsonPath("$.totalPages").value(2)).andExpect(jsonPath("$.content[0].id").value(a.getId()));
+    }
+    @ParameterizedTest
+    @ValueSource(ints={0,7,12,13,24,25,121})
+    void everyEligibleProductCanBeReachedWithTwelvePerPageAndStableOrdering(int count) {
+        String brand="pagination-"+UUID.randomUUID();
+        var expected=new ArrayList<Long>();
+        for(int i=0;i<count;i++) {
+            var p=product("Produto empatado",BigDecimal.valueOf(10+i%3));
+            org.springframework.test.util.ReflectionTestUtils.setField(p,"publishedAt",Instant.parse("2026-11-01T00:00:00Z"));
+            service.apply(p,metadata(brand,i%2==0));expected.add(p.getId());
+        }
+        var inactive=product("Inativo",BigDecimal.TEN);service.apply(inactive,metadata(brand,false));inactive.setActive(false);
+        var unavailable=product("Sem estoque",BigDecimal.TEN);service.apply(unavailable,metadata(brand,false));unavailable.decreaseStock(5);
+        em.flush();
+        for(String sort:List.of("relevance","lowest","highest","newest")) {
+            var seen=new ArrayList<Long>();var shown=new ArrayList<ProductResponse>();int pages=(count+11)/12;
+            for(int page=0;page<Math.max(1,pages);page++) {
+                var response=service.browse(pagingQuery(brand,sort,page,null,null));
+                assertThat(response.size()).isEqualTo(12);
+                assertThat(response.page()).isEqualTo(page);
+                assertThat(response.totalElements()).isEqualTo(count);
+                assertThat(response.totalPages()).isEqualTo(pages);
+                assertThat(response.content()).hasSize(Math.min(12,Math.max(0,count-page*12)));
+                seen.addAll(response.content().stream().map(ProductResponse::id).toList());
+                shown.addAll(response.content());
+                assertThat(service.browse(pagingQuery(brand,sort,page,null,null)).content().stream().map(ProductResponse::id).toList())
+                    .isEqualTo(response.content().stream().map(ProductResponse::id).toList());
+                if(count>0)assertThat(response.facets().categories()).anyMatch(c->c.id().equals(sub.getId())&&c.count()==count);
+            }
+            assertThat(seen).doesNotHaveDuplicates().containsExactlyInAnyOrderElementsOf(expected);
+            Comparator<ProductResponse> order=switch(sort) {
+                case "lowest" -> Comparator.comparing(ProductResponse::price).thenComparing(ProductResponse::id);
+                case "highest" -> Comparator.comparing(ProductResponse::price).reversed().thenComparing(ProductResponse::id);
+                case "newest" -> Comparator.comparing(ProductResponse::id).reversed();
+                default -> Comparator.comparing((ProductResponse p)->p.catalog().featured()).reversed().thenComparing(ProductResponse::id);
+            };
+            assertThat(shown).isSortedAccordingTo(order);
+            assertThat(service.browse(pagingQuery(brand,sort,Math.max(1,pages),null,null)).content()).isEmpty();
+        }
+    }
+    CatalogService.Query pagingQuery(String brand,String sort,int page,BigDecimal min,BigDecimal max) {
+        return new CatalogService.Query(null,root.getPath(),sub.getPath(),null,brand,"Pintura","Limpeza",min,max,null,null,null,null,null,null,sort,page,null);
+    }
+    @Test void combinedFiltersCountAllPagesAndClearingRestoresTheFullSelection() {
+        String brand="filters-"+UUID.randomUUID();
+        var expected=new ArrayList<Long>();
+        for(int i=0;i<30;i++) {
+            var p=product("Filtro "+i,BigDecimal.valueOf(i<25?20:50));
+            service.apply(p,metadata(brand,false));if(i<25)expected.add(p.getId());
+        }
+        em.flush();
+        var filtered=new ArrayList<Long>();
+        for(int page=0;page<3;page++) {
+            var response=service.browse(pagingQuery(brand,"lowest",page,BigDecimal.TEN,BigDecimal.valueOf(30)));
+            assertThat(response.totalElements()).isEqualTo(25);assertThat(response.totalPages()).isEqualTo(3);
+            filtered.addAll(response.content().stream().map(ProductResponse::id).toList());
+        }
+        assertThat(filtered).containsExactlyElementsOf(expected).doesNotHaveDuplicates();
+        assertThat(service.browse(pagingQuery(brand,"lowest",0,null,null)).totalElements()).isEqualTo(30);
+        assertThat(service.browse(new CatalogService.Query(null,root.getPath(),null,null,null,null,null,null,null,null,null,null,null,null,null,null,0,null)).totalElements()).isEqualTo(32);
+    }
+    @Test void unavailableAliExpressSkusAreExcludedBeforePaginationAndCategoryCounts() {
+        String brand="availability-"+UUID.randomUUID();
+        var expected=new ArrayList<Long>();
+        for(int i=0;i<15;i++) {
+            var p=product("SKU "+i,BigDecimal.TEN);
+            service.apply(p,metadata(brand,false));
+            p.configureFulfillment(FulfillmentType.DROPSHIPPING);
+            String supplierId="supplier-"+UUID.randomUUID();
+            p.linkSupplier("ALIEXPRESS",supplierId,null,null,Instant.now());
+            if(i==14)continue;
+            var v=new ProductVariant(p,"ALIEXPRESS","sku-"+UUID.randomUUID(),supplierId,null,"Único",Map.of(),i==13?null:"",BigDecimal.ONE,"BRL",null,null,null,null,null);
+            v.setSupplierStockQuantity(i==12?0:5);em.persist(v);p.getVariants().add(v);
+            if(i<12)expected.add(p.getId());
+        }
+        em.flush();
+        var response=service.browse(pagingQuery(brand,"lowest",0,null,null));
+        assertThat(response.totalElements()).isEqualTo(12);assertThat(response.totalPages()).isEqualTo(1);
+        assertThat(response.content()).allMatch(ProductResponse::availableForSale);
+        assertThat(response.content().stream().map(ProductResponse::id).toList()).containsExactlyElementsOf(expected);
+        assertThat(response.facets().categories()).allMatch(c->c.count()==12);
+        assertThat(service.browse(pagingQuery(brand,"lowest",1,null,null)).content()).isEmpty();
     }
     @Test void irrelevantOrUnavailableOptionsAreAbsentAndWildcardsLiteral() throws Exception {
         b.setActive(false);em.flush();
@@ -116,6 +201,36 @@ class CatalogIntegrationTests {
         mvc.perform(get("/api/catalog?section=bestsellers")).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
         p.recordProviderEnvironment(true,Instant.now());em.flush();mvc.perform(get("/api/catalog?section=bestsellers")).andExpect(jsonPath("$.content[0].id").value(a.getId()));
         o.requirePaymentReview();em.flush();mvc.perform(get("/api/catalog?section=bestsellers")).andExpect(jsonPath("$.totalElements").value(0));
+    }
+    @Test void bestsellersHaveStableDatabasePagesWithTiedSales() {
+        String brand="sales-"+UUID.randomUUID();
+        var u=users.save(User.local("Teste","paging-sales-"+UUID.randomUUID()+"@example.test","hash"));
+        var address=addresses.save(new Address(u,"Teste","Teste","01001000","Rua de teste","1",null,"Centro","São Paulo","SP",true));
+        var o=new Order(u,address,new BigDecimal("208.00"),BigDecimal.ZERO,Duration.ofHours(1));
+        var expected=new ArrayList<Long>();
+        for(int i=0;i<13;i++) {
+            var p=product("Vendido "+i,BigDecimal.valueOf(10+i));service.apply(p,metadata(brand,false));expected.add(p.getId());
+            o.addItem(new OrderItem(o,p,1,p.getPrice(),p.getPrice()));
+        }
+        o.markPaid();orders.saveAndFlush(o);
+        var payment=new Payment(o,PaymentMethod.MERCADO_PAGO);
+        payment.applyProviderResult("mock","mock",PaymentStatus.PAID,null,null,null,Instant.now());
+        payment.recordProviderEnvironment(true,Instant.now());payments.saveAndFlush(payment);
+        var seen=new ArrayList<Long>();
+        for(int page=0;page<2;page++) {
+            var query=new CatalogService.Query(null,root.getPath(),null,null,brand,null,null,null,null,null,null,null,null,null,"bestsellers","relevance",page,null);
+            var response=service.browse(query);assertThat(response.totalElements()).isEqualTo(13);assertThat(response.totalPages()).isEqualTo(2);
+            assertThat(response.content()).hasSize(page==0?12:1);seen.addAll(response.content().stream().map(ProductResponse::id).toList());
+        }
+        assertThat(seen).containsExactlyElementsOf(expected).doesNotHaveDuplicates();
+        var priceQuery=new CatalogService.Query(null,root.getPath(),null,null,brand,null,null,null,null,null,null,null,null,null,"bestsellers","highest",0,null);
+        assertThat(service.browse(priceQuery).content()).isSortedAccordingTo(Comparator.comparing(ProductResponse::price).reversed());
+    }
+    @Test void explicitPriceSortingIsRespectedWithinTheNewestSelection() {
+        org.springframework.test.util.ReflectionTestUtils.setField(a,"publishedAt",Instant.parse("2026-11-01T00:00:00Z"));
+        org.springframework.test.util.ReflectionTestUtils.setField(b,"publishedAt",Instant.parse("2026-10-01T00:00:00Z"));em.flush();
+        var query=new CatalogService.Query(null,root.getPath(),null,null,null,null,null,null,null,null,null,null,null,null,"newest","lowest",0,null);
+        assertThat(service.browse(query).content().stream().map(ProductResponse::id).toList()).containsExactly(b.getId(),a.getId());
     }
     @Test void shelvesUseOnlyExplicitMetadata() throws Exception {
         mvc.perform(get("/api/catalog").param("section","featured").param("category",root.getPath())).andExpect(jsonPath("$.totalElements").value(1));
