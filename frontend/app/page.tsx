@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { ProductCard } from '@/components/ProductCard';
+import { CategoryImage } from '@/components/CategoryImage';
 import { ArrowUpRightIcon } from '@/components/Icons';
 import { fetchCatalog, fetchCategories, type CatalogResult } from '@/lib/catalog';
 import type { Category } from '@/lib/catalog-types';
@@ -48,6 +49,7 @@ function FeaturedCategories({ categories }: { categories: Category[] }) {
   return <section className="home-categories" id="categorias" aria-labelledby="categories-title">
     <div className="home-section-heading"><h2 id="categories-title">Categorias em destaque</h2><Link href="/produtos">Ver todas as categorias <span aria-hidden="true">→</span></Link></div>
     <div className="home-category-grid">{categories.filter((c) => c.parentId === null).map((category) => <Link className="home-category" key={category.id} href={`/categorias/${category.path}`}>
+      <CategoryImage category={category} />
       <span>{category.name}</span><span className="home-category__arrow" aria-hidden="true">→</span>
     </Link>)}</div>
   </section>;

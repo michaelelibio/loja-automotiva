@@ -1,4 +1,4 @@
-export type Category = { id: number; name: string; slug: string; path: string; description?: string | null; parentId: number | null; position: number; active: boolean; count: number };
+export type Category = { id: number; name: string; slug: string; path: string; description?: string | null; imageUrl?: string | null; parentId: number | null; position: number; active: boolean; count: number };
 export type CatalogMetadata = {
   category: Pick<Category, 'id' | 'name' | 'slug' | 'path'> | null;
   subcategory: Pick<Category, 'id' | 'name' | 'slug' | 'path'> | null;

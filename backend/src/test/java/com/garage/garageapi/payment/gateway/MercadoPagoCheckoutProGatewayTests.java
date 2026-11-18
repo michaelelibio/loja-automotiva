@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -41,6 +42,8 @@ class MercadoPagoCheckoutProGatewayTests {
                 .andExpect(jsonPath("$.items[1].id").value("shipping"))
                 .andExpect(jsonPath("$.items[1].unit_price").value(18.90))
                 .andExpect(jsonPath("$.back_urls.success").value("https://shop.example/success"))
+                .andExpect(jsonPath("$.back_urls.pending").value("https://shop.example/pending"))
+                .andExpect(jsonPath("$.back_urls.failure").value("https://shop.example/failure"))
                 .andExpect(jsonPath("$.auto_return").value("approved"))
                 .andExpect(jsonPath("$.notification_url")
                         .value("https://api.example/webhook?source_news=webhooks"))
@@ -61,6 +64,80 @@ class MercadoPagoCheckoutProGatewayTests {
                 "{\"id\":\"PREF\",\"init_point\":\"https://prod\","
                         + "\"sandbox_init_point\":\"https://sandbox\"}", MediaType.APPLICATION_JSON));
         assertThat(gateway.createPreference(request()).checkoutUrl()).isEqualTo("https://prod");
+    }
+
+    @Test
+    void productionReturnsForAllResultsUseOfficialOriginAndPreserveResultRoutes() {
+        for (String origin : List.of("https://loja-automotiva-phi.vercel.app",
+                "https://preview-random.vercel.app", "https://www.ingarage.com.br",
+                "http://old-shop.example:8080")) {
+            var builder = RestClient.builder().baseUrl("https://api.mercadopago.com");
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(requestTo("https://api.mercadopago.com/checkout/preferences"))
+                    .andExpect(jsonPath("$.back_urls.success")
+                            .value("https://ingarage.com.br/pagamento/sucesso?from=checkout%20pro"))
+                    .andExpect(jsonPath("$.back_urls.pending")
+                            .value("https://ingarage.com.br/pagamento/pendente"))
+                    .andExpect(jsonPath("$.back_urls.failure")
+                            .value("https://ingarage.com.br/pagamento/falhou"))
+                    .andExpect(jsonPath("$.notification_url")
+                            .value("https://api.example/webhook?existing=1&source_news=webhooks"))
+                    .andExpect(jsonPath("$.auto_return").value("approved"))
+                    .andRespond(withSuccess("{\"id\":\"PREF\",\"init_point\":\"https://prod\"}",
+                            MediaType.APPLICATION_JSON));
+            var gateway = new MercadoPagoCheckoutProGateway(builder.build(), "TOKEN",
+                    origin + "/pagamento/sucesso?from=checkout%20pro#old",
+                    origin + "/pagamento/pendente", origin + "/pagamento/falhou",
+                    "https://api.example/webhook?existing=1", false, false);
+            assertThat(gateway.createPreference(request()).checkoutUrl()).isEqualTo("https://prod");
+            server.verify();
+        }
+    }
+
+    @Test
+    void productionHasOfficialResultRoutesWhenReturnConfigurationIsAbsent() {
+        var builder = RestClient.builder().baseUrl("https://api.mercadopago.com");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://api.mercadopago.com/checkout/preferences"))
+                .andExpect(jsonPath("$.back_urls.success").value("https://ingarage.com.br/pagamento/sucesso"))
+                .andExpect(jsonPath("$.back_urls.pending").value("https://ingarage.com.br/pagamento/pendente"))
+                .andExpect(jsonPath("$.back_urls.failure").value("https://ingarage.com.br/pagamento/falhou"))
+                .andExpect(jsonPath("$.notification_url").doesNotExist())
+                .andRespond(withSuccess("{\"id\":\"PREF\",\"init_point\":\"https://prod\"}",
+                        MediaType.APPLICATION_JSON));
+        new MercadoPagoCheckoutProGateway(builder.build(), "TOKEN", "", "", "", "", false, false)
+                .createPreference(request());
+        server.verify();
+    }
+
+    @Test
+    void invalidReturnConfigurationIsRejectedBeforeCallingProvider() {
+        for (String url : List.of("javascript:alert(1)", "/relative", "https://", "https://user:password@shop.example")) {
+            var builder = RestClient.builder().baseUrl("https://api.mercadopago.com");
+            var server = MockRestServiceServer.bindTo(builder).build();
+            var gateway = new MercadoPagoCheckoutProGateway(builder.build(), "TOKEN", url,
+                    "https://shop.example/pending", "https://shop.example/failure", "", false, false);
+            assertThatThrownBy(() -> gateway.createPreference(request()))
+                    .isInstanceOf(PaymentProviderException.class);
+            server.verify();
+        }
+    }
+
+    @Test
+    void approvedPendingAndRejectedAreStillReadFromAuthenticatedProviderLookup() {
+        var statuses = java.util.Map.of("approved", PaymentStatus.PAID,
+                "pending", PaymentStatus.PENDING, "rejected", PaymentStatus.FAILED);
+        statuses.forEach((status, expected) -> {
+            var builder = RestClient.builder().baseUrl("https://api.mercadopago.com");
+            var server = MockRestServiceServer.bindTo(builder).build();
+            server.expect(requestTo("https://api.mercadopago.com/v1/payments/900"))
+                    .andExpect(method(HttpMethod.GET))
+                    .andExpect(header("Authorization", "Bearer TOKEN"))
+                    .andRespond(withSuccess("{\"id\":900,\"status\":\"" + status + "\"}",
+                            MediaType.APPLICATION_JSON));
+            assertThat(gateway(builder, false).findPayment("900").status()).isEqualTo(expected);
+            server.verify();
+        });
     }
 
     @Test

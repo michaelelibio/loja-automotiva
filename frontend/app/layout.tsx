@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Manrope, Space_Grotesk } from 'next/font/google';
 import { CartProvider } from '@/context/CartContext';
 import { AuthProvider } from '@/context/AuthContext';
@@ -9,9 +9,14 @@ const manrope = Manrope({ subsets: ['latin'], variable: '--font-manrope' });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://ingarage.com.br'),
+  applicationName: 'inGarage',
   title: 'inGarage — Produtos Automotivos',
   description: 'Produtos automotivos selecionados para cuidar, proteger e valorizar o seu carro.',
+  appleWebApp: { title: 'inGarage' },
 };
+
+export const viewport: Viewport = { themeColor: '#121212' };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

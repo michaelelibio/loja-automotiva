@@ -1601,12 +1601,15 @@ body { overflow-x: hidden; }
 .home-section-heading > a { color: #a74408; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .home-section-heading > a span { font-size: 20px; margin-left: 5px; vertical-align: middle; }
 .home-category-grid { display: grid; gap: 16px; grid-template-columns: repeat(4, minmax(0,1fr)); }
-.home-category { background: #1a1a1a; border-radius: 3px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; min-height: clamp(160px, 16vw, 215px); overflow: hidden; padding: 16px; position: relative; transition: transform .2s ease; }
+.home-category { aspect-ratio: 4 / 3; background: #efe8df; border-radius: 4px; color: #fff; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding: 16px; position: relative; transition: transform .2s ease; }
 .home-category:hover { transform: translateY(-3px); }
-.home-category::after { background: linear-gradient(transparent 25%, rgba(0,0,0,.85)); content: ''; inset: 0; position: absolute; }
+.home-category:focus-visible { outline: 3px solid #ff6600; outline-offset: 4px; }
+.home-category::after { background: linear-gradient(transparent 42%, rgba(20,23,25,.22) 62%, rgba(20,23,25,.94)); content: ''; inset: 0; position: absolute; }
+.home-category__emergency-art { height: 100%; inset: 0; position: absolute; width: 100%; }
 .home-category img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
 .home-category > span { font-size: 16px; font-weight: 800; position: relative; z-index: 1; }
-.home-category__arrow { align-self: flex-end; color: #ff6600; font-size: 27px !important; line-height: 1; }
+.home-category > span:not(.home-category__arrow) { padding-right: 28px; }
+.home-category > .home-category__arrow { bottom: 16px; color: #ff6600; font-size: 27px; line-height: 1; position: absolute; right: 16px; }
 .home-products { padding-top: 36px; }
 .home-products .section-heading { margin-bottom: 20px; }
 .home-products .section-heading .eyebrow { display: none; }
@@ -1663,7 +1666,7 @@ body { overflow-x: hidden; }
   .home-categories, .home-products { padding: 42px 20px; }
   .home-section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
   .home-category-grid { gap: 11px; }
-  .home-category { min-height: 195px; padding: 15px; }
+  .home-category { padding: 15px; }
   .home-products { padding-bottom: 24px; }
   .home-products .products-grid { gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-products .mobile-link { margin-top: 16px; }
@@ -1698,7 +1701,6 @@ body { overflow-x: hidden; }
 }
 @media (max-width: 350px) {
   .home-category-grid, .home-products .products-grid { grid-template-columns: minmax(0, 1fr); }
-  .home-category { min-height: 160px; }
   .home-products .product-card { max-width: 320px; }
 }
 @media (prefers-reduced-motion: reduce) { .home-cta, .home-category { transition: none; } }
@@ -1762,7 +1764,6 @@ body { overflow-x: hidden; }
 .catalog-category-list article.subcategory { padding-left: 25px; }
 .catalog-category-list article div { flex: 1; overflow-wrap: anywhere; }
 .catalog-category-list small { display: block; color: #666; margin-top: 6px; }
-.home-category:not(:has(img)) { background: #27272b; }
 @media(max-width: 1000px) { .catalog-results .products-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .catalog-layout { gap: 20px; grid-template-columns: 210px minmax(0,1fr); } }
 @media(max-width: 700px) { .catalog-layout { display: block; padding: 15px 5% 50px; } .catalog-filter-panel { margin-bottom: 25px; } .catalog-results .products-grid { gap: 14px; } .category-navigation-menu { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 18px; gap: 20px; } .category-navigation summary { font-size: 12px; } .catalog-product-metadata { grid-template-columns: 1fr 1fr; } .catalog-category-list article { flex-wrap: wrap; gap: 10px; } }
 @media(max-width: 700px) { .catalog-filter-title { display: none; } .catalog-filter-toggle { display: flex; justify-content: space-between; width: 100%; font-weight: 700; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; } .catalog-filter-panel #catalog-filter-content { display: none; } .catalog-filter-panel.expanded #catalog-filter-content { display: block; padding-top: 20px; } }

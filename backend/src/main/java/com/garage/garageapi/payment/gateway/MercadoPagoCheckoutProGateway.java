@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.Instant;
 import java.time.Duration;
 import java.net.http.HttpClient;
@@ -30,6 +31,7 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
     private static final Logger logger = LoggerFactory.getLogger(MercadoPagoCheckoutProGateway.class);
     private static final String CREATE_PREFERENCE = "/checkout/preferences";
     private static final String FIND_PAYMENT = "/v1/payments/{id}";
+    private static final String PRODUCTION_RETURN_HOST = "ingarage.com.br";
 
     private final RestClient restClient;
     private final String accessToken;
@@ -76,7 +78,7 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
 
     @Override
     public PreferenceResult createPreference(PreferenceRequest request) {
-        requireConfiguration();
+        Map<String, String> backUrls = returnUrls();
         String externalReference = reference(request.orderId(), request.paymentId());
         List<Map<String, Object>> items = new ArrayList<>();
         for (Item item : request.items()) {
@@ -97,8 +99,7 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
         body.put("items", items);
         body.put("payer", Map.of("name", request.payerName(), "email", request.payerEmail()));
         body.put("external_reference", externalReference);
-        body.put("back_urls", Map.of("success", successUrl, "pending", pendingUrl,
-                "failure", failureUrl));
+        body.put("back_urls", backUrls);
         body.put("auto_return", "approved");
         if (request.expiresAt()!=null) {
             if (!request.expiresAt().isAfter(Instant.now())) throw new PaymentProviderException("Cotação expirada");
@@ -161,11 +162,29 @@ public class MercadoPagoCheckoutProGateway implements CheckoutProGateway {
         }
     }
 
-    private void requireConfiguration() {
+    private Map<String, String> returnUrls() {
         if (!StringUtils.hasText(accessToken)) throw new PaymentProviderException("Mercado Pago não está configurado");
-        requirePublicUrl(successUrl, "success");
-        requirePublicUrl(pendingUrl, "pending");
-        requirePublicUrl(failureUrl, "failure");
+        return Map.of("success", returnUrl(successUrl, "success", "/pagamento/sucesso"),
+                "pending", returnUrl(pendingUrl, "pending", "/pagamento/pendente"),
+                "failure", returnUrl(failureUrl, "failure", "/pagamento/falhou"));
+    }
+
+    private String returnUrl(String configured, String name, String defaultPath) {
+        String value = !sandbox && !StringUtils.hasText(configured)
+                ? "https://" + PRODUCTION_RETURN_HOST + defaultPath : configured;
+        requirePublicUrl(value, name);
+        if (sandbox) return value;
+        // Preference return URLs belong to the production store, even if an old
+        // deployment URL remains configured. Retain the existing result route/query.
+        try {
+            URI uri = URI.create(value);
+            if (uri.getHost() == null || uri.getUserInfo() != null) throw new IllegalArgumentException();
+            return UriComponentsBuilder.fromUri(uri).scheme("https")
+                    .host(PRODUCTION_RETURN_HOST).port(-1).fragment(null)
+                    .build(true).toUriString();
+        } catch (IllegalArgumentException exception) {
+            throw new PaymentProviderException("back_url " + name + " do Checkout Pro é inválida");
+        }
     }
 
     private void requirePublicUrl(String value, String name) {
