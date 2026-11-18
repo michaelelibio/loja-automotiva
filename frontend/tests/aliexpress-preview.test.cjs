@@ -59,6 +59,20 @@ test('posts only preview, using ADMIN token and the requested localization', asy
   assert.equal(calls.length, 2);
 });
 
+test('timeout offers an explicit new preview without automatic retries or backend diagnostics', async () => {
+  let calls=0;
+  global.fetch=async()=>{calls++;return new Response('private gateway diagnostics and token', {status:504});};
+  const client=api();
+  await assert.rejects(client.previewAliExpressProduct('1005010598638085'),error=>{
+    assert.equal(error.status,504);assert.match(error.message,/não terminou no prazo/);assert.match(error.message,/pré-visualização novamente/);
+    assert.doesNotMatch(error.message,/private|gateway|token/);return true;
+  });
+  assert.equal(calls,1);
+  global.fetch=async()=>{calls++;return Response.json(fixture);};
+  assert.deepEqual(await client.previewAliExpressProduct('1005010598638085'),fixture);
+  assert.equal(calls,2);
+});
+
 test('rejects blank/oversized input and missing session before any request', async () => {
   global.fetch = () => assert.fail('Must not request');
   for (const input of [' ', '1'.repeat(2049)]) await assert.rejects(api().previewAliExpressProduct(input), { status: 400 });

@@ -31,7 +31,32 @@ public class AliExpressProductService {
         if (country == null || !Arrays.asList(Locale.getISOCountries()).contains(country)
                 || currency == null || !currency.matches("[A-Z]{3}") || language == null || !language.matches("[a-z]{2}(?:_[A-Z]{2})?")) throw new AliExpressIntegrationException(INVALID_INPUT);
         try { Currency.getInstance(currency); } catch (IllegalArgumentException ex) { throw new AliExpressIntegrationException(INVALID_INPUT); }
-        return normalizer.normalize(client.get(id, country, currency, language, tokens.accessToken()), id, country);
+        String previous=org.slf4j.MDC.get("aliexpressPreviewId"),trace=UUID.randomUUID().toString();
+        org.slf4j.MDC.put("aliexpressPreviewId",trace);long total=System.nanoTime();String outcome="SUCCESS";
+        try {
+            long stage=System.nanoTime();String token;
+            try { token=tokens.accessToken(); }
+            finally { previewTiming(trace,id,"oauth_access",stage); }
+            stage=System.nanoTime();
+            tools.jackson.databind.JsonNode source;
+            try { source=client.getForPreview(id,country,currency,language,token); }
+            finally { previewTiming(trace,id,"product_total",stage); }
+            stage=System.nanoTime();
+            try { return normalizer.normalize(source,id,country); }
+            finally { previewTiming(trace,id,"normalize",stage); }
+        } catch(AliExpressIntegrationException ex) { outcome=ex.getReason().name();throw ex; }
+        catch(RuntimeException ex) { outcome="FAILED";throw ex; }
+        finally {
+            org.slf4j.LoggerFactory.getLogger(AliExpressProductService.class).info(
+                    "AliExpress preview completed; previewId={}; productId={}; elapsedMs={}; outcome={}",trace,id,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-total),outcome);
+            if(previous==null)org.slf4j.MDC.remove("aliexpressPreviewId");else org.slf4j.MDC.put("aliexpressPreviewId",previous);
+        }
+    }
+    private static void previewTiming(String trace,String id,String stage,long started) {
+        org.slf4j.LoggerFactory.getLogger(AliExpressProductService.class).info(
+                "AliExpress preview stage; previewId={}; productId={}; stage={}; elapsedMs={}",trace,id,stage,
+                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-started));
     }
     @Transactional
     public Map<String,Object> importProduct(AliExpressAdminController.ImportRequest request) {

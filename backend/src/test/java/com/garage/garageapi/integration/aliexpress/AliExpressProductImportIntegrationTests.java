@@ -40,7 +40,7 @@ class AliExpressProductImportIntegrationTests {
     @BeforeEach void clean() throws Exception {
         reset(media);media.deleteAll();variants.deleteAll();products.deleteAll();reset(client,tokens,freightDiagnostic,checkoutFreight);
         when(tokens.accessToken()).thenReturn("synthetic-provider-token");
-        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenAnswer(invocation->AliExpressProductNormalizerTests.source());
+        when(client.getForPreview(ID,"US","USD","en","synthetic-provider-token")).thenAnswer(invocation->AliExpressProductNormalizerTests.source());
     }
     @Test void previewIsReadOnlyAndContainsNoTokens() throws Exception {
         mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content(PREVIEW))
@@ -49,9 +49,18 @@ class AliExpressProductImportIntegrationTests {
                 .andExpect(jsonPath("$.currency").value("USD")).andExpect(jsonPath("$.domesticShippingConfirmed").value(false))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("synthetic-provider-token"))));
         assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
+        verify(client,times(1)).getForPreview(ID,"US","USD","en","synthetic-provider-token");
+        verify(client,never()).get(anyString(),anyString(),anyString(),anyString(),anyString());
+    }
+    @Test void previewUsesPostAndStopsBeforeProductCallWhenOauthFails() throws Exception {
+        mvc.perform(get(BASE+"/preview").with(admin())).andExpect(status().isMethodNotAllowed());
+        when(tokens.accessToken()).thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.AUTHORIZATION_REQUIRED));
+        mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content(PREVIEW))
+                .andExpect(status().isConflict());verifyNoInteractions(client);
+        assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
     }
     @Test void propertylessSingleSkuImportPersistsConfirmedEmptyKeyAndSupplierStock() throws Exception {
-        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(AliExpressProductNormalizerTests.propertylessSource());
+        when(client.getForPreview(ID,"US","USD","en","synthetic-provider-token")).thenReturn(AliExpressProductNormalizerTests.propertylessSource());
         var preview = service.preview(ID,"US","USD","en");
         service.importProduct(new AliExpressAdminController.ImportRequest(ID,"US","USD","en",preview.fingerprint(),
                 "Single SKU","Acessórios",Map.of("201",BigDecimal.ONE),Map.of()));
@@ -68,7 +77,7 @@ class AliExpressProductImportIntegrationTests {
     @Test void ambiguousMissingSelectionCannotBeImportedEvenWhenOnlyOneVariantIsSelected() throws Exception {
         var raw=AliExpressProductNormalizerTests.source();
         ((tools.jackson.databind.node.ObjectNode)raw.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).remove("sku_attr");
-        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(raw);
+        when(client.getForPreview(ID,"US","USD","en","synthetic-provider-token")).thenReturn(raw);
         var preview=service.preview(ID,"US","USD","en");
         assertThatThrownBy(()->service.importProduct(new AliExpressAdminController.ImportRequest(ID,"US","USD","en",preview.fingerprint(),
                 "Ambiguous","Acessórios",Map.of("201",BigDecimal.ONE),Map.of())))
@@ -76,7 +85,7 @@ class AliExpressProductImportIntegrationTests {
         assertThat(products.count()).isZero();assertThat(variants.count()).isZero();
     }
     @Test void confirmedBrazilPreviewPreservesAttributesPricesAndStockWithoutPersistence() throws Exception {
-        when(client.get("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token"))
+        when(client.getForPreview("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token"))
                 .thenReturn(AliExpressProductNormalizerTests.confirmedResponse().path("aliexpress_ds_product_get_response").path("result"));
         mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content("""
                 {"input":"1005010661577657","shipToCountry":"BR","targetCurrency":"BRL","targetLanguage":"pt_BR"}
@@ -91,13 +100,13 @@ class AliExpressProductImportIntegrationTests {
                 .andExpect(jsonPath("$.attributes['name:Origin']").value("Guangdong, China"))
                 .andExpect(jsonPath("$.attributes['source:4:attr_name_id']").value("-1"))
                 .andExpect(jsonPath("$.logistics.ship_to_country").value("Br"));
-        verify(client).get("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token");
+        verify(client).getForPreview("1005010661577657","BR","BRL","pt_BR","synthetic-provider-token");
         assertThat(products.count()).isZero(); assertThat(variants.count()).isZero(); assertThat(media.count()).isZero();
     }
     @Test void incompletePreviewKeepsPublicErrorContractAndDoesNotPersist() throws Exception {
         var malformed=AliExpressProductNormalizerTests.source();
         ((tools.jackson.databind.node.ObjectNode)malformed.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).remove("sku_id");
-        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(malformed);
+        when(client.getForPreview(ID,"US","USD","en","synthetic-provider-token")).thenReturn(malformed);
         mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content(PREVIEW))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.message").value("Resposta AliExpress incompleta ou invalida; importacao cancelada."))
@@ -127,7 +136,7 @@ class AliExpressProductImportIntegrationTests {
         assertThat(first.getSupplierStockQuantity()).isEqualTo(3);assertThat(first.getSupplierCost()).isEqualByComparingTo("8.90");
         assertThat(first.getRawVariantKey()).isEqualTo("14:771#Black");assertThat(first.getWeightGrams()).isNull();
         assertThat(media.count()).isEqualTo(7);
-        verify(client,times(2)).get(ID,"US","USD","en","synthetic-provider-token");
+        verify(client,times(2)).getForPreview(ID,"US","USD","en","synthetic-provider-token");
     }
     @ParameterizedTest @ValueSource(strings={"PERMISSION_DENIED","COMMUNICATION_ERROR","NOT_CONFIGURED"})
     void importDoesNotDependOnFreightAndPreservesFulfillmentMetadata(String failure) throws Exception {
@@ -217,7 +226,7 @@ class AliExpressProductImportIntegrationTests {
     }
     @Test void supplierFailureDuringImportDoesNotPersistAnything() throws Exception {
         var preview=service.preview(ID,"US","USD","en");
-        when(client.get(anyString(),anyString(),anyString(),anyString(),anyString())).thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.TIMEOUT));
+        when(client.getForPreview(anyString(),anyString(),anyString(),anyString(),anyString())).thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.TIMEOUT));
         mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(importBody(preview.fingerprint(),Map.of()))).andExpect(status().isGatewayTimeout());
         assertThat(products.count()).isZero();assertThat(variants.count()).isZero();assertThat(media.count()).isZero();
     }
@@ -257,7 +266,7 @@ class AliExpressProductImportIntegrationTests {
         var preview=service.preview(ID,"US","USD","en");
         var modified=AliExpressProductNormalizerTests.source();
         ((tools.jackson.databind.node.ObjectNode)modified.path("ae_item_sku_info_dtos").path("ae_item_sku_info_d_t_o").get(0)).put("offer_sale_price","9.99");
-        when(client.get(ID,"US","USD","en","synthetic-provider-token")).thenReturn(modified);
+        when(client.getForPreview(ID,"US","USD","en","synthetic-provider-token")).thenReturn(modified);
         mvc.perform(post(BASE+"/import").with(admin()).contentType(MediaType.APPLICATION_JSON).content(importBody(preview.fingerprint(),Map.of())))
                 .andExpect(status().isConflict());assertThat(products.count()).isZero();
     }
@@ -277,14 +286,14 @@ class AliExpressProductImportIntegrationTests {
                 .andExpect(status().isBadRequest());verifyNoInteractions(client,tokens);
     }
     @Test void countryRejectionIsNotSilentlyChangedToUs() throws Exception {
-        when(client.get(ID,"BR","USD","en","synthetic-provider-token")).thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.COUNTRY_REJECTED));
+        when(client.getForPreview(ID,"BR","USD","en","synthetic-provider-token")).thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.COUNTRY_REJECTED));
         mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content(PREVIEW.replace("\"US\"","\"BR\"")))
                 .andExpect(status().isUnprocessableContent());
-        verify(client,never()).get(eq(ID),eq("US"),anyString(),anyString(),anyString());
+        verify(client,never()).getForPreview(eq(ID),eq("US"),anyString(),anyString(),anyString());
     }
     @ParameterizedTest @ValueSource(strings={"AUTHORIZATION_REQUIRED","PERMISSION","TIMEOUT","RATE_LIMIT","INCOMPLETE"})
     void apiFailuresHaveSafeResponsesAndNoPersistence(String reason) throws Exception {
-        when(client.get(anyString(),anyString(),anyString(),anyString(),anyString()))
+        when(client.getForPreview(anyString(),anyString(),anyString(),anyString(),anyString()))
                 .thenThrow(new AliExpressIntegrationException(AliExpressIntegrationException.Reason.valueOf(reason)));
         var response=mvc.perform(post(BASE+"/preview").with(admin()).contentType(MediaType.APPLICATION_JSON).content(PREVIEW))
                 .andReturn().getResponse();

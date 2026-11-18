@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -22,7 +23,8 @@ public class ResendEmailClient {
     @Autowired
     public ResendEmailClient(@Value("${app.account.email.resend.api-key:}") String apiKey,
                              @Value("${app.account.email.from:onboarding@resend.dev}") String from) {
-        this(RestClient.builder().baseUrl("https://api.resend.com").build(), apiKey, from);
+        // Keep the existing JDK transport when optional integration HTTP clients enter the classpath.
+        this(RestClient.builder().baseUrl("https://api.resend.com").requestFactory(new JdkClientHttpRequestFactory()).build(), apiKey, from);
     }
 
     public ResendEmailClient(RestClient restClient, String apiKey, String from) {

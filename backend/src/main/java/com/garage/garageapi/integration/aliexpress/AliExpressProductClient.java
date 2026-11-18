@@ -19,16 +19,26 @@ import static com.garage.garageapi.integration.aliexpress.AliExpressIntegrationE
 public class AliExpressProductClient {
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AliExpressProductClient.class);
     private final RestClient client;
+    private final AliExpressPreviewTransport previewTransport;
     private final String appKey, secret;
     @Autowired
     public AliExpressProductClient(@Value("${aliexpress.app-key:}") String appKey,
-                                  @Value("${aliexpress.app-secret:}") String secret) {
-        this(defaultClient(), appKey, secret);
+                                  @Value("${aliexpress.app-secret:}") String secret, AliExpressPreviewTransport previewTransport) {
+        this(defaultClient(), appKey, secret, previewTransport);
     }
     AliExpressProductClient(RestClient client, String appKey, String secret) {
-        this.client = client; this.appKey = appKey; this.secret = secret;
+        this(client,appKey,secret,null);
+    }
+    AliExpressProductClient(RestClient client,String appKey,String secret,AliExpressPreviewTransport previewTransport) {
+        this.client=client;this.appKey=appKey;this.secret=secret;this.previewTransport=previewTransport;
     }
     public JsonNode get(String productId, String country, String currency, String language, String token) {
+        return query(productId,country,currency,language,token,false);
+    }
+    public JsonNode getForPreview(String productId,String country,String currency,String language,String token) {
+        return query(productId,country,currency,language,token,true);
+    }
+    private JsonNode query(String productId,String country,String currency,String language,String token,boolean preview) {
         if (appKey.isBlank() || secret.isBlank() || appKey.contains("COLE_AQUI") || secret.contains("COLE_AQUI")) throw new AliExpressIntegrationException(NOT_CONFIGURED);
         try {
             Map<String, String> params = new TreeMap<>(Map.of("method", "aliexpress.ds.product.get", "app_key", appKey,
@@ -42,7 +52,7 @@ public class AliExpressProductClient {
             StringJoiner form = new StringJoiner("&");
             params.forEach((k,v) -> form.add(URLEncoder.encode(k, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(v, StandardCharsets.UTF_8)));
             byte[] bytes = form.toString().getBytes(StandardCharsets.UTF_8);
-            JsonNode body = client.post().uri("/sync").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            JsonNode body = preview&&previewTransport!=null?previewTransport.post(bytes,productId):client.post().uri("/sync").contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .accept(MediaType.APPLICATION_JSON).body(out -> out.write(bytes)).retrieve().body(JsonNode.class);
             if (body == null || !body.isObject()) throw incomplete("response_body", "$", body);
             JsonNode error = body.path("error_response");
@@ -56,6 +66,7 @@ public class AliExpressProductClient {
             return result;
         } catch (AliExpressIntegrationException ex) { throw ex; }
         catch (RestClientResponseException ex) {
+            if(preview&&(ex.getStatusCode().value()==408||ex.getStatusCode().value()==504))throw new AliExpressIntegrationException(TIMEOUT);
             throw new AliExpressIntegrationException(switch (ex.getStatusCode().value()) {
                 case 401 -> AUTHORIZATION_REQUIRED; case 403 -> PERMISSION; case 404 -> NOT_FOUND; case 429 -> RATE_LIMIT; default -> COMMUNICATION;
             });

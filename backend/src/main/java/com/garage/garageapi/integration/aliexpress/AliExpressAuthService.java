@@ -58,6 +58,7 @@ public class AliExpressAuthService {
     }
 
     private AliExpressTokenData tokenRequest(String path, String parameterName, String credential) {
+        long started=System.nanoTime();boolean success=false;
         try {
             requireConfiguration(credential);
             Map<String, String> parameters = new TreeMap<>();
@@ -90,11 +91,15 @@ public class AliExpressAuthService {
                     text(response, "user_id"), text(response, "account_id"));
             logger.info("AliExpress token exchange succeeded; accessTokenPresent=true; refreshTokenPresent={}; expiresIn={}; refreshExpiresIn={}",
                     StringUtils.hasText(tokens.refreshToken()), tokens.expiresIn(), tokens.refreshExpiresIn());
-            return tokens;
+            success=true;return tokens;
         } catch (Exception ignored) {
             // Upstream errors may echo credentials; never log their message/body/stack.
             logger.warn("AliExpress token exchange failed");
             throw new AliExpressAuthException();
+        } finally {
+            String trace=org.slf4j.MDC.get("aliexpressPreviewId");
+            if(trace!=null)logger.info("AliExpress preview stage; previewId={}; stage=oauth_refresh; elapsedMs={}; outcome={}",trace,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-started),success?"SUCCESS":"FAILED");
         }
     }
 

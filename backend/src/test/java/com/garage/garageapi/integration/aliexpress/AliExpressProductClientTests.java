@@ -20,6 +20,7 @@ import javax.crypto.spec.SecretKeySpec;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(OutputCaptureExtension.class)
 class AliExpressProductClientTests {
@@ -93,6 +94,44 @@ class AliExpressProductClientTests {
         );
     }
     private tools.jackson.databind.JsonNode query() { return client.get("1005008752784588","US","USD","en","synthetic-token"); }
+
+    @Test void previewUsesIsolatedTransportWithTheSameSignedTopRequest() throws Exception {
+        var transport=mock(AliExpressPreviewTransport.class);
+        var envelope=tools.jackson.databind.json.JsonMapper.builder().build().readTree("{\"rsp_code\":200,\"result\":{\"example\":true}}");
+        when(transport.post(any(byte[].class),eq("1005010598638085"))).thenAnswer(invocation->{
+            Map<String,String> params=new TreeMap<>();
+            for(String pair:new String(invocation.getArgument(0,byte[].class),StandardCharsets.UTF_8).split("&")) {
+                var parts=pair.split("=",2);params.put(URLDecoder.decode(parts[0],StandardCharsets.UTF_8),URLDecoder.decode(parts[1],StandardCharsets.UTF_8));
+            }
+            String sign=params.remove("sign");
+            assertThat(params).containsEntry("method","aliexpress.ds.product.get").containsEntry("session","synthetic-token")
+                    .containsEntry("product_id","1005010598638085").containsEntry("ship_to_country","BR")
+                    .containsEntry("target_currency","BRL").containsEntry("target_language","pt_BR");
+            StringBuilder input=new StringBuilder();params.forEach((key,value)->input.append(key).append(value));
+            Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec("synthetic-secret".getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
+            assertThat(sign).isEqualTo(HexFormat.of().withUpperCase().formatHex(mac.doFinal(input.toString().getBytes(StandardCharsets.UTF_8))));
+            return envelope;
+        });
+        client=new AliExpressProductClient(RestClient.create(),"synthetic-key","synthetic-secret",transport);
+        assertThat(client.getForPreview("1005010598638085","BR","BRL","pt_BR","synthetic-token").path("example").asBoolean()).isTrue();
+        verify(transport,times(1)).post(any(byte[].class),eq("1005010598638085"));
+    }
+
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(ints={408,504})
+    void upstreamTimeoutMappingIsScopedToPreview(int status) throws Exception {
+        var transport=mock(AliExpressPreviewTransport.class);
+        when(transport.post(any(byte[].class),anyString())).thenThrow(new org.springframework.web.client.RestClientResponseException("private-token",status,"",null,new byte[0],null));
+        var builder=RestClient.builder().baseUrl("https://api-sg.aliexpress.com");
+        server=MockRestServiceServer.bindTo(builder).build();
+        client=new AliExpressProductClient(builder.build(),"synthetic-key","synthetic-secret",transport);
+        assertThatThrownBy(()->client.getForPreview("1005010598638085","BR","BRL","pt_BR","synthetic-token"))
+                .isInstanceOfSatisfying(AliExpressIntegrationException.class,ex->assertThat(ex.getReason()).isEqualTo(AliExpressIntegrationException.Reason.TIMEOUT)).hasNoCause();
+        clearInvocations(transport);
+        server.expect(anything()).andRespond(withStatus(HttpStatusCode.valueOf(status)));
+        assertThatThrownBy(this::query).isInstanceOfSatisfying(AliExpressIntegrationException.class,
+                ex->assertThat(ex.getReason()).isEqualTo(AliExpressIntegrationException.Reason.COMMUNICATION));
+        verifyNoInteractions(transport);server.verify();
+    }
     @Test void confirmedResponsePassesClientAndNormalizerWithoutNumericPrecisionLoss(CapturedOutput output) throws Exception {
         var response = AliExpressProductNormalizerTests.confirmedResponse();
         server.expect(requestTo("https://api-sg.aliexpress.com/sync"))

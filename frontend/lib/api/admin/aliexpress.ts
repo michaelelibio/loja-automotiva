@@ -123,7 +123,7 @@ function previewErrorMessage(status: number): string {
     case 409: return 'A integração AliExpress precisa ser autorizada pelo administrador.';
     case 422: return 'Este produto não está disponível para consulta ou envio ao Brasil.';
     case 429: return 'Limite de consultas atingido. Aguarde um momento e tente novamente.';
-    case 504: return 'O AliExpress demorou para responder. Tente novamente.';
+    case 504: return 'A consulta ao AliExpress não terminou no prazo. Aguarde um momento e busque a pré-visualização novamente.';
     case 0: return 'Não foi possível conectar. Verifique sua conexão e tente novamente.';
     default: return 'Não foi possível consultar o AliExpress agora. Tente novamente mais tarde.';
   }

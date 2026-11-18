@@ -65,7 +65,10 @@ class AliExpressAuthServiceTests {
                     String body=((MockClientHttpRequest)request).getBodyAsString();
                     assertThat(body).contains("refresh_token=synthetic-refresh-token").doesNotContain("code=",SECRET);
                 }).andRespond(withSuccess(SUCCESS,MediaType.APPLICATION_JSON));
-        assertThat(service.refreshToken(REFRESH).accessToken()).isEqualTo(ACCESS);
+        org.slf4j.MDC.put("aliexpressPreviewId","synthetic-preview-id");
+        try {assertThat(service.refreshToken(REFRESH).accessToken()).isEqualTo(ACCESS);}
+        finally {org.slf4j.MDC.remove("aliexpressPreviewId");}
+        assertThat(output.getAll()).contains("previewId=synthetic-preview-id; stage=oauth_refresh; elapsedMs=","outcome=SUCCESS");
         assertSafeLogs(output);server.verify();
     }
 
