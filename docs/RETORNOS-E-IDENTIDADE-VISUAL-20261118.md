@@ -26,7 +26,9 @@ Cards mantêm enquadramento 4:3 e carregamento lazy. Uma `imageUrl` específica 
 
 ## Favicon
 
-Letra G geométrica laranja `#ff6600` sobre grafite `#121212`, desenhada como vetor independente de fontes. O Next.js usa as convenções nativas `app/icon.svg`, `app/favicon.ico` (16/32/48 px), `app/apple-icon.png` (180 px) e `app/manifest.ts`, com PNGs de 192 e 512 px para dispositivos móveis. Metadados definem a origem oficial e a cor de tema. Não havia ícones antigos rastreados em conflito. As versões PNG/ICO podem ser reproduzidas com `node scripts/generate-brand-icons.mjs` dentro de `frontend`.
+Na revisão solicitada pelo proprietário, o desenho inicial foi substituído pelo PNG fornecido em `Downloads/favicon`. A fonte original é preservada em `frontend/assets/brand/favicon-source.png`; somente os derivados recebem enquadramento para retirar o excesso de margem preta e melhorar a leitura em tamanhos pequenos, preservando o G inclinado e seu detalhe esquerdo.
+
+O Next.js usa as convenções nativas `app/icon.png` (64 px), `app/favicon.ico` (16/32/48 px), `app/apple-icon.png` (180 px) e `app/manifest.ts`, com PNGs de 192 e 512 px para dispositivos móveis. O SVG inicial foi removido para evitar que navegadores continuem preferindo o desenho anterior. Metadados preservam a origem oficial e a cor de tema. As versões PNG/ICO podem ser reproduzidas com `node scripts/generate-brand-icons.mjs` dentro de `frontend`.
 
 ## Validação anterior à publicação
 

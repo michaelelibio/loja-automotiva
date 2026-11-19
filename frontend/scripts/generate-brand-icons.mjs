@@ -1,4 +1,4 @@
-// Raster derivatives of the original, font-independent inGarage vector mark.
+// Derivatives of the favicon supplied by the store owner. Keep its source intact.
 // Run from frontend: node scripts/generate-brand-icons.mjs
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -7,10 +7,19 @@ import sharp from 'sharp';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function main() {
-  const vector = await fs.readFile(path.join(root, 'app/icon.svg'));
-  const png = (size) => sharp(vector, { density: 384 }).resize(size, size).png().toBuffer();
+  const source = await fs.readFile(path.join(root, 'assets/brand/favicon-source.png'));
+  // Remove excess black margins while retaining the entire mark and its left accent.
+  const mark = await sharp(source).flatten({ background: '#000000' })
+    .trim({ background: '#000000', threshold: 20 }).png().toBuffer();
+  const png = (size) => {
+    const padding = Math.max(1, Math.round(size * 0.06));
+    return sharp(mark).resize(size - padding * 2, size - padding * 2, {
+      fit: 'contain', background: '#000000',
+    }).extend({ top: padding, bottom: padding, left: padding, right: padding, background: '#000000' }).ensureAlpha()
+      .png().toBuffer();
+  };
   await fs.mkdir(path.join(root, 'public/brand'), { recursive: true });
-  for (const [file, size] of [['app/apple-icon.png', 180], ['public/brand/icon-192.png', 192], ['public/brand/icon-512.png', 512]]) {
+  for (const [file, size] of [['app/icon.png', 64], ['app/apple-icon.png', 180], ['public/brand/icon-192.png', 192], ['public/brand/icon-512.png', 512]]) {
     await fs.writeFile(path.join(root, file), await png(size));
   }
   // ICO directory entries point to PNG images, supported by current browsers and Windows.
